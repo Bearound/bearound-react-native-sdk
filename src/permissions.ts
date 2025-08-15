@@ -71,14 +71,12 @@ export async function requestForegroundPermissions(): Promise<PermissionResult> 
     return res === PermissionsAndroid.RESULTS.GRANTED;
   };
 
-  // Always ask fine location first (pré-12 exige; 12+ algumas OEMs ainda esperam)
   const fineLocation = await req(
     PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
     'Permissão de Localização',
     'Precisamos de localização para escanear beacons via Bluetooth.'
   );
 
-  // Android 12+ BLE runtime
   const btScan =
     SDK_INT >= 31
       ? await req(
@@ -116,11 +114,8 @@ export async function requestForegroundPermissions(): Promise<PermissionResult> 
  */
 export async function requestBackgroundLocation(): Promise<boolean> {
   if (!isAndroid || SDK_INT < 29) return true;
-
-  // Precisa do foreground antes:
   const fg = await checkPermissions();
   if (!fg.fineLocation) {
-    // Dica: mostrar UI explicando que precisa liberar localização primeiro
     return false;
   }
 
@@ -136,7 +131,6 @@ export async function requestBackgroundLocation(): Promise<boolean> {
   );
 
   if (res === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-    // Em alguns OEMs, pode ser necessário mandar para configurações
     await Linking.openSettings();
   }
 

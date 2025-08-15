@@ -48,5 +48,20 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+  <key>NSUserTrackingUsageDescription</key>
+  <string>Usamos seu ID de publicidade para fornecer anúncios mais relevantes.</string>
+  <key>NSBluetoothAlwaysUsageDescription</key>
+  <string>Usamos Bluetooth para detectar beacons nas proximidades.</string>
+  <key>NSBluetoothPeripheralUsageDescription</key>
+  <string>Usamos Bluetooth para detectar beacons nas proximidades.</string>
+  <key>NSLocationWhenInUseUsageDescription</key>
+  <string>Precisamos de localização para estimar proximidade aos beacons.</string>
+  <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+  <string>Permita "Sempre" para detectar beacons em segundo plano.</string>
+  <key>UIBackgroundModes</key>
+  <array>
+    <string>bluetooth-central</string>
+    <string>location</string>
+  </array>
 </dict>
 </plist>
