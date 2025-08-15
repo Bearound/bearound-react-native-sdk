@@ -29,8 +29,13 @@ RCT_EXPORT_MODULE();
   [[NSNotificationCenter defaultCenter] removeObserver:self name:@"bearound:stopped" object:nil];
 }
 
-RCT_EXPORT_METHOD(addListener:(NSString *)eventName) {}
-RCT_EXPORT_METHOD(removeListeners:(double)count) {}
+RCT_EXPORT_METHOD(addListener:(NSString *)eventName) {
+  [super addListener:eventName];
+}
+
+RCT_EXPORT_METHOD(removeListeners:(double)count) {
+  [super removeListeners:(NSUInteger)count];
+}
 
 - (void)onBeacon:(NSNotification *)note {
   if (!_hasListeners) { NSLog(@"[RN ObjC] onBeacon: no listeners, dropping"); return; }

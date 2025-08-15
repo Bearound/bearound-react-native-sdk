@@ -32,11 +32,13 @@ public class RNBearoundBridge: NSObject, BearoundEventDelegate {
           "bluetoothAddress": beacon.bluetoothAddress ?? "",
           "distanceMeters": beacon.distanceMeters ?? 0.0
         ]
-        NotificationCenter.default.post(
-          name: .bearoundBeacon,
-          object: nil,
-          userInfo: ["beacon": payload]
-        )
+      DispatchQueue.main.async {
+         NotificationCenter.default.post(
+           name: .bearoundBeacon,
+           object: nil,
+           userInfo: ["beacon": payload]
+         )
+       }
       }
   }
 
