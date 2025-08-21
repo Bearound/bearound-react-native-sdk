@@ -14,7 +14,10 @@ type PermissionResult = {
 };
 
 const isAndroid = Platform.OS === 'android';
-const SDK_INT = isAndroid ? parseInt(Platform.Version as string, 10) : 0;
+const SDK_INT = isAndroid ? Number(Platform.Version) : 0;
+
+const has = async (p?: Permission) =>
+  p ? (await PermissionsAndroid.check(p)) === true : true;
 
 export async function checkPermissions(): Promise<PermissionResult> {
   if (!isAndroid) {
@@ -27,37 +30,43 @@ export async function checkPermissions(): Promise<PermissionResult> {
     };
   }
 
-  const has = async (p: Permission) =>
-    (await PermissionsAndroid.check(p)) === true;
-
-  const fineLocation = await has(
+  const hasFine = await has(
     PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
   );
+  const hasCoarse = await has(
+    PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION
+  );
+  const fineOrCoarse = hasFine || hasCoarse;
+
   const btScan =
     SDK_INT >= 31
       ? await has(PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN)
       : true;
+
   const btConnect =
     SDK_INT >= 31
       ? await has(PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT)
       : true;
+
   const notifications =
     SDK_INT >= 33
       ? await has(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS)
       : true;
+
   const backgroundLocation =
     SDK_INT >= 29
       ? await has(PermissionsAndroid.PERMISSIONS.ACCESS_BACKGROUND_LOCATION)
       : true;
 
-  return { fineLocation, btScan, btConnect, notifications, backgroundLocation };
+  return {
+    fineLocation: fineOrCoarse,
+    btScan,
+    btConnect,
+    notifications,
+    backgroundLocation,
+  };
 }
 
-/**
- * Solicita permissões na sequência correta:
- * 1) Foreground (Fine Location + BLE + Notifications)
- * 2) Background Location (em passo separado, se você pedir)
- */
 export async function requestForegroundPermissions(): Promise<PermissionResult> {
   if (!isAndroid) return checkPermissions();
 
@@ -71,11 +80,20 @@ export async function requestForegroundPermissions(): Promise<PermissionResult> 
     return res === PermissionsAndroid.RESULTS.GRANTED;
   };
 
-  const fineLocation = await req(
+  let fineGranted = await req(
     PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
     'Permissão de Localização',
     'Precisamos de localização para escanear beacons via Bluetooth.'
   );
+
+  let coarseGranted = false;
+  if (!fineGranted) {
+    coarseGranted = await req(
+      PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+      'Permissão de Localização Aproximada',
+      'Se preferir, conceda localização aproximada para permitir o escaneamento.'
+    );
+  }
 
   const btScan =
     SDK_INT >= 31
@@ -105,17 +123,20 @@ export async function requestForegroundPermissions(): Promise<PermissionResult> 
       : true;
 
   const current = await checkPermissions();
-  return { ...current, fineLocation, btScan, btConnect, notifications };
+  return {
+    ...current,
+    fineLocation: current.fineLocation || fineGranted || coarseGranted,
+    btScan: current.btScan || btScan,
+    btConnect: current.btConnect || btConnect,
+    notifications: current.notifications || notifications,
+  };
 }
 
-/**
- * Solicita Background Location em passo separado (Android 10+).
- * Ideal chamar após o usuário entender por que é necessário.
- */
 export async function requestBackgroundLocation(): Promise<boolean> {
   if (!isAndroid || SDK_INT < 29) return true;
+
   const fg = await checkPermissions();
-  if (!fg.fineLocation) {
+  if (!fg.fineLocation && SDK_INT < 31) {
     return false;
   }
 
@@ -137,11 +158,6 @@ export async function requestBackgroundLocation(): Promise<boolean> {
   return res === PermissionsAndroid.RESULTS.GRANTED;
 }
 
-/**
- * Fluxo completo recomendado:
- * - pede foreground
- * - opcionalmente pede background (se sua UX exigir scanning contínuo)
- */
 export async function ensurePermissions(opts = { askBackground: true }) {
   await requestForegroundPermissions();
   if (opts.askBackground) {

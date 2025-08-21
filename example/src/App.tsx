@@ -14,7 +14,7 @@ import { ensurePermissions } from 'bearound-react-sdk';
 
 export default function App() {
   const [last, setLast] = useState<any>(null);
-  const [permStatus, setPermStatus] = useState<any>(null);
+  const [setPermStatus] = useState<any>(null);
 
   useEffect(() => {
     const sub = BeAround.addBeaconListener(setLast);
@@ -46,24 +46,7 @@ export default function App() {
   };
 
   const startSdk = async () => {
-    // se já temos o status, checa; senão tenta pedir
-    const status =
-      permStatus ?? (await ensurePermissions({ askBackground: true }));
-    const ok =
-      status.fineLocation &&
-      status.btScan &&
-      status.btConnect &&
-      status.notifications &&
-      status.backgroundLocation;
-
-    if (!ok) {
-      Alert.alert(
-        'Permissões',
-        'Conceda todas as permissões antes de iniciar.'
-      );
-      return;
-    }
-    await BeAround.initialize('', true); // clientToken vazio e debug=true (como você quer)
+    await BeAround.initialize('', true);
   };
 
   const stopSdk = async () => {
