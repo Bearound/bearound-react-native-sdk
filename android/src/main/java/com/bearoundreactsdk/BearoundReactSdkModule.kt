@@ -28,27 +28,27 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
       beAround?.stop()
       beAround = null
 
-      val sdk = BeAround(ctx.applicationContext)
-      sdk.setListener(object : BeAround.Listener {
-        override fun onBeaconDetected(beacon: org.altbeacon.beacon.Beacon) {
-          val m = Arguments.createMap().apply {
-            putString("uuid", beacon.id1?.toString() ?: "")
-            putString("major", beacon.id2?.toString() ?: "")
-            putString("minor", beacon.id3?.toString() ?: "")
-            putInt("rssi", beacon.rssi)
-            putString("bluetoothName", beacon.bluetoothName ?: "")
-            putString("bluetoothAddress", beacon.bluetoothAddress ?: "")
-            putDouble("distanceMeters", beacon.distance)
-          }
-          sendEvent(EVENT_BEACON, m)
-        }
+      val sdk = BeAround.getInstance(ctx.applicationContext)
+//      sdk.setListener(object : BeAround.Listener {
+//        override fun onBeaconDetected(beacon: org.altbeacon.beacon.Beacon) {
+//          val m = Arguments.createMap().apply {
+//            putString("uuid", beacon.id1?.toString() ?: "")
+//            putString("major", beacon.id2?.toString() ?: "")
+//            putString("minor", beacon.id3?.toString() ?: "")
+//            putInt("rssi", beacon.rssi)
+//            putString("bluetoothName", beacon.bluetoothName ?: "")
+//            putString("bluetoothAddress", beacon.bluetoothAddress ?: "")
+//            putDouble("distanceMeters", beacon.distance)
+//          }
+//          sendEvent(EVENT_BEACON, m)
+//        }
+//
+//        override fun onMonitoringStopped() {
+//          sendEvent(EVENT_STOPPED)
+//        }
+//      })
 
-        override fun onMonitoringStopped() {
-          sendEvent(EVENT_STOPPED)
-        }
-      })
-
-      sdk.initialize("", true)
+      sdk.initialize(ctx.applicationInfo.icon, "", true)
       beAround = sdk
       promise?.resolve(null)
     } catch (t: Throwable) {

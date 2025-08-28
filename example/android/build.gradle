@@ -11,6 +11,15 @@ buildscript {
         google()
         mavenCentral()
     }
+    allprojects {
+      repositories {
+        google()
+        mavenCentral()
+        maven {
+          url = uri("https://nexus.intranet-fca.com.br/repository/maven-releases/")
+        }
+      }
+    }
     dependencies {
         classpath("com.android.tools.build:gradle")
         classpath("com.facebook.react:react-native-gradle-plugin")

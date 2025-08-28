@@ -13,7 +13,8 @@ import * as BeAround from 'bearound-react-sdk';
 import { ensurePermissions } from 'bearound-react-sdk';
 
 export default function App() {
-  const [last, setLast] = useState<any>(null);
+  //const [last, setLast] = useState<any>(null);
+  const [_, setLast] = useState<any>(null);
   const [setPermStatus] = useState<any>(null);
 
   useEffect(() => {
@@ -79,12 +80,12 @@ export default function App() {
       </View>
 
       {/* Último beacon encontrado (texto preto sobre cartão branco) */}
-      <View style={styles.card}>
+      {/*<View style={styles.card}>
         <Text style={styles.cardTitle}>Último beacon</Text>
         <Text selectable style={styles.cardText}>
           {last ? JSON.stringify(last, null, 2) : '—'}
         </Text>
-      </View>
+      </View>*/}
     </SafeAreaView>
   );
 }
