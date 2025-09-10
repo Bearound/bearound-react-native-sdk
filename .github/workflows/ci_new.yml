@@ -162,7 +162,7 @@ jobs:
     runs-on: macos-latest
     needs: [lint, test, build-library]
     env:
-      XCODE_VERSION: 16.2
+      XCODE_VERSION: 16.4
       TURBO_CACHE_DIR: .turbo/ios
     steps:
       - name: Checkout
