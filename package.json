@@ -1,5 +1,5 @@
 {
-  "name": "bearound-react-sdk",
+  "name": "@bearound/react-native-sdk",
   "version": "1.0.0",
   "description": "bearound",
   "main": "./lib/module/index.js",

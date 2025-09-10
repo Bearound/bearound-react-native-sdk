@@ -24,8 +24,14 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
       beAround?.stop()
       beAround = null
 
+      val token = clientToken?.trim().orEmpty()
+      if (token.isEmpty()) {
+        promise?.reject("INIT_ERROR", "clientToken must not be empty")
+        return
+      }
+
       val sdk = BeAround.getInstance(ctx.applicationContext)
-      sdk.initialize(ctx.applicationInfo.icon, "", true)
+      sdk.initialize(ctx.applicationInfo.icon, token, debug ?: false)
       beAround = sdk
       promise?.resolve(null)
     } catch (t: Throwable) {

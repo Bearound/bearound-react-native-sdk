@@ -8,8 +8,8 @@ import {
   Text,
   View,
 } from 'react-native';
-import * as BeAround from 'bearound-react-sdk';
-import { ensurePermissions } from 'bearound-react-sdk';
+import * as BeAround from '@bearound/react-native-sdk';
+import { ensurePermissions } from '@bearound/react-native-sdk';
 
 export default function App() {
   const requestPerms = async () => {
