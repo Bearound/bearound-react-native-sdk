@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react';
 import {
   Alert,
   Button,
@@ -9,25 +8,13 @@ import {
   Text,
   View,
 } from 'react-native';
-import * as BeAround from 'bearound-react-sdk';
-import { ensurePermissions } from 'bearound-react-sdk';
+import * as BeAround from '@bearound/react-native-sdk';
+import { ensurePermissions } from '@bearound/react-native-sdk';
 
 export default function App() {
-  const [last, setLast] = useState<any>(null);
-  const [setPermStatus] = useState<any>(null);
-
-  useEffect(() => {
-    const sub = BeAround.addBeaconListener(setLast);
-    const sub2 = BeAround.addStoppedListener(() => console.log('stopped'));
-    return () => {
-      sub.remove();
-      sub2.remove();
-    };
-  }, []);
-
   const requestPerms = async () => {
     const status = await ensurePermissions({ askBackground: true });
-    setPermStatus(status);
+
     const ok =
       status.fineLocation &&
       status.btScan &&
@@ -46,11 +33,31 @@ export default function App() {
   };
 
   const startSdk = async () => {
+    if (Platform.OS === 'android') {
+      const status = await ensurePermissions({ askBackground: true });
+      const ok =
+        status.fineLocation &&
+        status.btScan &&
+        status.btConnect &&
+        status.notifications &&
+        status.backgroundLocation;
+
+      if (!ok) {
+        Alert.alert(
+          'Permissões',
+          'Conceda todas as permissões antes de iniciar.'
+        );
+        return;
+      }
+    }
+
     await BeAround.initialize('', true);
+    Alert.alert('Bearound', 'SDK iniciado');
   };
 
   const stopSdk = async () => {
     await BeAround.stop();
+    Alert.alert('Bearound', 'SDK parado');
   };
 
   return (
@@ -63,27 +70,21 @@ export default function App() {
 
       {/* Área de botões */}
       <View style={styles.buttonsBlock}>
-        <View style={styles.btn}>
-          <Button
-            title="Pedir permissões"
-            color="#1976D2"
-            onPress={requestPerms}
-          />
-        </View>
+        {Platform.OS === 'android' && (
+          <View style={styles.btn}>
+            <Button
+              title="Pedir permissões"
+              color="#1976D2"
+              onPress={requestPerms}
+            />
+          </View>
+        )}
         <View style={styles.btn}>
           <Button title="Iniciar SDK" color="#1976D2" onPress={startSdk} />
         </View>
         <View style={styles.btn}>
           <Button title="Parar SDK" color="#1976D2" onPress={stopSdk} />
         </View>
-      </View>
-
-      {/* Último beacon encontrado (texto preto sobre cartão branco) */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Último beacon</Text>
-        <Text selectable style={styles.cardText}>
-          {last ? JSON.stringify(last, null, 2) : '—'}
-        </Text>
       </View>
     </SafeAreaView>
   );
@@ -109,27 +110,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   buttonsBlock: {
-    marginTop: '30%', // ~30% da altura da view
+    marginTop: '30%',
     paddingHorizontal: 24,
   },
   btn: {
-    marginBottom: 24, // espaçamento de 24px entre os botões
-  },
-  card: {
-    marginTop: 24,
-    marginHorizontal: 24,
-    padding: 16,
-    backgroundColor: '#fff', // cartão branco para texto preto
-    borderRadius: 12,
-  },
-  cardTitle: {
-    color: '#000',
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  cardText: {
-    color: '#000', // texto do beacon em preto
-    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace' }),
-    fontSize: 12,
+    marginBottom: 24,
   },
 });

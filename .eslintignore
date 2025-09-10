@@ -1,0 +1,25 @@
+# Build outputs
+lib/
+node_modules/
+
+# Example app
+example/
+
+# Coverage reports
+coverage/
+
+# Generated files
+*.d.ts
+
+# Test files are checked by TypeScript
+# but excluded from main linting if needed
+# src/__tests__/**/*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

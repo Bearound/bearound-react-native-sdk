@@ -1,6 +1,6 @@
 {
-  "name": "bearound-react-sdk",
-  "version": "0.1.1",
+  "name": "@bearound/react-native-sdk",
+  "version": "1.0.0",
   "description": "bearound",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
@@ -92,13 +92,6 @@
     "example"
   ],
   "packageManager": "yarn@3.6.1",
-  "jest": {
-    "preset": "react-native",
-    "modulePathIgnorePatterns": [
-      "<rootDir>/example/node_modules",
-      "<rootDir>/lib/"
-    ]
-  },
   "commitlint": {
     "extends": [
       "@commitlint/config-conventional"
