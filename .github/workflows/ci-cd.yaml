@@ -1,16 +1,8 @@
-name: CI
+name: CI/CD
 on:
   push:
-    branches:
-      - main
-      - develop
-  pull_request:
-    branches:
-      - main
-      - develop
-  merge_group:
-    types:
-      - checks_requested
+    tags:
+      - 'v*'
 
 jobs:
   lint:
@@ -205,12 +197,12 @@ jobs:
         run: |
           yarn turbo run build:ios --cache-dir="${{ env.TURBO_CACHE_DIR }}"
 
-  # Final validation job
+  # Validation that all CI checks passed
   validate:
     runs-on: ubuntu-latest
     needs: [lint, test, test-quality, build-library, build-android, build-ios]
     steps:
-      - name: All checks passed
+      - name: All CI checks passed
         run: |
           echo "🎉 All CI checks passed successfully!"
           echo "✅ Linting and type checking passed"
@@ -221,3 +213,33 @@ jobs:
           echo "✅ iOS build passed"
           echo ""
           echo "🚀 Ready for deployment!"
+
+  # CD - Deploy to npm
+  publish:
+    runs-on: ubuntu-latest
+    needs: [validate]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enable Corepack (Yarn 3)
+        run: corepack enable
+
+      - name: Set Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Build package
+        run: yarn prepare
+
+      - name: Publish to npm
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+          yarn npm publish

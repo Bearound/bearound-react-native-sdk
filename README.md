@@ -1,63 +1,60 @@
 # 🐻 Bearound React Native SDK
 
-SDK oficial para integrar a detecção segura de beacons BLE da **Bearound** em apps **React Native** (Android e iOS).
+Official SDK to integrate **Bearound's** secure BLE beacon detection into **React Native** apps (Android and iOS).
 
-> ✅ Compatível com **New Architecture** (TurboModules) e compatível também com a arquitetura clássica.
+> ✅ Compatible with **New Architecture** (TurboModules) and also compatible with classic architecture.
 
 ---
 
-## Sumário
+## Table of Contents
 
-* [Requisitos](#requisitos)
-* [Instalação](#instalação)
-* [Configuração de Permissões](#configuração-de-permissões)
-
+* [Requirements](#requirements)
+* [Installation](#installation)
+* [Permission Configuration](#permission-configuration)
   * [Android – Manifest](#android--manifest)
-  * [iOS – Info.plist e Background Modes](#ios--infoplist-e-background-modes)
-* [Uso Rápido](#uso-rápido)
+  * [iOS – Info.plist and Background Modes](#ios--infoplist-and-background-modes)
+* [Quick Start](#quick-start)
 * [API](#api)
-
-  * [Tipos](#tipos)
-  * [Funções](#funções)
-  * [Eventos](#eventos)
-* [Boas Práticas](#boas-práticas)
-* [Solução de Problemas](#solução-de-problemas)
-* [Licença](#licença)
+  * [Types](#types)
+  * [Functions](#functions)
+* [Best Practices](#best-practices)
+* [Troubleshooting](#troubleshooting)
+* [License](#license)
 
 ---
 
-## Requisitos
+## Requirements
 
 * **React Native** ≥ 0.73
-* **Android**: minSdk **21+** (BLE), Android 12+ exige permissões BLE de runtime
-* **iOS**: iOS **13+** (recomendado 15+), Bluetooth e Localização habilitados
+* **Android**: minSdk **21+** (BLE), Android 12+ requires runtime BLE permissions
+* **iOS**: iOS **13+** (recommended 15+), Bluetooth and Location enabled
 
-> **Importante:** o SDK **não** funciona em simulador iOS para BLE (use dispositivo físico).
+> **Important:** The SDK **does not** work on iOS simulator for BLE (use physical device).
 
 ---
 
-## Instalação
+## Installation
 
-No projeto React Native:
+In your React Native project:
 
 ```bash
-# com yarn
+# with yarn
 yarn add bearound-react-native-sdk
 
-# ou com npm
+# or with npm
 npm i bearound-react-native-sdk
 ```
 
 ### iOS
 
-Na pasta `example/ios` (ou no seu app):
+In the `ios` folder:
 
 ```bash
 cd ios
 pod install
 ```
 
-> O pacote já inclui o framework nativo iOS como **vendored xcframework** no Podspec. Se o seu `Podfile` usa `use_frameworks!`, prefira **estático**:
+> The package already includes the native iOS framework as **vendored xcframework** in the Podspec. If your `Podfile` uses `use_frameworks!`, prefer **static**:
 >
 > ```ruby
 > use_frameworks! :linkage => :static
@@ -65,18 +62,18 @@ pod install
 
 ### Android
 
-Nenhuma configuração extra de Gradle é necessária além das permissões. O SDK Android nativo é resolvido como dependência do módulo.
+No additional Gradle configuration is needed beyond permissions. The native Android SDK is resolved as a module dependency.
 
 ---
 
-## Configuração de Permissões
+## Permission Configuration
 
 ### Android – Manifest
 
-Adicione em `android/app/src/main/AndroidManifest.xml`:
+Add to `android/app/src/main/AndroidManifest.xml`:
 
 ```xml
-<!-- Bluetooth / Localização / Foreground Service / Notificações -->
+<!-- Bluetooth / Location / Foreground Service / Notifications -->
 <uses-permission android:name="android.permission.BLUETOOTH" />
 <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
 <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -89,11 +86,11 @@ Adicione em `android/app/src/main/AndroidManifest.xml`:
 <uses-permission android:name="android.permission.INTERNET" />
 ```
 
-> **Runtime (Android 10+ / 12+)**: você **deve** solicitar `ACCESS_FINE_LOCATION`, `ACCESS_BACKGROUND_LOCATION`, `BLUETOOTH_SCAN` e `POST_NOTIFICATIONS` em tempo de execução quando aplicável. Este pacote expõe um helper [`ensurePermissions`](#funções) para facilitar.
+> **Runtime (Android 10+ / 12+)**: You **must** request `ACCESS_FINE_LOCATION`, `ACCESS_BACKGROUND_LOCATION`, `BLUETOOTH_SCAN` and `POST_NOTIFICATIONS` at runtime when applicable. This package exposes a helper [`ensurePermissions`](#functions) to facilitate this.
 
-### iOS – Info.plist e Background Modes
+### iOS – Info.plist and Background Modes
 
-Em `Info.plist`:
+In `Info.plist`:
 
 ```xml
 <key>UIBackgroundModes</key>
@@ -103,65 +100,62 @@ Em `Info.plist`:
 </array>
 
 <key>NSBluetoothAlwaysUsageDescription</key>
-<string>Usamos Bluetooth para detectar beacons próximos.</string>
+<string>We use Bluetooth to detect nearby beacons.</string>
 
 <key>NSLocationWhenInUseUsageDescription</key>
-<string>Precisamos da sua localização para identificar beacons próximos.</string>
+<string>We need your location to identify nearby beacons.</string>
 
 <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-<string>Precisamos da sua localização mesmo em segundo plano para identificar beacons.</string>
+<string>We need your location even in background to identify beacons.</string>
 
 <key>NSUserTrackingUsageDescription</key>
-<string>Precisamos de permissão para usar o IDFA em iOS 14+.</string>
+<string>We need permission to use IDFA on iOS 14+.</string>
 ```
 
-> Ative **Background Modes** (Location + Bluetooth) no target do app.
+> Enable **Background Modes** (Location + Bluetooth) in the app target.
 
 ---
 
-## Uso Rápido
+## Quick Start
 
 ```tsx
-import React, {useEffect, useState} from 'react';
-import {Alert, Button, Text, View} from 'react-native';
+import React from 'react';
+import { Alert, Button, View, Platform } from 'react-native';
 import * as BeAround from 'bearound-react-native-sdk';
-import {ensurePermissions} from 'bearound-react-native-sdk';
+import { ensurePermissions } from 'bearound-react-native-sdk';
 
 export default function App() {
-  const [last, setLast] = useState<any>(null);
-
-  useEffect(() => {
-    // Registre ouvintes ANTES de inicializar para não perder eventos iniciais
-    const sub = BeAround.addBeaconListener(setLast);
-    const sub2 = BeAround.addStoppedListener(() => console.log('stopped'));
-    return () => {
-      sub.remove();
-      sub2.remove();
-    };
-  }, []);
-
   const start = async () => {
-    const status = await ensurePermissions({askBackground: true});
-    const ok =
-      status.fineLocation &&
-      status.btScan &&
-      status.btConnect &&
-      status.notifications &&
-      status.backgroundLocation;
+    // Request permissions (Android only)
+    if (Platform.OS === 'android') {
+      const status = await ensurePermissions({ askBackground: true });
+      const ok =
+        status.fineLocation &&
+        status.btScan &&
+        status.btConnect &&
+        status.notifications &&
+        status.backgroundLocation;
 
-    if (!ok) {
-      Alert.alert('Permissões', 'Conceda todas as permissões para iniciar.');
-      return;
+      if (!ok) {
+        Alert.alert('Permissions', 'Grant all permissions to start.');
+        return;
+      }
     }
 
-    await BeAround.initialize('<CLIENT_TOKEN>', true); // debug opcional
+    // Initialize SDK (permissions handled natively on iOS)
+    await BeAround.initialize('<CLIENT_TOKEN>', true); // debug optional
+    Alert.alert('Bearound', 'SDK started successfully');
+  };
+
+  const stop = async () => {
+    await BeAround.stop();
+    Alert.alert('Bearound', 'SDK stopped');
   };
 
   return (
-    <View style={{padding: 24}}>
-      <Button title="Start" onPress={start} />
-      <Button title="Stop" onPress={() => BeAround.stop()} />
-      <Text>{JSON.stringify(last, null, 2)}</Text>
+    <View style={{ padding: 24 }}>
+      <Button title="Start SDK" onPress={start} />
+      <Button title="Stop SDK" onPress={stop} />
     </View>
   );
 }
@@ -171,7 +165,7 @@ export default function App() {
 
 ## API
 
-### Tipos
+### Types
 
 ```ts
 export type Beacon = {
@@ -185,16 +179,16 @@ export type Beacon = {
 };
 ```
 
-### Funções
+### Functions
 
 ```ts
-// Inicializa o SDK nativo (Android/iOS) e começa o monitoramento
+// Initializes the native SDK (Android/iOS) and starts monitoring
 initialize(clientToken: string, debug?: boolean): Promise<void>;
 
-// Interrompe o monitoramento e finaliza recursos nativos
+// Stops monitoring and finalizes native resources
 stop(): Promise<void>;
 
-// Helper para permissões Android (no-ops no iOS)
+// Permission helper for Android (no-ops on iOS)
 ensurePermissions(opts?: { askBackground?: boolean }): Promise<{
   fineLocation: boolean;
   btScan: boolean;
@@ -202,58 +196,72 @@ ensurePermissions(opts?: { askBackground?: boolean }): Promise<{
   notifications: boolean;
   backgroundLocation: boolean;
 }>;
+
+// Check current permission status
+checkPermissions(): Promise<{
+  fineLocation: boolean;
+  btScan: boolean;
+  btConnect: boolean;
+  notifications: boolean;
+  backgroundLocation: boolean;
+}>;
+
+// Request only foreground permissions (Android)
+requestForegroundPermissions(): Promise<{
+  fineLocation: boolean;
+  btScan: boolean;
+  btConnect: boolean;
+  notifications: boolean;
+  backgroundLocation: boolean;
+}>;
+
+// Request background location permission (Android)
+requestBackgroundLocation(): Promise<boolean>;
 ```
 
-### Eventos
+---
 
-Use `NativeEventEmitter` já encapsulado pelo pacote via **helpers**:
+## Best Practices
 
-```ts
-// Emite um único beacon quando detectado
-addBeaconListener((b: Beacon) => void): EmitterSubscription;
-
-// Emite quando o SDK é parado pelo `stop()`
-addStoppedListener(() => void): EmitterSubscription;
-```
-
-> **Dica:** sempre remova os listeners no `useEffect`/`componentWillUnmount`.
+* **Platform-specific permissions**: Use permission functions on Android only. iOS handles permissions natively during SDK initialization.
+* Request permissions with user context (use `ensurePermissions`).
+* **Android**: The foreground service uses your app's icon; ensure an appropriate icon.
+* **iOS**: Always test on physical device; enable Background Modes in target.
+* Avoid repeatedly initializing/stopping in sequence; prefer a clear lifecycle.
+* **Simplified architecture**: The SDK no longer uses event listeners. All beacon detection and processing happens natively.
 
 ---
 
-## Boas Práticas
+## Troubleshooting
 
-* Registre listeners **antes** de chamar `initialize()`.
-* Solicite permissões com contexto ao usuário (use o `ensurePermissions`).
-* Android: o serviço em primeiro plano usa o ícone do seu app; garanta um ícone adequado.
-* iOS: teste **sempre** em dispositivo físico; ative Background Modes no target.
-* Evite inicializar/encerrar repetidamente em sequência; prefira um ciclo de vida claro.
+**SDK doesn't start or detect beacons**
 
----
+* Check **Location**/**Bluetooth** permissions (and Background on Android 10+).
+* Test with a **physical beacon** (or app like nRF Connect).
+* **iOS**: Permissions are requested natively during `initialize()`. Make sure Info.plist is configured correctly.
+* **Android**: Use `ensurePermissions()` before calling `initialize()`.
 
-## Solução de Problemas
+**iOS: compilation error involving headers/Codegen**
 
-**Não recebo eventos de beacon**
+* Run `cd ios && pod install` after installing the package.
+* Clean Derived Data in Xcode and recompile.
+* If using `use_frameworks!`, prefer `:linkage => :static`.
 
-* Verifique permissões de **Localização**/**Bluetooth** (e Background no Android 10+).
-* Garanta que os listeners foram registrados **antes** do `initialize()`.
-* Teste com um **beacon físico** (ou app como nRF Connect).
+**Android: crash on restart**
 
-**iOS: erro ao compilar envolvendo headers/Codegen**
+* Avoid calling `initialize()` again without `stop()`. Some BLE scanners don't allow configuration changes after "consumers bound".
 
-* Rode `cd ios && pod install` após instalar o pacote.
-* Limpe Derived Data no Xcode e recompile.
-* Se usar `use_frameworks!`, prefira `:linkage => :static`.
+**Android permissions (API 31+)**
 
-**Android: crash ao reinicializar**
+* Ensure `BLUETOOTH_SCAN` and `BLUETOOTH_CONNECT` at runtime. Use `ensurePermissions`.
 
-* Evite chamar `initialize()` novamente sem `stop()`. Alguns scanners BLE não permitem alterar configurações após “consumers bound”.
+**Missing background location permission**
 
-**Permissões Android (API 31+)**
-
-* Garanta `BLUETOOTH_SCAN` e `BLUETOOTH_CONNECT` em runtime. Use `ensurePermissions`.
+* **Android 10+**: Background location requires separate permission request after foreground location.
+* **Android 12+**: Background location can be requested independently of fine location.
 
 ---
 
-## Licença
+## License
 
 MIT © Bearound
