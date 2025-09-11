@@ -2,12 +2,17 @@ name: CI
 on:
   push:
     branches:
-      - main
       - develop
   pull_request:
     branches:
       - main
-      - develop
+        - develop
+    paths-ignore:
+      - "**.md"
+      - "doc/**"
+      - ".git/"
+      - ".vscode/"
+      - ".idea/"
   merge_group:
     types:
       - checks_requested
