@@ -3,6 +3,19 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Opcional: bump de versão antes do publish'
+        required: false
+        type: choice
+        options: [none, patch, minor, major]
+        default: none
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref }}
+  cancel-in-progress: true
 
 jobs:
   lint:
