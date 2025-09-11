@@ -39,10 +39,10 @@ In your React Native project:
 
 ```bash
 # with yarn
-yarn add bearound-react-native-sdk
+yarn add @bearound/react-native-sdk
 
 # or with npm
-npm i bearound-react-native-sdk
+npm i @bearound/react-native-sdk
 ```
 
 ### iOS
@@ -121,8 +121,8 @@ In `Info.plist`:
 ```tsx
 import React from 'react';
 import { Alert, Button, View, Platform } from 'react-native';
-import * as BeAround from 'bearound-react-native-sdk';
-import { ensurePermissions } from 'bearound-react-native-sdk';
+import * as BeAround from '@bearound/react-native-sdk';
+import { ensurePermissions } from '@bearound/react-native-sdk';
 
 export default function App() {
   const start = async () => {
