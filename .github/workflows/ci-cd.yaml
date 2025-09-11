@@ -264,4 +264,4 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           echo "Publishing package..."
-          npm publish --access public --provenance --verbose
+          npm publish --access public
