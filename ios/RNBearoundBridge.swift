@@ -1,5 +1,5 @@
 import Foundation
-import BearoundSDK
+import BeAround
 
 @objc(RNBearoundBridge)
 public class RNBearoundBridge: NSObject {

@@ -1,5 +1,7 @@
 PODS:
-  - BearoundReactSdk (1.0.0):
+  - BeAround (0.0.3)
+  - BearoundReactSdk (1.0.3):
+    - BeAround (= 0.0.3)
     - DoubleConversion
     - glog
     - hermes-engine
@@ -1758,6 +1760,7 @@ DEPENDENCIES:
 
 SPEC REPOS:
   trunk:
+    - BeAround
     - SocketRocket
 
 EXTERNAL SOURCES:
@@ -1906,7 +1909,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
-  BearoundReactSdk: 9793fd1cda8d8513220e6ae8820e07d7b6bbe072
+  BeAround: 671bc2ace056298c9dd41a0c208c19ac88d5c771
+  BearoundReactSdk: f16b5758ea1bf50f3ddc23c20ec97ae45a28a2d9
   boost: 7e761d76ca2ce687f7cc98e698152abd03a18f90
   DoubleConversion: cb417026b2400c8f53ae97020b2be961b59470cb
   fast_float: 06eeec4fe712a76acc9376682e4808b05ce978b6
