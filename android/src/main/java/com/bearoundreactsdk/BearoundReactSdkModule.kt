@@ -2,7 +2,7 @@ package com.bearoundreactsdk
 
 import com.facebook.react.bridge.*
 import com.facebook.react.module.annotations.ReactModule
-import org.bearound.sdk.BeAround
+import io.bearound.sdk.*
 
 @ReactModule(name = BearoundReactSdkModule.NAME)
 class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
