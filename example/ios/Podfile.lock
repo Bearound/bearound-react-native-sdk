@@ -1,6 +1,6 @@
 PODS:
-  - BearoundReactSdk (1.0.3):
-    - BearoundSDK (= 1.1.1)
+  - BearoundReactSdk (1.1.0):
+    - BearoundSDK (= 1.2.0)
     - DoubleConversion
     - glog
     - hermes-engine
@@ -24,7 +24,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - BearoundSDK (1.1.1)
+  - BearoundSDK (1.2.0)
   - boost (1.84.0)
   - DoubleConversion (1.1.6)
   - fast_float (6.1.4)
@@ -1909,8 +1909,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
-  BearoundReactSdk: 61ff37f54df2005216fa7f490114068f3f3dc7d1
-  BearoundSDK: aeb7360ed35a75a4a96b28db4a8570a7e543515a
+  BearoundReactSdk: b0786976e1aa7eae3cb8a58b7857f8f743855b8b
+  BearoundSDK: 4824e219b65c11086d5df6a7cec16d2034a98969
   boost: 7e761d76ca2ce687f7cc98e698152abd03a18f90
   DoubleConversion: cb417026b2400c8f53ae97020b2be961b59470cb
   fast_float: 06eeec4fe712a76acc9376682e4808b05ce978b6
