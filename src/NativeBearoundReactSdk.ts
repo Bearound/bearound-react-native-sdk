@@ -34,8 +34,9 @@ import { TurboModuleRegistry } from 'react-native';
  * ensuring type safety and proper method signatures across platforms.
  *
  * **Method Lifecycle:**
- * 1. `initialize()` - Starts the native SDK and beacon scanning
- * 2. `stop()` - Stops scanning and cleans up native resources
+ * 1. `configure()` - Configure native SDK settings
+ * 2. `startScanning()` - Starts beacon scanning
+ * 3. `stopScanning()` - Stops scanning and cleans up native resources
  *
  * **Error Handling:**
  * All methods return Promise<void> and will reject with descriptive
@@ -46,88 +47,83 @@ import { TurboModuleRegistry } from 'react-native';
  */
 export interface Spec extends TurboModule {
   /**
-   * Initializes the native Bearound SDK and starts beacon monitoring.
+   * Configures the native Bearound SDK before starting scans.
    *
    * **Native Behavior:**
    * - **Android**:
-   *   - Verifies runtime permissions before starting
-   *   - Starts foreground service for background scanning
-   *   - Initializes BLE scanner with beacon filters
-   *   - Sets up native beacon processing pipeline
+   *   - Updates sync interval and scanning modes
+   *   - Applies app identifier used by the SDK
    *
    * - **iOS**:
-   *   - Requests location/Bluetooth permissions if needed
-   *   - Configures Core Location and Core Bluetooth managers
-   *   - Sets up beacon region monitoring
-   *   - Enables background beacon detection
+   *   - Updates sync interval and scanning modes
+   *   - Applies app identifier used by the SDK
    *
    * **Important Notes:**
-   * - Must be called only once per app lifecycle
-   * - Android requires permissions to be granted first
-   * - iOS handles permissions automatically
-   * - Beacon processing happens entirely in native code
+   * - Must be called before `startScanning()`
+   * - App ID defaults to bundle/package id when empty
+   * - Sync interval is expressed in seconds (5-60)
    *
-   * @param clientToken - Authentication token for Bearound services
-   * @param debug - Optional debug mode flag (default: false)
-   * @returns Promise that resolves when SDK is initialized successfully
-   *
-   * @throws {Error} When initialization fails due to:
-   * - Invalid or expired client token
-   * - Missing required permissions (Android)
-   * - Bluetooth/Location services disabled
-   * - Native SDK initialization errors
-   *
-   * @example
-   * ```typescript
-   * try {
-   *   await NativeModule.initialize('your-token', true);
-   * } catch (error) {
-   *   console.error('SDK initialization failed:', error.message);
-   * }
-   * ```
+   * @param appId - Application identifier (optional, empty uses bundle/package id)
+   * @param syncInterval - Sync interval in seconds
+   * @param enableBluetoothScanning - Enables BLE metadata scanning
+   * @param enablePeriodicScanning - Enables periodic scanning mode
    */
-  initialize(clientToken: string, debug?: boolean): Promise<void>;
+  configure(
+    appId: string,
+    syncInterval: number,
+    enableBluetoothScanning: boolean,
+    enablePeriodicScanning: boolean
+  ): Promise<void>;
 
   /**
-   * Stops the native Bearound SDK and cleans up all resources.
-   *
-   * **Native Behavior:**
-   * - **Android**:
-   *   - Stops BLE scanner immediately
-   *   - Terminates foreground service
-   *   - Cleans up scanner callbacks and listeners
-   *   - Releases wake locks and system resources
-   *
-   * - **iOS**:
-   *   - Stops Core Location beacon monitoring
-   *   - Stops Core Bluetooth central manager
-   *   - Cleans up delegate callbacks
-   *   - Releases native SDK instance
-   *
-   * **Important Notes:**
-   * - Safe to call multiple times (idempotent)
-   * - Should be called before app termination
-   * - Required before calling `initialize()` again
-   * - Does not affect previously granted permissions
-   * - Stops background monitoring immediately
-   *
-   * @returns Promise that resolves when SDK is completely stopped
-   *
-   * @throws {Error} Rarely throws, but may fail if:
-   * - Native resources are already released
-   * - System is in inconsistent state
-   *
-   * @example
-   * ```typescript
-   * try {
-   *   await NativeModule.stop();
-   *   console.log('SDK stopped successfully');
-   * } catch (error) {
-   *   console.warn('Error during SDK stop:', error.message);
-   * }
-   * ```
+   * Starts beacon scanning after `configure()`.
    */
-  stop(): Promise<void>;
+  startScanning(): Promise<void>;
+
+  /**
+   * Stops beacon scanning and cleans up native resources.
+   */
+  stopScanning(): Promise<void>;
+
+  /**
+   * Returns whether the SDK is currently scanning.
+   */
+  isScanning(): Promise<boolean>;
+
+  /**
+   * Enables or disables Bluetooth metadata scanning.
+   */
+  setBluetoothScanning(enabled: boolean): Promise<void>;
+
+  /**
+   * Sets user properties associated with beacon events.
+   */
+  setUserProperties(properties: Object): Promise<void>;
+
+  /**
+   * Clears user properties.
+   */
+  clearUserProperties(): Promise<void>;
+
+  /**
+   * Checks whether location permission is granted on iOS.
+   */
+  checkPermissions(): Promise<boolean>;
+
+  /**
+   * Requests location permission on iOS.
+   */
+  requestPermissions(): Promise<boolean>;
+
+  /**
+   * Event subscription management for NativeEventEmitter.
+   */
+  addListener(eventName: string): void;
+
+  /**
+   * Event subscription management for NativeEventEmitter.
+   */
+  removeListeners(count: number): void;
 }
 
 /**
