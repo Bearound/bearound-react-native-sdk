@@ -1,6 +1,7 @@
 # 🐻 Bearound React Native SDK
 
 Official SDK to integrate **Bearound's** secure BLE beacon detection into **React Native** apps (Android and iOS).
+Aligned with Bearound native SDKs **2.0.0**.
 
 > ✅ Compatible with **New Architecture** (TurboModules) and also compatible with classic architecture.
 
@@ -17,6 +18,7 @@ Official SDK to integrate **Bearound's** secure BLE beacon detection into **Reac
 * [API](#api)
   * [Types](#types)
   * [Functions](#functions)
+  * [Events](#events)
 * [Best Practices](#best-practices)
 * [Troubleshooting](#troubleshooting)
 * [License](#license)
@@ -126,29 +128,33 @@ import { ensurePermissions } from '@bearound/react-native-sdk';
 
 export default function App() {
   const start = async () => {
-    // Request permissions (Android only)
-    if (Platform.OS === 'android') {
-      const status = await ensurePermissions({ askBackground: true });
-      const ok =
-        status.fineLocation &&
-        status.btScan &&
-        status.btConnect &&
-        status.notifications &&
-        status.backgroundLocation;
+    // Request permissions (Android + iOS)
+    const status = await ensurePermissions({ askBackground: true });
+    const ok =
+      Platform.OS === 'android'
+        ? status.fineLocation &&
+          status.btScan &&
+          status.btConnect &&
+          status.notifications &&
+          status.backgroundLocation
+        : status.fineLocation;
 
-      if (!ok) {
-        Alert.alert('Permissions', 'Grant all permissions to start.');
-        return;
-      }
+    if (!ok) {
+      Alert.alert('Permissions', 'Grant required permissions to start.');
+      return;
     }
 
-    // Initialize SDK (permissions handled natively on iOS)
-    await BeAround.initialize('<CLIENT_TOKEN>', true); // debug optional
+    await BeAround.configure({
+      syncInterval: 30,
+      enableBluetoothScanning: true,
+      enablePeriodicScanning: true,
+    });
+    await BeAround.startScanning();
     Alert.alert('Bearound', 'SDK started successfully');
   };
 
   const stop = async () => {
-    await BeAround.stop();
+    await BeAround.stopScanning();
     Alert.alert('Bearound', 'SDK stopped');
   };
 
@@ -168,27 +174,77 @@ export default function App() {
 ### Types
 
 ```ts
+export type SdkConfig = {
+  appId?: string; // optional override; defaults to bundle/package identifier
+  syncInterval?: number; // seconds (5-60)
+  enableBluetoothScanning?: boolean;
+  enablePeriodicScanning?: boolean;
+};
+
+export type UserProperties = {
+  internalId?: string;
+  email?: string;
+  name?: string;
+  customProperties?: Record<string, string>;
+};
+
+export type BeaconProximity = 'immediate' | 'near' | 'far' | 'unknown';
+
+export type BeaconMetadata = {
+  firmwareVersion: string;
+  batteryLevel: number;
+  movements: number;
+  temperature: number;
+  txPower?: number;
+  rssiFromBLE?: number;
+  isConnectable?: boolean;
+};
+
 export type Beacon = {
   uuid: string;
-  major: string;
-  minor: string;
+  major: number;
+  minor: number;
   rssi: number;
-  bluetoothName?: string;
-  bluetoothAddress?: string;
-  distanceMeters?: number;
+  proximity: BeaconProximity;
+  accuracy: number;
+  timestamp: number; // milliseconds since epoch
+  metadata?: BeaconMetadata;
+  txPower?: number;
+};
+
+export type SyncStatus = {
+  secondsUntilNextSync: number;
+  isRanging: boolean;
+};
+
+export type BearoundError = {
+  message: string;
 };
 ```
 
 ### Functions
 
 ```ts
-// Initializes the native SDK (Android/iOS) and starts monitoring
-initialize(clientToken: string, debug?: boolean): Promise<void>;
+// Configures the SDK (call before startScanning)
+configure(config?: SdkConfig): Promise<void>;
 
-// Stops monitoring and finalizes native resources
-stop(): Promise<void>;
+// Starts and stops scanning
+startScanning(): Promise<void>;
+stopScanning(): Promise<void>;
+isScanning(): Promise<boolean>;
 
-// Permission helper for Android (no-ops on iOS)
+// Optional settings
+setBluetoothScanning(enabled: boolean): Promise<void>;
+setUserProperties(properties: UserProperties): Promise<void>;
+clearUserProperties(): Promise<void>;
+
+// Event listeners
+addBeaconsListener(listener: (beacons: Beacon[]) => void): EmitterSubscription;
+addSyncStatusListener(listener: (status: SyncStatus) => void): EmitterSubscription;
+addScanningListener(listener: (isScanning: boolean) => void): EmitterSubscription;
+addErrorListener(listener: (error: BearoundError) => void): EmitterSubscription;
+
+// Permission helper (Android + iOS)
 ensurePermissions(opts?: { askBackground?: boolean }): Promise<{
   fineLocation: boolean;
   btScan: boolean;
@@ -219,16 +275,49 @@ requestForegroundPermissions(): Promise<{
 requestBackgroundLocation(): Promise<boolean>;
 ```
 
+### Events
+
+```ts
+import {
+  addBeaconsListener,
+  addSyncStatusListener,
+  addScanningListener,
+  addErrorListener,
+} from '@bearound/react-native-sdk';
+
+const beaconsSub = addBeaconsListener((beacons) => {
+  console.log('Beacons', beacons);
+});
+
+const syncSub = addSyncStatusListener((status) => {
+  console.log('Next sync in', status.secondsUntilNextSync);
+});
+
+const scanningSub = addScanningListener((isScanning) => {
+  console.log('Scanning', isScanning);
+});
+
+const errorSub = addErrorListener((error) => {
+  console.log('SDK error', error.message);
+});
+
+// later (e.g. on unmount)
+beaconsSub.remove();
+syncSub.remove();
+scanningSub.remove();
+errorSub.remove();
+```
+
 ---
 
 ## Best Practices
 
-* **Platform-specific permissions**: Use permission functions on Android only. iOS handles permissions natively during SDK initialization.
+* **Platform-specific permissions**: Use permission helpers on Android/iOS before starting scans.
 * Request permissions with user context (use `ensurePermissions`).
 * **Android**: The foreground service uses your app's icon; ensure an appropriate icon.
 * **iOS**: Always test on physical device; enable Background Modes in target.
-* Avoid repeatedly initializing/stopping in sequence; prefer a clear lifecycle.
-* **Simplified architecture**: The SDK no longer uses event listeners. All beacon detection and processing happens natively.
+* Avoid repeatedly starting/stopping in sequence; prefer a clear lifecycle.
+* **Simplified architecture**: Beacon detection and processing happens natively.
 
 ---
 
@@ -238,8 +327,8 @@ requestBackgroundLocation(): Promise<boolean>;
 
 * Check **Location**/**Bluetooth** permissions (and Background on Android 10+).
 * Test with a **physical beacon** (or app like nRF Connect).
-* **iOS**: Permissions are requested natively during `initialize()`. Make sure Info.plist is configured correctly.
-* **Android**: Use `ensurePermissions()` before calling `initialize()`.
+* **iOS**: Use `ensurePermissions()` before calling `startScanning()` and keep Info.plist configured.
+* **Android**: Use `ensurePermissions()` before calling `startScanning()`.
 
 **iOS: compilation error involving headers/Codegen**
 
@@ -249,7 +338,7 @@ requestBackgroundLocation(): Promise<boolean>;
 
 **Android: crash on restart**
 
-* Avoid calling `initialize()` again without `stop()`. Some BLE scanners don't allow configuration changes after "consumers bound".
+* Avoid calling `startScanning()` repeatedly without `stopScanning()`. Some BLE scanners don't allow frequent restarts.
 
 **Android permissions (API 31+)**
 

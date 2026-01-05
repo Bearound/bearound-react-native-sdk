@@ -12,6 +12,12 @@ jest.mock('react-native', () => ({
     OS: 'android',
     Version: 31,
   },
+  NativeModules: {
+    BearoundReactSdk: {},
+  },
+  NativeEventEmitter: jest.fn(() => ({
+    addListener: jest.fn(() => ({ remove: jest.fn() })),
+  })),
   PermissionsAndroid: {
     PERMISSIONS: {
       ACCESS_FINE_LOCATION: 'android.permission.ACCESS_FINE_LOCATION',
@@ -35,8 +41,17 @@ jest.mock('react-native', () => ({
   },
   TurboModuleRegistry: {
     getEnforcing: jest.fn(() => ({
-      initialize: jest.fn(() => Promise.resolve()),
-      stop: jest.fn(() => Promise.resolve()),
+      configure: jest.fn(() => Promise.resolve()),
+      startScanning: jest.fn(() => Promise.resolve()),
+      stopScanning: jest.fn(() => Promise.resolve()),
+      isScanning: jest.fn(() => Promise.resolve(false)),
+      setBluetoothScanning: jest.fn(() => Promise.resolve()),
+      setUserProperties: jest.fn(() => Promise.resolve()),
+      clearUserProperties: jest.fn(() => Promise.resolve()),
+      checkPermissions: jest.fn(() => Promise.resolve(true)),
+      requestPermissions: jest.fn(() => Promise.resolve(true)),
+      addListener: jest.fn(() => null),
+      removeListeners: jest.fn(() => null),
     })),
   },
 }));
@@ -45,8 +60,17 @@ jest.mock('react-native', () => ({
 jest.mock('../NativeBearoundReactSdk', () => ({
   __esModule: true,
   default: {
-    initialize: jest.fn(() => Promise.resolve()),
-    stop: jest.fn(() => Promise.resolve()),
+    configure: jest.fn(() => Promise.resolve()),
+    startScanning: jest.fn(() => Promise.resolve()),
+    stopScanning: jest.fn(() => Promise.resolve()),
+    isScanning: jest.fn(() => Promise.resolve(false)),
+    setBluetoothScanning: jest.fn(() => Promise.resolve()),
+    setUserProperties: jest.fn(() => Promise.resolve()),
+    clearUserProperties: jest.fn(() => Promise.resolve()),
+    checkPermissions: jest.fn(() => Promise.resolve(true)),
+    requestPermissions: jest.fn(() => Promise.resolve(true)),
+    addListener: jest.fn(() => null),
+    removeListeners: jest.fn(() => null),
   },
 }));
 
@@ -58,17 +82,19 @@ describe('Bearound SDK Basic Tests', () => {
     (Platform as any).Version = 31;
   });
 
-  test('SDK constants are defined', () => {
-    const { EVENTS } = require('../index');
-    expect(EVENTS).toBeDefined();
-    expect(EVENTS.BEACON).toBe('bearound:beacon');
-    expect(EVENTS.STOPPED).toBe('bearound:stopped');
-  });
-
   test('SDK functions are exported', () => {
     const SDK = require('../index');
-    expect(typeof SDK.initialize).toBe('function');
-    expect(typeof SDK.stop).toBe('function');
+    expect(typeof SDK.configure).toBe('function');
+    expect(typeof SDK.startScanning).toBe('function');
+    expect(typeof SDK.stopScanning).toBe('function');
+    expect(typeof SDK.isScanning).toBe('function');
+    expect(typeof SDK.setBluetoothScanning).toBe('function');
+    expect(typeof SDK.setUserProperties).toBe('function');
+    expect(typeof SDK.clearUserProperties).toBe('function');
+    expect(typeof SDK.addBeaconsListener).toBe('function');
+    expect(typeof SDK.addSyncStatusListener).toBe('function');
+    expect(typeof SDK.addScanningListener).toBe('function');
+    expect(typeof SDK.addErrorListener).toBe('function');
     expect(typeof SDK.checkPermissions).toBe('function');
     expect(typeof SDK.ensurePermissions).toBe('function');
   });
@@ -97,12 +123,13 @@ describe('Bearound SDK Basic Tests', () => {
     });
   });
 
-  test('initialize and stop functions exist', async () => {
-    const { initialize, stop } = require('../index');
+  test('configure and scanning functions exist', async () => {
+    const { configure, startScanning, stopScanning } = require('../index');
 
     // Should not throw
-    expect(typeof initialize).toBe('function');
-    expect(typeof stop).toBe('function');
+    expect(typeof configure).toBe('function');
+    expect(typeof startScanning).toBe('function');
+    expect(typeof stopScanning).toBe('function');
   });
 
   test('TurboModule interface is correct', () => {
@@ -110,8 +137,15 @@ describe('Bearound SDK Basic Tests', () => {
 
     // Type test - if this compiles, the interface is correct
     const mockSpec = {
-      initialize: jest.fn(),
-      stop: jest.fn(),
+      configure: jest.fn(),
+      startScanning: jest.fn(),
+      stopScanning: jest.fn(),
+      isScanning: jest.fn(),
+      setBluetoothScanning: jest.fn(),
+      setUserProperties: jest.fn(),
+      clearUserProperties: jest.fn(),
+      checkPermissions: jest.fn(),
+      requestPermissions: jest.fn(),
       addListener: jest.fn(),
       removeListeners: jest.fn(),
     };
@@ -231,29 +265,20 @@ describe('Bearound SDK Basic Tests', () => {
   });
 
   describe('Documentation compliance', () => {
-    test('deprecated EVENTS are marked correctly', () => {
-      const { EVENTS } = require('../index');
-
-      // These constants should exist but be deprecated
-      expect(EVENTS.BEACON).toBe('bearound:beacon');
-      expect(EVENTS.STOPPED).toBe('bearound:stopped');
-    });
-
     test('API surface matches documentation', () => {
       const SDK = require('../index');
 
       // Core functions
-      expect(typeof SDK.initialize).toBe('function');
-      expect(typeof SDK.stop).toBe('function');
+      expect(typeof SDK.configure).toBe('function');
+      expect(typeof SDK.startScanning).toBe('function');
+      expect(typeof SDK.stopScanning).toBe('function');
+      expect(typeof SDK.isScanning).toBe('function');
 
       // Permission functions
       expect(typeof SDK.checkPermissions).toBe('function');
       expect(typeof SDK.ensurePermissions).toBe('function');
       expect(typeof SDK.requestForegroundPermissions).toBe('function');
       expect(typeof SDK.requestBackgroundLocation).toBe('function');
-
-      // Constants
-      expect(SDK.EVENTS).toBeDefined();
     });
   });
 });
