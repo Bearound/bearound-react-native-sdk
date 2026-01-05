@@ -6,7 +6,16 @@ import BearoundSDK
 @objc(RNBearoundBridge)
 public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, BeAroundSDKDelegate {
   @objc public static let shared = RNBearoundBridge()
-  private let sdk = BeAroundSDK.shared
+  private lazy var sdk: BeAroundSDK = {
+    if Thread.isMainThread {
+      return BeAroundSDK.shared
+    }
+    var instance: BeAroundSDK!
+    DispatchQueue.main.sync {
+      instance = BeAroundSDK.shared
+    }
+    return instance
+  }()
 
   private var permissionManager: CLLocationManager?
   private var permissionCompletion: ((Bool) -> Void)?
@@ -42,7 +51,9 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, BeAroundSDKD
   }
 
   public func isScanning() -> Bool {
-    return sdk.isScanning
+    return mainThreadSync {
+      self.sdk.isScanning
+    }
   }
 
   public func setBluetoothScanning(_ enabled: Bool) {
@@ -227,5 +238,16 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, BeAroundSDKD
     }
 
     return payload
+  }
+
+  private func mainThreadSync<T>(_ work: () -> T) -> T {
+    if Thread.isMainThread {
+      return work()
+    }
+    var result: T!
+    DispatchQueue.main.sync {
+      result = work()
+    }
+    return result
   }
 }
