@@ -75,5 +75,5 @@ def kotlin_version = getExtOrDefault("kotlinVersion")
 
 dependencies {
   implementation "com.facebook.react:react-android"
-  implementation 'com.github.Bearound:bearound-android-sdk:v1.3.1'
+  implementation 'com.github.Bearound:bearound-android-sdk:2.0.0'
 }

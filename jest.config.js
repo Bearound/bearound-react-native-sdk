@@ -46,8 +46,14 @@ module.exports = {
 
   // Test match patterns
   testMatch: [
-    '<rootDir>/src/**/__tests__/**/*.{js,jsx,ts,tsx}',
+    '<rootDir>/src/**/__tests__/**/*.test.{js,jsx,ts,tsx}',
     '<rootDir>/src/**/*.(test|spec).{js,jsx,ts,tsx}',
+  ],
+
+  // Ignore patterns
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    '<rootDir>/src/__tests__/testUtils.ts',
   ],
 
   // Setup files

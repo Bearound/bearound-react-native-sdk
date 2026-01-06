@@ -13,21 +13,89 @@ RCT_EXPORT_MODULE();
 RCT_EXPORT_METHOD(addListener:(NSString *)eventName) {}
 RCT_EXPORT_METHOD(removeListeners:(double)count) {}
 
-- (void)initialize:(NSString *)clientToken
-             debug:(NSNumber *)debug
+- (void)configure:(NSString *)appId
+       syncInterval:(double)syncInterval
+enableBluetoothScanning:(BOOL)enableBluetoothScanning
+enablePeriodicScanning:(BOOL)enablePeriodicScanning
            resolve:(RCTPromiseResolveBlock)resolve
             reject:(RCTPromiseRejectBlock)reject
 {
-  BOOL dbg = debug ? [debug boolValue] : NO;
-  [[RNBearoundBridge shared] initialize:clientToken debug:dbg];
+  NSString *rawAppId = appId ?: @"";
+  NSString *trimmed = [rawAppId stringByTrimmingCharactersInSet:
+                       [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+  NSString *fallback = [[NSBundle mainBundle] bundleIdentifier] ?: @"";
+  NSString *resolvedAppId = trimmed.length > 0 ? trimmed : fallback;
+
+  if (resolvedAppId.length == 0) {
+    reject(@"CONFIG_ERROR", @"appId is required", nil);
+    return;
+  }
+
+  [[RNBearoundBridge shared] configure:resolvedAppId
+                          syncInterval:syncInterval
+               enableBluetoothScanning:enableBluetoothScanning
+               enablePeriodicScanning:enablePeriodicScanning];
   resolve(nil);
 }
 
-- (void)stop:(RCTPromiseResolveBlock)resolve
-      reject:(RCTPromiseRejectBlock)reject
+- (void)startScanning:(RCTPromiseResolveBlock)resolve
+               reject:(RCTPromiseRejectBlock)reject
 {
-  [[RNBearoundBridge shared] stop];
+  [[RNBearoundBridge shared] startScanning];
   resolve(nil);
+}
+
+- (void)stopScanning:(RCTPromiseResolveBlock)resolve
+              reject:(RCTPromiseRejectBlock)reject
+{
+  [[RNBearoundBridge shared] stopScanning];
+  resolve(nil);
+}
+
+- (void)isScanning:(RCTPromiseResolveBlock)resolve
+            reject:(RCTPromiseRejectBlock)reject
+{
+  BOOL scanning = [[RNBearoundBridge shared] isScanning];
+  resolve(@(scanning));
+}
+
+- (void)setBluetoothScanning:(BOOL)enabled
+                     resolve:(RCTPromiseResolveBlock)resolve
+                      reject:(RCTPromiseRejectBlock)reject
+{
+  [[RNBearoundBridge shared] setBluetoothScanning:enabled];
+  resolve(nil);
+}
+
+- (void)setUserProperties:(NSDictionary *)properties
+                  resolve:(RCTPromiseResolveBlock)resolve
+                   reject:(RCTPromiseRejectBlock)reject
+{
+  NSDictionary *payload = properties ?: @{};
+  [[RNBearoundBridge shared] setUserProperties:payload];
+  resolve(nil);
+}
+
+- (void)clearUserProperties:(RCTPromiseResolveBlock)resolve
+                     reject:(RCTPromiseRejectBlock)reject
+{
+  [[RNBearoundBridge shared] clearUserProperties];
+  resolve(nil);
+}
+
+- (void)checkPermissions:(RCTPromiseResolveBlock)resolve
+                  reject:(RCTPromiseRejectBlock)reject
+{
+  BOOL granted = [[RNBearoundBridge shared] checkPermissions];
+  resolve(@(granted));
+}
+
+- (void)requestPermissions:(RCTPromiseResolveBlock)resolve
+                    reject:(RCTPromiseRejectBlock)reject
+{
+  [[RNBearoundBridge shared] requestPermissions:^(BOOL granted) {
+    resolve(@(granted));
+  }];
 }
 
 @end
