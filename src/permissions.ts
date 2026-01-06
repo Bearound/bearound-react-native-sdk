@@ -7,8 +7,7 @@
  * **Platform Differences:**
  * - **Android**: All permission logic is handled by this module using React Native's
  *   PermissionsAndroid API. Permissions must be explicitly requested and managed.
- * - **iOS**: Permission requests are handled natively during SDK initialization.
- *   All functions return success states since iOS handles permissions at the native layer.
+ * - **iOS**: Permission requests are handled via native helper methods.
  *
  * **Required Permissions:**
  * - Location (fine/coarse): Required for Bluetooth beacon scanning
@@ -26,6 +25,7 @@ import {
   type Permission,
 } from 'react-native';
 
+import Native from './NativeBearoundReactSdk';
 /**
  * Result of permission checks/requests
  *
@@ -60,7 +60,7 @@ const has = async (p?: Permission) =>
  *
  * **Platform Support:**
  * - **Android**: Checks actual permission status using PermissionsAndroid
- * - **iOS**: Always returns true for all permissions (handled natively during SDK initialization)
+ * - **iOS**: Checks location permission status via native helper
  *
  * **Android Version Requirements:**
  * - Location: All versions
@@ -80,12 +80,13 @@ const has = async (p?: Permission) =>
  */
 export async function checkPermissions(): Promise<PermissionResult> {
   if (!isAndroid) {
+    const granted = await Native.checkPermissions();
     return {
-      fineLocation: true,
-      btScan: true,
-      btConnect: true,
+      fineLocation: granted,
+      btScan: granted,
+      btConnect: granted,
       notifications: true,
-      backgroundLocation: true,
+      backgroundLocation: granted,
     };
   }
 
@@ -131,7 +132,7 @@ export async function checkPermissions(): Promise<PermissionResult> {
  *
  * **Platform Support:**
  * - **Android**: Shows system permission dialogs and requests permissions interactively
- * - **iOS**: No-op, returns current status (permissions handled natively during SDK initialization)
+ * - **iOS**: Requests location permission via native helper
  *
  * **Permissions Requested (Android only):**
  * - Fine location (with fallback to coarse location)
@@ -153,7 +154,16 @@ export async function checkPermissions(): Promise<PermissionResult> {
  * ```
  */
 export async function requestForegroundPermissions(): Promise<PermissionResult> {
-  if (!isAndroid) return checkPermissions();
+  if (!isAndroid) {
+    const granted = await Native.requestPermissions();
+    return {
+      fineLocation: granted,
+      btScan: granted,
+      btConnect: granted,
+      notifications: true,
+      backgroundLocation: granted,
+    };
+  }
 
   const req = async (p: Permission, title: string, msg: string) => {
     const res = await PermissionsAndroid.request(p, {
@@ -222,7 +232,7 @@ export async function requestForegroundPermissions(): Promise<PermissionResult> 
  *
  * **Platform Support:**
  * - **Android**: Shows system dialog for background location permission (Android 10+)
- * - **iOS**: No-op, always returns true (handled natively during SDK initialization)
+ * - **iOS**: Requests location permission via native helper
  *
  * **Android Behavior:**
  * - Requires foreground location permission first (Android 10)
@@ -246,7 +256,11 @@ export async function requestForegroundPermissions(): Promise<PermissionResult> 
  * ```
  */
 export async function requestBackgroundLocation(): Promise<boolean> {
-  if (!isAndroid || SDK_INT < 29) return true;
+  if (!isAndroid) {
+    return Native.requestPermissions();
+  }
+
+  if (SDK_INT < 29) return true;
 
   const fg = await checkPermissions();
   if (!fg.fineLocation && SDK_INT < 31) {
@@ -276,7 +290,7 @@ export async function requestBackgroundLocation(): Promise<boolean> {
  *
  * **Platform Support:**
  * - **Android**: Requests foreground permissions and optionally background location
- * - **iOS**: No-op, returns current status (all permissions handled natively)
+ * - **iOS**: Requests location permission via native helper
  *
  * This is the recommended function to call during app initialization to ensure
  * the Bearound SDK has all required permissions.
@@ -301,7 +315,7 @@ export async function requestBackgroundLocation(): Promise<boolean> {
  */
 export async function ensurePermissions(opts = { askBackground: true }) {
   await requestForegroundPermissions();
-  if (opts.askBackground) {
+  if (opts.askBackground && isAndroid) {
     await requestBackgroundLocation();
   }
   return checkPermissions();
