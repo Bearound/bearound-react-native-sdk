@@ -21,14 +21,14 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, BeAroundSDKD
   private var permissionCompletion: ((Bool) -> Void)?
 
   public func configure(
-    _ appId: String,
+    _ businessToken: String,
     syncInterval: Double,
     enableBluetoothScanning: Bool,
     enablePeriodicScanning: Bool
   ) {
     DispatchQueue.main.async {
       self.sdk.configure(
-        appId: appId,
+        businessToken: businessToken,
         syncInterval: syncInterval,
         enableBluetoothScanning: enableBluetoothScanning,
         enablePeriodicScanning: enablePeriodicScanning
