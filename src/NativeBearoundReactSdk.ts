@@ -49,27 +49,18 @@ export interface Spec extends TurboModule {
   /**
    * Configures the native Bearound SDK before starting scans.
    *
-   * **Native Behavior:**
-   * - **Android**:
-   *   - Updates sync interval and scanning modes
-   *   - Applies app identifier used by the SDK
-   *
-   * - **iOS**:
-   *   - Updates sync interval and scanning modes
-   *   - Applies app identifier used by the SDK
-   *
    * **Important Notes:**
    * - Must be called before `startScanning()`
-   * - App ID defaults to bundle/package id when empty
+   * - Business token is required
    * - Sync interval is expressed in seconds (5-60)
    *
-   * @param appId - Application identifier (optional, empty uses bundle/package id)
+   * @param businessToken - Business token for authentication (required)
    * @param syncInterval - Sync interval in seconds
    * @param enableBluetoothScanning - Enables BLE metadata scanning
    * @param enablePeriodicScanning - Enables periodic scanning mode
    */
   configure(
-    appId: string,
+    businessToken: string,
     syncInterval: number,
     enableBluetoothScanning: boolean,
     enablePeriodicScanning: boolean
