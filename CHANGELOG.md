@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2026-01-08
+
+### Breaking Changes
+
+- **Authentication API**: Replaced `appId` with `businessToken` for SDK configuration
+  - `configure()` now requires `businessToken` parameter
+  - App ID is automatically extracted from bundle/package identifier
+  - Aligns with native SDKs v2.0.1+ authentication model
+
+### Changed
+
+- **Native SDK Dependencies**:
+  - Android: Updated to v2.0.2 (includes background scanning improvements)
+  - iOS: Updated to v2.0.1+
+- **Configuration**: `businessToken` is now required and validated
+
+### Migration from 2.0.0 to 2.0.1
+
+**Before (v2.0.0):**
+```typescript
+await configure({
+  appId: 'com.example.app', // optional
+  syncInterval: 30,
+});
+```
+
+**After (v2.0.1):**
+```typescript
+await configure({
+  businessToken: 'your-business-token', // required
+  syncInterval: 30,
+});
+```
+
 ## [2.0.0] - 2026-01-05
 
 ### Breaking Changes
@@ -33,7 +67,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `requestBackgroundLocation()` - Request background location (Android + iOS)
   - `ensurePermissions()` - Request all required permissions (Android + iOS)
 - **SDK Configuration Options**:
-  - `appId` - Custom application identifier
   - `syncInterval` - Configure sync interval (5-60 seconds)
   - `enableBluetoothScanning` - Enable/disable BLE metadata scanning
   - `enablePeriodicScanning` - Enable/disable periodic scanning mode
@@ -99,6 +132,7 @@ await ensurePermissions({ askBackground: true });
 
 // Configure SDK
 await configure({
+  businessToken: 'your-business-token',
   syncInterval: 30,
   enableBluetoothScanning: true,
   enablePeriodicScanning: true,

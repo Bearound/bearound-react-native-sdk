@@ -68,26 +68,50 @@ describe('Bearound SDK Core Functions', () => {
   });
 
   describe('configure()', () => {
-    it('should call native configure with default values', async () => {
+    it('should throw error when businessToken is not provided', async () => {
       const { configure } = require('../index');
 
-      await configure();
+      await expect(configure({} as any)).rejects.toThrow(
+        'Business token is required'
+      );
+    });
+
+    it('should throw error when businessToken is empty', async () => {
+      const { configure } = require('../index');
+
+      await expect(configure({ businessToken: '' })).rejects.toThrow(
+        'Business token is required'
+      );
+    });
+
+    it('should throw error when businessToken is only whitespace', async () => {
+      const { configure } = require('../index');
+
+      await expect(configure({ businessToken: '   ' })).rejects.toThrow(
+        'Business token is required'
+      );
+    });
+
+    it('should call native configure with businessToken', async () => {
+      const { configure } = require('../index');
+
+      await configure({ businessToken: 'test-token-123' });
 
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
-        '',
+        'test-token-123',
         30,
         false,
         true
       );
     });
 
-    it('should call native configure with custom appId', async () => {
+    it('should call native configure with custom businessToken', async () => {
       const { configure } = require('../index');
 
-      await configure({ appId: 'com.myapp.test' });
+      await configure({ businessToken: 'custom-token' });
 
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
-        'com.myapp.test',
+        'custom-token',
         30,
         false,
         true
@@ -97,10 +121,10 @@ describe('Bearound SDK Core Functions', () => {
     it('should call native configure with custom syncInterval', async () => {
       const { configure } = require('../index');
 
-      await configure({ syncInterval: 60 });
+      await configure({ businessToken: 'test-token', syncInterval: 60 });
 
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
-        '',
+        'test-token',
         60,
         false,
         true
@@ -110,10 +134,13 @@ describe('Bearound SDK Core Functions', () => {
     it('should call native configure with bluetooth scanning enabled', async () => {
       const { configure } = require('../index');
 
-      await configure({ enableBluetoothScanning: true });
+      await configure({
+        businessToken: 'test-token',
+        enableBluetoothScanning: true,
+      });
 
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
-        '',
+        'test-token',
         30,
         true,
         true
@@ -123,10 +150,13 @@ describe('Bearound SDK Core Functions', () => {
     it('should call native configure with periodic scanning disabled', async () => {
       const { configure } = require('../index');
 
-      await configure({ enablePeriodicScanning: false });
+      await configure({
+        businessToken: 'test-token',
+        enablePeriodicScanning: false,
+      });
 
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
-        '',
+        'test-token',
         30,
         false,
         false
@@ -137,40 +167,27 @@ describe('Bearound SDK Core Functions', () => {
       const { configure } = require('../index');
 
       await configure({
-        appId: 'com.bearound.app',
+        businessToken: 'my-business-token',
         syncInterval: 45,
         enableBluetoothScanning: true,
         enablePeriodicScanning: false,
       });
 
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
-        'com.bearound.app',
+        'my-business-token',
         45,
         true,
         false
       );
     });
 
-    it('should trim whitespace from appId', async () => {
+    it('should trim whitespace from businessToken', async () => {
       const { configure } = require('../index');
 
-      await configure({ appId: '  com.myapp.test  ' });
+      await configure({ businessToken: '  my-token  ' });
 
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
-        'com.myapp.test',
-        30,
-        false,
-        true
-      );
-    });
-
-    it('should handle undefined appId gracefully', async () => {
-      const { configure } = require('../index');
-
-      await configure({ appId: undefined });
-
-      expect(mockNativeModule.configure).toHaveBeenCalledWith(
-        '',
+        'my-token',
         30,
         false,
         true
