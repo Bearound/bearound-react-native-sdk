@@ -208,6 +208,7 @@ export default function App() {
     ) => {
       setLastError(null);
       const config = {
+        businessToken: 'your-business-token',
         syncInterval: currentSyncInterval,
         enableBluetoothScanning,
         enablePeriodicScanning,

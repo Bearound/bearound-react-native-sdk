@@ -37,17 +37,20 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
   override fun getName() = NAME
 
   override fun configure(
-    appId: String,
+    businessToken: String,
     syncInterval: Double,
     enableBluetoothScanning: Boolean,
     enablePeriodicScanning: Boolean,
     promise: Promise
   ) {
     try {
-      val resolvedAppId = appId.trim().ifEmpty { ctx.packageName }
+      if (businessToken.trim().isEmpty()) {
+        promise.reject("INVALID_ARGUMENT", "Business token is required")
+        return
+      }
       val intervalMs = (syncInterval * 1000).toLong()
       sdk.configure(
-        appId = resolvedAppId,
+        businessToken = businessToken.trim(),
         syncInterval = intervalMs,
         enableBluetoothScanning = enableBluetoothScanning,
         enablePeriodicScanning = enablePeriodicScanning

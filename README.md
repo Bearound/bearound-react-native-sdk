@@ -1,7 +1,7 @@
 # 🐻 Bearound React Native SDK
 
 Official SDK to integrate **Bearound's** secure BLE beacon detection into **React Native** apps (Android and iOS).
-Aligned with Bearound native SDKs **2.0.0**.
+Aligned with Bearound native SDKs **2.0.1+**.
 
 > ✅ Compatible with **New Architecture** (TurboModules) and also compatible with classic architecture.
 
@@ -145,6 +145,7 @@ export default function App() {
     }
 
     await BeAround.configure({
+      businessToken: 'your-business-token',
       syncInterval: 30,
       enableBluetoothScanning: true,
       enablePeriodicScanning: true,
@@ -175,10 +176,10 @@ export default function App() {
 
 ```ts
 export type SdkConfig = {
-  appId?: string; // optional override; defaults to bundle/package identifier
-  syncInterval?: number; // seconds (5-60)
-  enableBluetoothScanning?: boolean;
-  enablePeriodicScanning?: boolean;
+  businessToken: string; // required - your business token
+  syncInterval?: number; // seconds (5-60), defaults to 30
+  enableBluetoothScanning?: boolean; // defaults to false
+  enablePeriodicScanning?: boolean; // defaults to true
 };
 
 export type UserProperties = {
@@ -226,7 +227,7 @@ export type BearoundError = {
 
 ```ts
 // Configures the SDK (call before startScanning)
-configure(config?: SdkConfig): Promise<void>;
+configure(config: SdkConfig): Promise<void>;
 
 // Starts and stops scanning
 startScanning(): Promise<void>;

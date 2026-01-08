@@ -31,7 +31,7 @@ import Native from './NativeBearoundReactSdk';
  * Configuration options for the SDK.
  */
 export type SdkConfig = {
-  appId?: string;
+  businessToken: string;
   syncInterval?: number;
   enableBluetoothScanning?: boolean;
   enablePeriodicScanning?: boolean;
@@ -187,33 +187,35 @@ const parseSyncStatus = (event: unknown): SyncStatus => {
  *
  * **Important Notes:**
  * - Call before `startScanning()`
+ * - Business token is required
  * - Sync interval is in seconds (5-60)
- * - App ID defaults to bundle/package identifier when omitted
  *
  * @example
  * ```typescript
  * import { configure, ensurePermissions } from 'bearound-react-native-sdk';
- * import { Platform } from 'react-native';
  *
  * await configure({
+ *   businessToken: 'your-business-token',
  *   syncInterval: 30,
  *   enableBluetoothScanning: true,
  *   enablePeriodicScanning: true,
  * });
  * ```
  */
-export async function configure(config: SdkConfig = {}) {
+export async function configure(config: SdkConfig) {
   const {
-    appId,
+    businessToken,
     syncInterval = 30,
     enableBluetoothScanning = false,
     enablePeriodicScanning = true,
   } = config;
 
-  const resolvedAppId = appId?.trim() ?? '';
+  if (!businessToken || businessToken.trim().length === 0) {
+    throw new Error('Business token is required');
+  }
 
   await Native.configure(
-    resolvedAppId,
+    businessToken.trim(),
     syncInterval,
     enableBluetoothScanning,
     enablePeriodicScanning
