@@ -19,14 +19,15 @@ import {
   addSyncStatusListener,
   checkPermissions,
   ensurePermissions,
+  ForegroundScanInterval,
+  BackgroundScanInterval,
+  MaxQueuedPayloads,
   type Beacon,
   type BeaconProximity,
   type PermissionResult,
 } from '@bearound/react-native-sdk';
 
 type SortOption = 'proximity' | 'id';
-
-const intervalOptions = [5, 10, 15, 20, 30, 60];
 const sortOptions: Array<{ key: SortOption; label: string }> = [
   { key: 'proximity', label: 'Proximidade' },
   { key: 'id', label: 'ID' },
@@ -96,8 +97,16 @@ const formatTime = (date: Date) =>
   date.toLocaleTimeString('pt-BR', { hour12: false });
 
 export default function App() {
-  const [currentSyncInterval, setCurrentSyncInterval] = useState(30);
-  const [enableBluetoothScanning, setEnableBluetoothScanning] = useState(true);
+  const [foregroundInterval, setForegroundInterval] = useState(
+    ForegroundScanInterval.SECONDS_15
+  );
+  const [backgroundInterval, setBackgroundInterval] = useState(
+    BackgroundScanInterval.SECONDS_30
+  );
+  const [maxQueuedPayloads, setMaxQueuedPayloads] = useState(
+    MaxQueuedPayloads.MEDIUM
+  );
+  const [enableBluetoothScanning, setEnableBluetoothScanning] = useState(false);
   const [enablePeriodicScanning, setEnablePeriodicScanning] = useState(true);
   const [sortOption, setSortOption] = useState<SortOption>('proximity');
   const [isScanning, setIsScanning] = useState(false);
@@ -115,13 +124,13 @@ export default function App() {
   const [lastError, setLastError] = useState<string | null>(null);
 
   const scanDuration = useMemo(() => {
-    const calculated = currentSyncInterval / 3;
+    const calculated = foregroundInterval / 3;
     return Math.max(5, Math.min(calculated, 10));
-  }, [currentSyncInterval]);
+  }, [foregroundInterval]);
 
   const pauseDuration = useMemo(
-    () => Math.max(0, currentSyncInterval - scanDuration),
-    [currentSyncInterval, scanDuration]
+    () => Math.max(0, foregroundInterval - scanDuration),
+    [foregroundInterval, scanDuration]
   );
 
   const scanMode = useMemo(() => {
@@ -201,7 +210,9 @@ export default function App() {
   const configureSdk = useCallback(
     async (
       overrides: Partial<{
-        syncInterval: number;
+        foregroundScanInterval: ForegroundScanInterval;
+        backgroundScanInterval: BackgroundScanInterval;
+        maxQueuedPayloads: MaxQueuedPayloads;
         enableBluetoothScanning: boolean;
         enablePeriodicScanning: boolean;
       }> = {}
@@ -209,7 +220,9 @@ export default function App() {
       setLastError(null);
       const config = {
         businessToken: 'your-business-token',
-        syncInterval: currentSyncInterval,
+        foregroundScanInterval: foregroundInterval,
+        backgroundScanInterval: backgroundInterval,
+        maxQueuedPayloads: maxQueuedPayloads,
         enableBluetoothScanning,
         enablePeriodicScanning,
         ...overrides,
@@ -226,7 +239,13 @@ export default function App() {
         throw error;
       }
     },
-    [currentSyncInterval, enableBluetoothScanning, enablePeriodicScanning]
+    [
+      foregroundInterval,
+      backgroundInterval,
+      maxQueuedPayloads,
+      enableBluetoothScanning,
+      enablePeriodicScanning,
+    ]
   );
 
   const startScan = useCallback(async () => {
@@ -409,10 +428,9 @@ export default function App() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Informações do Scan</Text>
             <InfoRow label="Modo" value={scanMode} />
-            <InfoRow
-              label="Intervalo de sync"
-              value={`${currentSyncInterval}s`}
-            />
+            <InfoRow label="Foreground" value={`${foregroundInterval}s`} />
+            <InfoRow label="Background" value={`${backgroundInterval}s`} />
+            <InfoRow label="Fila Retry" value={`${maxQueuedPayloads}`} />
             <InfoRow
               label="Duração do scan"
               value={`${Math.round(scanDuration)}s`}
@@ -466,27 +484,90 @@ export default function App() {
             )}
           </View>
 
-          <Text style={styles.optionLabel}>Intervalo</Text>
+          <Text style={styles.optionLabel}>Foreground Interval</Text>
           <View style={styles.chipRow}>
-            {intervalOptions.map((interval) => (
+            {[5, 10, 15, 20, 30, 45, 60].map((seconds) => (
               <Pressable
-                key={interval}
+                key={`fg-${seconds}`}
                 onPress={() => {
-                  setCurrentSyncInterval(interval);
-                  configureSdk({ syncInterval: interval }).catch(() => null);
+                  setForegroundInterval(seconds as ForegroundScanInterval);
+                  configureSdk({
+                    foregroundScanInterval: seconds as ForegroundScanInterval,
+                  }).catch(() => null);
                 }}
                 style={[
                   styles.chip,
-                  interval === currentSyncInterval && styles.chipActive,
+                  seconds === foregroundInterval && styles.chipActive,
                 ]}
               >
                 <Text
                   style={[
                     styles.chipText,
-                    interval === currentSyncInterval && styles.chipTextActive,
+                    seconds === foregroundInterval && styles.chipTextActive,
                   ]}
                 >
-                  {interval}s
+                  {seconds}s
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={styles.optionLabel}>Background Interval</Text>
+          <View style={styles.chipRow}>
+            {[15, 30, 60, 90, 120].map((seconds) => (
+              <Pressable
+                key={`bg-${seconds}`}
+                onPress={() => {
+                  setBackgroundInterval(seconds as BackgroundScanInterval);
+                  configureSdk({
+                    backgroundScanInterval: seconds as BackgroundScanInterval,
+                  }).catch(() => null);
+                }}
+                style={[
+                  styles.chip,
+                  seconds === backgroundInterval && styles.chipActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    seconds === backgroundInterval && styles.chipTextActive,
+                  ]}
+                >
+                  {seconds}s
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={styles.optionLabel}>Max Queued Payloads</Text>
+          <View style={styles.chipRow}>
+            {[
+              { value: MaxQueuedPayloads.SMALL, label: 'Small (50)' },
+              { value: MaxQueuedPayloads.MEDIUM, label: 'Medium (100)' },
+              { value: MaxQueuedPayloads.LARGE, label: 'Large (200)' },
+              { value: MaxQueuedPayloads.XLARGE, label: 'XLarge (500)' },
+            ].map((option) => (
+              <Pressable
+                key={option.value}
+                onPress={() => {
+                  setMaxQueuedPayloads(option.value);
+                  configureSdk({ maxQueuedPayloads: option.value }).catch(
+                    () => null
+                  );
+                }}
+                style={[
+                  styles.chip,
+                  option.value === maxQueuedPayloads && styles.chipActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    option.value === maxQueuedPayloads && styles.chipTextActive,
+                  ]}
+                >
+                  {option.label}
                 </Text>
               </Pressable>
             ))}

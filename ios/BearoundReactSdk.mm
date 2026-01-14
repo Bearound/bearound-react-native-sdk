@@ -13,28 +13,30 @@ RCT_EXPORT_MODULE();
 RCT_EXPORT_METHOD(addListener:(NSString *)eventName) {}
 RCT_EXPORT_METHOD(removeListeners:(double)count) {}
 
-- (void)configure:(NSString *)appId
-       syncInterval:(double)syncInterval
+- (void)configure:(NSString *)businessToken
+  foregroundScanInterval:(double)foregroundScanInterval
+  backgroundScanInterval:(double)backgroundScanInterval
+     maxQueuedPayloads:(double)maxQueuedPayloads
 enableBluetoothScanning:(BOOL)enableBluetoothScanning
 enablePeriodicScanning:(BOOL)enablePeriodicScanning
            resolve:(RCTPromiseResolveBlock)resolve
             reject:(RCTPromiseRejectBlock)reject
 {
-  NSString *rawAppId = appId ?: @"";
-  NSString *trimmed = [rawAppId stringByTrimmingCharactersInSet:
+  NSString *token = businessToken ?: @"";
+  NSString *trimmed = [token stringByTrimmingCharactersInSet:
                        [NSCharacterSet whitespaceAndNewlineCharacterSet]];
-  NSString *fallback = [[NSBundle mainBundle] bundleIdentifier] ?: @"";
-  NSString *resolvedAppId = trimmed.length > 0 ? trimmed : fallback;
 
-  if (resolvedAppId.length == 0) {
-    reject(@"CONFIG_ERROR", @"appId is required", nil);
+  if (trimmed.length == 0) {
+    reject(@"CONFIG_ERROR", @"Business token is required", nil);
     return;
   }
 
-  [[RNBearoundBridge shared] configure:resolvedAppId
-                          syncInterval:syncInterval
+  [[RNBearoundBridge shared] configure:trimmed
+               foregroundScanInterval:foregroundScanInterval
+               backgroundScanInterval:backgroundScanInterval
+                  maxQueuedPayloads:maxQueuedPayloads
                enableBluetoothScanning:enableBluetoothScanning
-               enablePeriodicScanning:enablePeriodicScanning];
+                enablePeriodicScanning:enablePeriodicScanning];
   resolve(nil);
 }
 
