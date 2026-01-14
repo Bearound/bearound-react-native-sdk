@@ -52,16 +52,20 @@ export interface Spec extends TurboModule {
    * **Important Notes:**
    * - Must be called before `startScanning()`
    * - Business token is required
-   * - Sync interval is expressed in seconds (5-60)
+   * - Intervals are expressed in seconds
    *
    * @param businessToken - Business token for authentication (required)
-   * @param syncInterval - Sync interval in seconds
+   * @param foregroundScanInterval - Foreground scan interval in seconds (5-60)
+   * @param backgroundScanInterval - Background scan interval in seconds (15-120)
+   * @param maxQueuedPayloads - Max queued payloads (50-500)
    * @param enableBluetoothScanning - Enables BLE metadata scanning
    * @param enablePeriodicScanning - Enables periodic scanning mode
    */
   configure(
     businessToken: string,
-    syncInterval: number,
+    foregroundScanInterval: number,
+    backgroundScanInterval: number,
+    maxQueuedPayloads: number,
     enableBluetoothScanning: boolean,
     enablePeriodicScanning: boolean
   ): Promise<void>;
