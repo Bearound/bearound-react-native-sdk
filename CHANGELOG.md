@@ -5,6 +5,67 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-01-13
+
+### ⚠️ Breaking Changes
+
+**Configurable Scan Intervals**: SDK now supports separate foreground and background scan intervals with configurable retry queue.
+
+### Added
+
+- **Configurable Scan Intervals**: New enums for fine-grained control over scan behavior
+  - `ForegroundScanInterval`: Configure foreground scan intervals from 5 to 60 seconds (in 5-second increments)
+  - `BackgroundScanInterval`: Configure background scan intervals (15s, 30s, 60s, 90s, or 120s)
+  - Default: 15 seconds for foreground, 30 seconds for background
+  
+- **Configurable Retry Queue**: New `MaxQueuedPayloads` enum to control retry queue size
+  - `SMALL` (50 failed batches)
+  - `MEDIUM` (100 failed batches) - default
+  - `LARGE` (200 failed batches)
+  - `XLARGE` (500 failed batches)
+
+### Changed
+
+- **Configuration API**: `configure()` method now accepts enum parameters instead of single `syncInterval`
+  - `foregroundScanInterval: ForegroundScanInterval = ForegroundScanInterval.SECONDS_15`
+  - `backgroundScanInterval: BackgroundScanInterval = BackgroundScanInterval.SECONDS_30`
+  - `maxQueuedPayloads: MaxQueuedPayloads = MaxQueuedPayloads.MEDIUM`
+  - Old `syncInterval` parameter removed in favor of separate foreground/background intervals
+
+- **Native SDKs**: Updated to version 2.1.0
+  - Android: `com.github.Bearound:bearound-android-sdk:v2.1.0`
+  - iOS: `BearoundSDK ~> 2.1.0`
+
+### Migration
+
+**Before (v2.0.1):**
+```typescript
+await configure({
+  businessToken: 'your-business-token-here',
+  syncInterval: 30,
+});
+```
+
+**After (v2.1.0):**
+```typescript
+import { ForegroundScanInterval, BackgroundScanInterval, MaxQueuedPayloads } from '@bearound/react-native-sdk';
+
+// Using defaults (recommended)
+await configure({
+  businessToken: 'your-business-token-here',
+});
+
+// Custom configuration
+await configure({
+  businessToken: 'your-business-token-here',
+  foregroundScanInterval: ForegroundScanInterval.SECONDS_30,
+  backgroundScanInterval: BackgroundScanInterval.SECONDS_90,
+  maxQueuedPayloads: MaxQueuedPayloads.LARGE,
+});
+```
+
+---
+
 ## [2.0.1] - 2026-01-08
 
 ### Breaking Changes

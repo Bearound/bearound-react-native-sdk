@@ -1,6 +1,6 @@
 PODS:
-  - BearoundReactSdk (2.0.1):
-    - BearoundSDK (~> 2.0.1)
+  - BearoundReactSdk (2.1.0):
+    - BearoundSDK (~> 2.1.0)
     - DoubleConversion
     - glog
     - hermes-engine
@@ -24,7 +24,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - BearoundSDK (2.0.1)
+  - BearoundSDK (2.1.0)
   - boost (1.84.0)
   - DoubleConversion (1.1.6)
   - fast_float (6.1.4)
@@ -1909,8 +1909,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
-  BearoundReactSdk: 8c6269f2a7c0ac7161535c48737bb758ce1b39d9
-  BearoundSDK: 9e7491db577220b7559273b64bf4b795e4302c60
+  BearoundReactSdk: 63f0203b0112fd29069f96564e94a96d113f4a78
+  BearoundSDK: 782406761942856e8696176c30407f9abac39855
   boost: 7e761d76ca2ce687f7cc98e698152abd03a18f90
   DoubleConversion: cb417026b2400c8f53ae97020b2be961b59470cb
   fast_float: 06eeec4fe712a76acc9376682e4808b05ce978b6
@@ -1918,7 +1918,7 @@ SPEC CHECKSUMS:
   fmt: a40bb5bd0294ea969aaaba240a927bd33d878cdd
   glog: 5683914934d5b6e4240e497e0f4a3b42d1854183
   hermes-engine: 314be5250afa5692b57b4dd1705959e1973a8ebe
-  RCT-Folly: e78785aa9ba2ed998ea4151e314036f6c49e6d82
+  RCT-Folly: 36fe2295e44b10d831836cc0d1daec5f8abcf809
   RCTDeprecation: 83ffb90c23ee5cea353bd32008a7bca100908f8c
   RCTRequired: eb7c0aba998009f47a540bec9e9d69a54f68136e
   RCTTypeSafety: 659ae318c09de0477fd27bbc9e140071c7ea5c93

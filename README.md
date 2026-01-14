@@ -1,7 +1,7 @@
 # 🐻 Bearound React Native SDK
 
 Official SDK to integrate **Bearound's** secure BLE beacon detection into **React Native** apps (Android and iOS).
-Aligned with Bearound native SDKs **2.0.1+**.
+Aligned with Bearound native SDKs **2.1.0+**.
 
 > ✅ Compatible with **New Architecture** (TurboModules) and also compatible with classic architecture.
 
@@ -146,7 +146,9 @@ export default function App() {
 
     await BeAround.configure({
       businessToken: 'your-business-token',
-      syncInterval: 30,
+      foregroundScanInterval: BeAround.ForegroundScanInterval.SECONDS_15,
+      backgroundScanInterval: BeAround.BackgroundScanInterval.SECONDS_30,
+      maxQueuedPayloads: BeAround.MaxQueuedPayloads.MEDIUM,
       enableBluetoothScanning: true,
       enablePeriodicScanning: true,
     });
@@ -175,9 +177,33 @@ export default function App() {
 ### Types
 
 ```ts
+export enum ForegroundScanInterval {
+  SECONDS_5 = 5,
+  SECONDS_10 = 10,
+  SECONDS_15 = 15, // default
+  // ... up to SECONDS_60
+}
+
+export enum BackgroundScanInterval {
+  SECONDS_15 = 15,
+  SECONDS_30 = 30, // default
+  SECONDS_60 = 60,
+  SECONDS_90 = 90,
+  SECONDS_120 = 120,
+}
+
+export enum MaxQueuedPayloads {
+  SMALL = 50,
+  MEDIUM = 100, // default
+  LARGE = 200,
+  XLARGE = 500,
+}
+
 export type SdkConfig = {
   businessToken: string; // required - your business token
-  syncInterval?: number; // seconds (5-60), defaults to 30
+  foregroundScanInterval?: ForegroundScanInterval; // defaults to SECONDS_15
+  backgroundScanInterval?: BackgroundScanInterval; // defaults to SECONDS_30
+  maxQueuedPayloads?: MaxQueuedPayloads; // defaults to MEDIUM
   enableBluetoothScanning?: boolean; // defaults to false
   enablePeriodicScanning?: boolean; // defaults to true
 };

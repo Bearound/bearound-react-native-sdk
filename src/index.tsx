@@ -28,11 +28,52 @@ import {
 import Native from './NativeBearoundReactSdk';
 
 /**
+ * Foreground scan interval options (5-60 seconds).
+ */
+export enum ForegroundScanInterval {
+  SECONDS_5 = 5,
+  SECONDS_10 = 10,
+  SECONDS_15 = 15,
+  SECONDS_20 = 20,
+  SECONDS_25 = 25,
+  SECONDS_30 = 30,
+  SECONDS_35 = 35,
+  SECONDS_40 = 40,
+  SECONDS_45 = 45,
+  SECONDS_50 = 50,
+  SECONDS_55 = 55,
+  SECONDS_60 = 60,
+}
+
+/**
+ * Background scan interval options (15-120 seconds).
+ */
+export enum BackgroundScanInterval {
+  SECONDS_15 = 15,
+  SECONDS_30 = 30,
+  SECONDS_60 = 60,
+  SECONDS_90 = 90,
+  SECONDS_120 = 120,
+}
+
+/**
+ * Maximum queued payloads configuration.
+ */
+export enum MaxQueuedPayloads {
+  SMALL = 50,
+  MEDIUM = 100,
+  LARGE = 200,
+  XLARGE = 500,
+}
+
+/**
  * Configuration options for the SDK.
  */
 export type SdkConfig = {
   businessToken: string;
-  syncInterval?: number;
+  foregroundScanInterval?: ForegroundScanInterval;
+  backgroundScanInterval?: BackgroundScanInterval;
+  maxQueuedPayloads?: MaxQueuedPayloads;
   enableBluetoothScanning?: boolean;
   enablePeriodicScanning?: boolean;
 };
@@ -192,11 +233,13 @@ const parseSyncStatus = (event: unknown): SyncStatus => {
  *
  * @example
  * ```typescript
- * import { configure, ensurePermissions } from 'bearound-react-native-sdk';
+ * import { configure, ensurePermissions, ForegroundScanInterval, BackgroundScanInterval, MaxQueuedPayloads } from 'bearound-react-native-sdk';
  *
  * await configure({
  *   businessToken: 'your-business-token',
- *   syncInterval: 30,
+ *   foregroundScanInterval: ForegroundScanInterval.SECONDS_15,
+ *   backgroundScanInterval: BackgroundScanInterval.SECONDS_30,
+ *   maxQueuedPayloads: MaxQueuedPayloads.MEDIUM,
  *   enableBluetoothScanning: true,
  *   enablePeriodicScanning: true,
  * });
@@ -205,7 +248,9 @@ const parseSyncStatus = (event: unknown): SyncStatus => {
 export async function configure(config: SdkConfig) {
   const {
     businessToken,
-    syncInterval = 30,
+    foregroundScanInterval = ForegroundScanInterval.SECONDS_15,
+    backgroundScanInterval = BackgroundScanInterval.SECONDS_30,
+    maxQueuedPayloads = MaxQueuedPayloads.MEDIUM,
     enableBluetoothScanning = false,
     enablePeriodicScanning = true,
   } = config;
@@ -216,7 +261,9 @@ export async function configure(config: SdkConfig) {
 
   await Native.configure(
     businessToken.trim(),
-    syncInterval,
+    foregroundScanInterval,
+    backgroundScanInterval,
+    maxQueuedPayloads,
     enableBluetoothScanning,
     enablePeriodicScanning
   );
