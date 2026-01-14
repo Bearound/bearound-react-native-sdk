@@ -7,7 +7,16 @@
 
 // Mock native module functions
 export const mockNativeModule = {
-  configure: jest.fn(() => Promise.resolve()),
+  configure: jest.fn(
+    (
+      _businessToken: string,
+      _foregroundScanInterval: number,
+      _backgroundScanInterval: number,
+      _maxQueuedPayloads: number,
+      _enableBluetoothScanning: boolean,
+      _enablePeriodicScanning: boolean
+    ) => Promise.resolve()
+  ),
   startScanning: jest.fn(() => Promise.resolve()),
   stopScanning: jest.fn(() => Promise.resolve()),
   isScanning: jest.fn(() => Promise.resolve(false)),

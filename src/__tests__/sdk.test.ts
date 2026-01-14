@@ -92,14 +92,16 @@ describe('Bearound SDK Core Functions', () => {
       );
     });
 
-    it('should call native configure with businessToken', async () => {
+    it('should call native configure with businessToken and default values', async () => {
       const { configure } = require('../index');
 
       await configure({ businessToken: 'test-token-123' });
 
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
         'test-token-123',
-        30,
+        15, // ForegroundScanInterval.SECONDS_15
+        30, // BackgroundScanInterval.SECONDS_30
+        100, // MaxQueuedPayloads.MEDIUM
         false,
         true
       );
@@ -112,20 +114,27 @@ describe('Bearound SDK Core Functions', () => {
 
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
         'custom-token',
-        30,
+        15, // default foreground
+        30, // default background
+        100, // default max queued
         false,
         true
       );
     });
 
-    it('should call native configure with custom syncInterval', async () => {
-      const { configure } = require('../index');
+    it('should call native configure with custom foregroundScanInterval', async () => {
+      const { configure, ForegroundScanInterval } = require('../index');
 
-      await configure({ businessToken: 'test-token', syncInterval: 60 });
+      await configure({
+        businessToken: 'test-token',
+        foregroundScanInterval: ForegroundScanInterval.SECONDS_60,
+      });
 
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
         'test-token',
         60,
+        30, // default background
+        100, // default max queued
         false,
         true
       );
@@ -141,7 +150,9 @@ describe('Bearound SDK Core Functions', () => {
 
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
         'test-token',
+        15,
         30,
+        100,
         true,
         true
       );
@@ -157,18 +168,27 @@ describe('Bearound SDK Core Functions', () => {
 
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
         'test-token',
+        15,
         30,
+        100,
         false,
         false
       );
     });
 
     it('should call native configure with all custom options', async () => {
-      const { configure } = require('../index');
+      const {
+        configure,
+        ForegroundScanInterval,
+        BackgroundScanInterval,
+        MaxQueuedPayloads,
+      } = require('../index');
 
       await configure({
         businessToken: 'my-business-token',
-        syncInterval: 45,
+        foregroundScanInterval: ForegroundScanInterval.SECONDS_45,
+        backgroundScanInterval: BackgroundScanInterval.SECONDS_60,
+        maxQueuedPayloads: MaxQueuedPayloads.LARGE,
         enableBluetoothScanning: true,
         enablePeriodicScanning: false,
       });
@@ -176,6 +196,8 @@ describe('Bearound SDK Core Functions', () => {
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
         'my-business-token',
         45,
+        60,
+        200,
         true,
         false
       );
@@ -188,7 +210,9 @@ describe('Bearound SDK Core Functions', () => {
 
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
         'my-token',
+        15,
         30,
+        100,
         false,
         true
       );

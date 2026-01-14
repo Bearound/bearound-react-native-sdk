@@ -1,5 +1,7 @@
 package com.bearoundreactsdk
 
+import android.os.Handler
+import android.os.Looper
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -10,8 +12,11 @@ import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.facebook.react.module.annotations.ReactModule
 import io.bearound.sdk.BeAroundSDK
 import io.bearound.sdk.interfaces.BeAroundSDKDelegate
+import io.bearound.sdk.models.BackgroundScanInterval
 import io.bearound.sdk.models.Beacon
 import io.bearound.sdk.models.BeaconMetadata
+import io.bearound.sdk.models.ForegroundScanInterval
+import io.bearound.sdk.models.MaxQueuedPayloads
 import io.bearound.sdk.models.UserProperties
 
 @ReactModule(name = BearoundReactSdkModule.NAME)
@@ -26,19 +31,30 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     private const val EVENT_ERROR = "bearound:error"
   }
 
+  private val mainHandler = Handler(Looper.getMainLooper())
+  
   private val sdk: BeAroundSDK by lazy {
-    BeAroundSDK.getInstance(ctx.applicationContext)
-  }
-
-  init {
-    sdk.delegate = this
+    if (Looper.myLooper() == Looper.getMainLooper()) {
+      BeAroundSDK.getInstance(ctx.applicationContext)
+    } else {
+      var instance: BeAroundSDK? = null
+      mainHandler.post {
+        instance = BeAroundSDK.getInstance(ctx.applicationContext)
+      }
+      while (instance == null) {
+        Thread.sleep(10)
+      }
+      instance!!
+    }
   }
 
   override fun getName() = NAME
 
   override fun configure(
     businessToken: String,
-    syncInterval: Double,
+    foregroundScanInterval: Double,
+    backgroundScanInterval: Double,
+    maxQueuedPayloads: Double,
     enableBluetoothScanning: Boolean,
     enablePeriodicScanning: Boolean,
     promise: Promise
@@ -48,10 +64,16 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
         promise.reject("INVALID_ARGUMENT", "Business token is required")
         return
       }
-      val intervalMs = (syncInterval * 1000).toLong()
+      
+      val foregroundInterval = mapToForegroundScanInterval(foregroundScanInterval.toInt())
+      val backgroundInterval = mapToBackgroundScanInterval(backgroundScanInterval.toInt())
+      val maxQueued = mapToMaxQueuedPayloads(maxQueuedPayloads.toInt())
+      
       sdk.configure(
         businessToken = businessToken.trim(),
-        syncInterval = intervalMs,
+        foregroundScanInterval = foregroundInterval,
+        backgroundScanInterval = backgroundInterval,
+        maxQueuedPayloads = maxQueued,
         enableBluetoothScanning = enableBluetoothScanning,
         enablePeriodicScanning = enablePeriodicScanning
       )
@@ -224,6 +246,45 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     ctx.runOnUiQueueThread {
       ctx.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
         .emit(name, payload)
+    }
+  }
+
+  private fun mapToForegroundScanInterval(seconds: Int): ForegroundScanInterval {
+    return when (seconds) {
+      5 -> ForegroundScanInterval.SECONDS_5
+      10 -> ForegroundScanInterval.SECONDS_10
+      15 -> ForegroundScanInterval.SECONDS_15
+      20 -> ForegroundScanInterval.SECONDS_20
+      25 -> ForegroundScanInterval.SECONDS_25
+      30 -> ForegroundScanInterval.SECONDS_30
+      35 -> ForegroundScanInterval.SECONDS_35
+      40 -> ForegroundScanInterval.SECONDS_40
+      45 -> ForegroundScanInterval.SECONDS_45
+      50 -> ForegroundScanInterval.SECONDS_50
+      55 -> ForegroundScanInterval.SECONDS_55
+      60 -> ForegroundScanInterval.SECONDS_60
+      else -> ForegroundScanInterval.SECONDS_15
+    }
+  }
+
+  private fun mapToBackgroundScanInterval(seconds: Int): BackgroundScanInterval {
+    return when (seconds) {
+      15 -> BackgroundScanInterval.SECONDS_15
+      30 -> BackgroundScanInterval.SECONDS_30
+      60 -> BackgroundScanInterval.SECONDS_60
+      90 -> BackgroundScanInterval.SECONDS_90
+      120 -> BackgroundScanInterval.SECONDS_120
+      else -> BackgroundScanInterval.SECONDS_30
+    }
+  }
+
+  private fun mapToMaxQueuedPayloads(value: Int): MaxQueuedPayloads {
+    return when (value) {
+      50 -> MaxQueuedPayloads.SMALL
+      100 -> MaxQueuedPayloads.MEDIUM
+      200 -> MaxQueuedPayloads.LARGE
+      500 -> MaxQueuedPayloads.XLARGE
+      else -> MaxQueuedPayloads.MEDIUM
     }
   }
 }
