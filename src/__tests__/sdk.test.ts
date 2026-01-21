@@ -360,7 +360,8 @@ describe('SDK Exports', () => {
 
     // Event listeners
     expect(typeof SDK.addBeaconsListener).toBe('function');
-    expect(typeof SDK.addSyncStatusListener).toBe('function');
+    expect(typeof SDK.addSyncLifecycleListener).toBe('function');
+    expect(typeof SDK.addBackgroundDetectionListener).toBe('function');
     expect(typeof SDK.addScanningListener).toBe('function');
     expect(typeof SDK.addErrorListener).toBe('function');
 

@@ -16,7 +16,8 @@ import {
   addBeaconsListener,
   addErrorListener,
   addScanningListener,
-  addSyncStatusListener,
+  addSyncLifecycleListener,
+  addBackgroundDetectionListener,
   checkPermissions,
   ensurePermissions,
   ForegroundScanInterval,
@@ -106,8 +107,6 @@ export default function App() {
   const [maxQueuedPayloads, setMaxQueuedPayloads] = useState(
     MaxQueuedPayloads.MEDIUM
   );
-  const [enableBluetoothScanning, setEnableBluetoothScanning] = useState(false);
-  const [enablePeriodicScanning, setEnablePeriodicScanning] = useState(true);
   const [sortOption, setSortOption] = useState<SortOption>('proximity');
   const [isScanning, setIsScanning] = useState(false);
   const [hasPermissions, setHasPermissions] = useState(false);
@@ -117,8 +116,6 @@ export default function App() {
     notifications: 'Verificando...',
   });
   const [statusMessage, setStatusMessage] = useState('Pronto');
-  const [secondsUntilNextSync, setSecondsUntilNextSync] = useState(0);
-  const [isRanging, setIsRanging] = useState(false);
   const [beacons, setBeacons] = useState<Beacon[]>([]);
   const [lastScanTime, setLastScanTime] = useState<Date | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
@@ -134,11 +131,8 @@ export default function App() {
   );
 
   const scanMode = useMemo(() => {
-    if (!enablePeriodicScanning) {
-      return 'Contínuo';
-    }
     return pauseDuration > 0 ? 'Periódico' : 'Contínuo';
-  }, [enablePeriodicScanning, pauseDuration]);
+  }, [pauseDuration]);
 
   const sortedBeacons = useMemo(
     () => sortBeacons(beacons, sortOption),
@@ -213,8 +207,6 @@ export default function App() {
         foregroundScanInterval: ForegroundScanInterval;
         backgroundScanInterval: BackgroundScanInterval;
         maxQueuedPayloads: MaxQueuedPayloads;
-        enableBluetoothScanning: boolean;
-        enablePeriodicScanning: boolean;
       }> = {}
     ) => {
       setLastError(null);
@@ -223,8 +215,6 @@ export default function App() {
         foregroundScanInterval: foregroundInterval,
         backgroundScanInterval: backgroundInterval,
         maxQueuedPayloads: maxQueuedPayloads,
-        enableBluetoothScanning,
-        enablePeriodicScanning,
         ...overrides,
       };
 
@@ -239,13 +229,7 @@ export default function App() {
         throw error;
       }
     },
-    [
-      foregroundInterval,
-      backgroundInterval,
-      maxQueuedPayloads,
-      enableBluetoothScanning,
-      enablePeriodicScanning,
-    ]
+    [foregroundInterval, backgroundInterval, maxQueuedPayloads]
   );
 
   const startScan = useCallback(async () => {
@@ -275,8 +259,6 @@ export default function App() {
       await BeAround.stopScanning();
       setIsScanning(false);
       setBeacons([]);
-      setSecondsUntilNextSync(0);
-      setIsRanging(false);
       setStatusMessage('Parado');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Erro ao parar';
@@ -303,9 +285,22 @@ export default function App() {
       }
     });
 
-    const syncSub = addSyncStatusListener((status) => {
-      setSecondsUntilNextSync(status.secondsUntilNextSync);
-      setIsRanging(status.isRanging);
+    const syncLifecycleSub = addSyncLifecycleListener((event) => {
+      if (event.type === 'started') {
+        console.log(`🚀 Sync started with ${event.beaconCount} beacons`);
+      } else if (event.type === 'completed') {
+        if (event.success) {
+          console.log(`✅ Sync succeeded: ${event.beaconCount} beacons sent`);
+          setLastError(null); // Clear error on success
+        } else {
+          console.log(`❌ Sync failed: ${event.error}`);
+          setLastError(event.error || 'Sync failed');
+        }
+      }
+    });
+
+    const backgroundDetectionSub = addBackgroundDetectionListener((event) => {
+      console.log(`🌙 Background: ${event.beaconCount} beacons detected`);
     });
 
     const scanningSub = addScanningListener((scanning) => {
@@ -313,8 +308,6 @@ export default function App() {
       setStatusMessage(scanning ? 'Scaneando...' : 'Parado');
       if (!scanning) {
         setBeacons([]);
-        setSecondsUntilNextSync(0);
-        setIsRanging(false);
       }
     });
 
@@ -325,7 +318,8 @@ export default function App() {
 
     return () => {
       beaconsSub.remove();
-      syncSub.remove();
+      syncLifecycleSub.remove();
+      backgroundDetectionSub.remove();
       scanningSub.remove();
       errorSub.remove();
     };
@@ -442,30 +436,9 @@ export default function App() {
               />
             ) : null}
             <View style={styles.divider} />
-            <InfoRow
-              label="Envio para API em"
-              value={`${secondsUntilNextSync}s`}
-              valueColor="#64b5f6"
-            />
-            <View style={styles.rangingRow}>
-              <Text style={styles.infoLabel}>Ranging</Text>
-              <View style={styles.rangingStatus}>
-                <View
-                  style={[
-                    styles.rangingDot,
-                    { backgroundColor: isRanging ? '#4caf50' : '#ff9800' },
-                  ]}
-                />
-                <Text
-                  style={[
-                    styles.rangingText,
-                    { color: isRanging ? '#4caf50' : '#ff9800' },
-                  ]}
-                >
-                  {isRanging ? 'Ativo' : 'Pausado'}
-                </Text>
-              </View>
-            </View>
+            <Text style={styles.infoNote}>
+              ✨ Sync automático: eventos em syncLifecycleListener
+            </Text>
           </View>
         ) : null}
 
@@ -596,52 +569,18 @@ export default function App() {
             ))}
           </View>
 
-          <Text style={styles.optionLabel}>Configurações extras</Text>
+          <Text style={styles.optionLabel}>✨ Automático em v2.2.1</Text>
           <View style={styles.extraRow}>
-            <Pressable
-              onPress={() => {
-                const next = !enableBluetoothScanning;
-                setEnableBluetoothScanning(next);
-                configureSdk({ enableBluetoothScanning: next }).catch(
-                  () => null
-                );
-              }}
-              style={[
-                styles.toggleButton,
-                enableBluetoothScanning && styles.toggleButtonActive,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.toggleText,
-                  enableBluetoothScanning && styles.toggleTextActive,
-                ]}
-              >
-                Bluetooth metadata {enableBluetoothScanning ? 'on' : 'off'}
+            <View style={styles.autoFeature}>
+              <Text style={styles.autoFeatureText}>
+                • Bluetooth metadata: sempre ativo
               </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                const next = !enablePeriodicScanning;
-                setEnablePeriodicScanning(next);
-                configureSdk({ enablePeriodicScanning: next }).catch(
-                  () => null
-                );
-              }}
-              style={[
-                styles.toggleButton,
-                enablePeriodicScanning && styles.toggleButtonActive,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.toggleText,
-                  enablePeriodicScanning && styles.toggleTextActive,
-                ]}
-              >
-                Scan periódico {enablePeriodicScanning ? 'on' : 'off'}
+            </View>
+            <View style={styles.autoFeature}>
+              <Text style={styles.autoFeatureText}>
+                • Scan periódico: FG ativo, BG contínuo
               </Text>
-            </Pressable>
+            </View>
           </View>
         </View>
 
@@ -821,6 +760,11 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
   },
+  infoNote: {
+    color: '#9e9e9e',
+    fontSize: 12,
+    fontStyle: 'italic',
+  },
   divider: {
     height: 1,
     backgroundColor: '#1f1f1f',
@@ -882,6 +826,13 @@ const styles = StyleSheet.create({
   },
   extraRow: {
     flexDirection: 'column',
+  },
+  autoFeature: {
+    paddingVertical: 8,
+  },
+  autoFeatureText: {
+    color: '#9e9e9e',
+    fontSize: 13,
   },
   toggleButton: {
     paddingVertical: 10,
