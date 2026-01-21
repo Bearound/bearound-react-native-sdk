@@ -15,7 +15,7 @@
  * - Built-in permission management (Android/iOS)
  *
  * @author Bearound Team
- * @version 2.0.0
+ * @version 2.2.0
  */
 
 import {
@@ -74,7 +74,9 @@ export type SdkConfig = {
   foregroundScanInterval?: ForegroundScanInterval;
   backgroundScanInterval?: BackgroundScanInterval;
   maxQueuedPayloads?: MaxQueuedPayloads;
+  /** @deprecated Since v2.2.1 - Bluetooth scanning is now automatic (ignored) */
   enableBluetoothScanning?: boolean;
+  /** @deprecated Since v2.2.1 - Periodic scanning is now automatic (ignored) */
   enablePeriodicScanning?: boolean;
 };
 
@@ -112,9 +114,15 @@ export type Beacon = {
   txPower?: number;
 };
 
-export type SyncStatus = {
-  secondsUntilNextSync: number;
-  isRanging: boolean;
+export type SyncLifecycleEvent = {
+  type: 'started' | 'completed';
+  beaconCount: number;
+  success?: boolean;
+  error?: string;
+};
+
+export type BackgroundDetectionEvent = {
+  beaconCount: number;
 };
 
 export type BearoundError = {
@@ -122,7 +130,8 @@ export type BearoundError = {
 };
 
 const EVENT_BEACONS = 'bearound:beacons';
-const EVENT_SYNC = 'bearound:sync';
+const EVENT_SYNC_LIFECYCLE = 'bearound:syncLifecycle';
+const EVENT_BACKGROUND_DETECTION = 'bearound:backgroundDetection';
 const EVENT_SCANNING = 'bearound:scanning';
 const EVENT_ERROR = 'bearound:error';
 
@@ -210,11 +219,23 @@ const parseBeacons = (event: unknown): Beacon[] => {
   });
 };
 
-const parseSyncStatus = (event: unknown): SyncStatus => {
+const parseSyncLifecycleEvent = (event: unknown): SyncLifecycleEvent => {
   const payload = asMap(event);
   return {
-    secondsUntilNextSync: asNumber(payload.secondsUntilNextSync),
-    isRanging: Boolean(payload.isRanging),
+    type: String(payload.type) as 'started' | 'completed',
+    beaconCount: asNumber(payload.beaconCount),
+    success:
+      payload.success === undefined ? undefined : Boolean(payload.success),
+    error: payload.error === undefined ? undefined : String(payload.error),
+  };
+};
+
+const parseBackgroundDetectionEvent = (
+  event: unknown
+): BackgroundDetectionEvent => {
+  const payload = asMap(event);
+  return {
+    beaconCount: asNumber(payload.beaconCount),
   };
 };
 
@@ -229,19 +250,19 @@ const parseSyncStatus = (event: unknown): SyncStatus => {
  * **Important Notes:**
  * - Call before `startScanning()`
  * - Business token is required
- * - Sync interval is in seconds (5-60)
+ * - Sync intervals are in seconds (foreground: 5-60, background: 15-120)
+ * - **v2.2.1**: `enableBluetoothScanning` and `enablePeriodicScanning` are ignored
+ *   (Bluetooth metadata and periodic scanning are now automatic)
  *
  * @example
  * ```typescript
- * import { configure, ensurePermissions, ForegroundScanInterval, BackgroundScanInterval, MaxQueuedPayloads } from 'bearound-react-native-sdk';
+ * import { configure, ensurePermissions, ForegroundScanInterval, BackgroundScanInterval, MaxQueuedPayloads } from '@bearound/react-native-sdk';
  *
  * await configure({
  *   businessToken: 'your-business-token',
  *   foregroundScanInterval: ForegroundScanInterval.SECONDS_15,
  *   backgroundScanInterval: BackgroundScanInterval.SECONDS_30,
  *   maxQueuedPayloads: MaxQueuedPayloads.MEDIUM,
- *   enableBluetoothScanning: true,
- *   enablePeriodicScanning: true,
  * });
  * ```
  */
@@ -292,6 +313,9 @@ export async function isScanning() {
 
 /**
  * Enables or disables Bluetooth metadata scanning.
+ *
+ * @deprecated Since v2.2.1 - Bluetooth scanning is now automatic.
+ * This method does nothing but is maintained for backward compatibility.
  */
 export async function setBluetoothScanning(enabled: boolean) {
   await Native.setBluetoothScanning(enabled);
@@ -319,11 +343,19 @@ export function addBeaconsListener(
   });
 }
 
-export function addSyncStatusListener(
-  listener: (status: SyncStatus) => void
+export function addSyncLifecycleListener(
+  listener: (event: SyncLifecycleEvent) => void
 ): EmitterSubscription {
-  return eventEmitter.addListener(EVENT_SYNC, (event) => {
-    listener(parseSyncStatus(event));
+  return eventEmitter.addListener(EVENT_SYNC_LIFECYCLE, (event) => {
+    listener(parseSyncLifecycleEvent(event));
+  });
+}
+
+export function addBackgroundDetectionListener(
+  listener: (event: BackgroundDetectionEvent) => void
+): EmitterSubscription {
+  return eventEmitter.addListener(EVENT_BACKGROUND_DETECTION, (event) => {
+    listener(parseBackgroundDetectionEvent(event));
   });
 }
 

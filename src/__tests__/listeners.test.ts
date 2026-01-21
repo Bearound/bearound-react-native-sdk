@@ -9,7 +9,6 @@ import {
   mockNativeModule,
   sampleBeaconData,
   sampleBeaconDataMinimal,
-  sampleSyncStatus,
   resetMocks,
 } from './testUtils';
 
@@ -190,61 +189,114 @@ describe('Event Listeners', () => {
     });
   });
 
-  describe('addSyncStatusListener()', () => {
-    it('should register listener for bearound:sync event', () => {
-      const { addSyncStatusListener } = require('../index');
+  describe('addSyncLifecycleListener()', () => {
+    it('should register listener for bearound:syncLifecycle event', () => {
+      const { addSyncLifecycleListener } = require('../index');
       const callback = jest.fn();
 
-      addSyncStatusListener(callback);
+      addSyncLifecycleListener(callback);
 
       expect(mockAddListener).toHaveBeenCalledWith(
-        'bearound:sync',
+        'bearound:syncLifecycle',
         expect.any(Function)
       );
     });
 
-    it('should parse sync status correctly', () => {
-      const { addSyncStatusListener } = require('../index');
+    it('should parse sync started event correctly', () => {
+      const { addSyncLifecycleListener } = require('../index');
       const callback = jest.fn();
 
-      addSyncStatusListener(callback);
-      const syncCallback = eventCallbacks['bearound:sync'];
+      addSyncLifecycleListener(callback);
+      const syncCallback = eventCallbacks['bearound:syncLifecycle'];
       expect(syncCallback).toBeDefined();
-      syncCallback!(sampleSyncStatus);
+      syncCallback!({ type: 'started', beaconCount: 5 });
 
       expect(callback).toHaveBeenCalledWith({
-        secondsUntilNextSync: 30,
-        isRanging: true,
+        type: 'started',
+        beaconCount: 5,
+        success: undefined,
+        error: undefined,
       });
     });
 
-    it('should handle missing fields with defaults', () => {
-      const { addSyncStatusListener } = require('../index');
+    it('should parse sync completed success event correctly', () => {
+      const { addSyncLifecycleListener } = require('../index');
       const callback = jest.fn();
 
-      addSyncStatusListener(callback);
-      const syncCallback = eventCallbacks['bearound:sync'];
+      addSyncLifecycleListener(callback);
+      const syncCallback = eventCallbacks['bearound:syncLifecycle'];
       expect(syncCallback).toBeDefined();
-      syncCallback!({});
+      syncCallback!({ type: 'completed', beaconCount: 5, success: true });
 
       expect(callback).toHaveBeenCalledWith({
-        secondsUntilNextSync: 0,
-        isRanging: false,
+        type: 'completed',
+        beaconCount: 5,
+        success: true,
+        error: undefined,
       });
     });
 
-    it('should handle null event', () => {
-      const { addSyncStatusListener } = require('../index');
+    it('should parse sync completed failure event correctly', () => {
+      const { addSyncLifecycleListener } = require('../index');
       const callback = jest.fn();
 
-      addSyncStatusListener(callback);
-      const syncCallback = eventCallbacks['bearound:sync'];
+      addSyncLifecycleListener(callback);
+      const syncCallback = eventCallbacks['bearound:syncLifecycle'];
       expect(syncCallback).toBeDefined();
-      syncCallback!(null);
+      syncCallback!({
+        type: 'completed',
+        beaconCount: 5,
+        success: false,
+        error: 'Network error',
+      });
 
       expect(callback).toHaveBeenCalledWith({
-        secondsUntilNextSync: 0,
-        isRanging: false,
+        type: 'completed',
+        beaconCount: 5,
+        success: false,
+        error: 'Network error',
+      });
+    });
+  });
+
+  describe('addBackgroundDetectionListener()', () => {
+    it('should register listener for bearound:backgroundDetection event', () => {
+      const { addBackgroundDetectionListener } = require('../index');
+      const callback = jest.fn();
+
+      addBackgroundDetectionListener(callback);
+
+      expect(mockAddListener).toHaveBeenCalledWith(
+        'bearound:backgroundDetection',
+        expect.any(Function)
+      );
+    });
+
+    it('should parse background detection event correctly', () => {
+      const { addBackgroundDetectionListener } = require('../index');
+      const callback = jest.fn();
+
+      addBackgroundDetectionListener(callback);
+      const bgCallback = eventCallbacks['bearound:backgroundDetection'];
+      expect(bgCallback).toBeDefined();
+      bgCallback!({ beaconCount: 3 });
+
+      expect(callback).toHaveBeenCalledWith({
+        beaconCount: 3,
+      });
+    });
+
+    it('should handle missing beaconCount with default', () => {
+      const { addBackgroundDetectionListener } = require('../index');
+      const callback = jest.fn();
+
+      addBackgroundDetectionListener(callback);
+      const bgCallback = eventCallbacks['bearound:backgroundDetection'];
+      expect(bgCallback).toBeDefined();
+      bgCallback!({});
+
+      expect(callback).toHaveBeenCalledWith({
+        beaconCount: 0,
       });
     });
   });

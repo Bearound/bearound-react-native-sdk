@@ -2,6 +2,8 @@ import UIKit
 import React
 import React_RCTAppDelegate
 import ReactAppDependencyProvider
+import BearoundSDK
+import UserNotifications
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -14,6 +16,25 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
+    // CRITICAL: Register background tasks BEFORE app finishes launching
+    BeAroundSDK.shared.registerBackgroundTasks()
+    
+    // Check if app was relaunched due to location event (beacon region entry)
+    if launchOptions?[.location] != nil {
+      NSLog("[BearoundReactSdkExample] App launched due to LOCATION event (beacon region entry)")
+    }
+    
+    // Request notification permissions for background alerts
+    UNUserNotificationCenter.current().requestAuthorization(
+      options: [.alert, .sound, .badge]
+    ) { granted, error in
+      if granted {
+        NSLog("[BearoundReactSdkExample] Notification permission granted")
+      } else if let error = error {
+        NSLog("[BearoundReactSdkExample] Notification permission error: %@", error.localizedDescription)
+      }
+    }
+    
     let delegate = ReactNativeDelegate()
     let factory = RCTReactNativeFactory(delegate: delegate)
     delegate.dependencyProvider = RCTAppDependencyProvider()
@@ -30,6 +51,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     )
 
     return true
+  }
+  
+  // Handle background fetch - called by iOS when app needs to refresh data
+  func application(
+    _ application: UIApplication,
+    performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+  ) {
+    NSLog("[BearoundReactSdkExample] Background fetch triggered")
+    BeAroundSDK.shared.performBackgroundFetch { success in
+      completionHandler(success ? .newData : .noData)
+    }
   }
 }
 

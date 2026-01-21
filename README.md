@@ -1,7 +1,7 @@
 # 🐻 Bearound React Native SDK
 
 Official SDK to integrate **Bearound's** secure BLE beacon detection into **React Native** apps (Android and iOS).
-Aligned with Bearound native SDKs **2.1.0+**.
+Aligned with Bearound native SDKs **2.2.1**.
 
 > ✅ Compatible with **New Architecture** (TurboModules) and also compatible with classic architecture.
 
@@ -97,8 +97,10 @@ In `Info.plist`:
 ```xml
 <key>UIBackgroundModes</key>
 <array>
-  <string>bluetooth-central</string>
+  <string>fetch</string>
   <string>location</string>
+  <string>processing</string>
+  <string>bluetooth-central</string>
 </array>
 
 <key>NSBluetoothAlwaysUsageDescription</key>
@@ -114,7 +116,10 @@ In `Info.plist`:
 <string>We need permission to use IDFA on iOS 14+.</string>
 ```
 
-> Enable **Background Modes** (Location + Bluetooth) in the app target.
+> **Important for terminated app detection:**
+> - `fetch` mode allows iOS to wake the app when beacons are detected via region monitoring
+> - User must grant "Always" location permission
+> - User must enable "Background App Refresh" in Settings > General > Background App Refresh
 
 ---
 
@@ -149,8 +154,8 @@ export default function App() {
       foregroundScanInterval: BeAround.ForegroundScanInterval.SECONDS_15,
       backgroundScanInterval: BeAround.BackgroundScanInterval.SECONDS_30,
       maxQueuedPayloads: BeAround.MaxQueuedPayloads.MEDIUM,
-      enableBluetoothScanning: true,
-      enablePeriodicScanning: true,
+      // Note: enableBluetoothScanning and enablePeriodicScanning are ignored in v2.2.1
+      // Bluetooth metadata and periodic scanning are now automatic
     });
     await BeAround.startScanning();
     Alert.alert('Bearound', 'SDK started successfully');
@@ -204,8 +209,8 @@ export type SdkConfig = {
   foregroundScanInterval?: ForegroundScanInterval; // defaults to SECONDS_15
   backgroundScanInterval?: BackgroundScanInterval; // defaults to SECONDS_30
   maxQueuedPayloads?: MaxQueuedPayloads; // defaults to MEDIUM
-  enableBluetoothScanning?: boolean; // defaults to false
-  enablePeriodicScanning?: boolean; // defaults to true
+  enableBluetoothScanning?: boolean; // @deprecated v2.2.1 - ignored, always enabled
+  enablePeriodicScanning?: boolean; // @deprecated v2.2.1 - ignored, automatic
 };
 
 export type UserProperties = {
@@ -239,9 +244,15 @@ export type Beacon = {
   txPower?: number;
 };
 
-export type SyncStatus = {
-  secondsUntilNextSync: number;
-  isRanging: boolean;
+export type SyncLifecycleEvent = {
+  type: 'started' | 'completed';
+  beaconCount: number;
+  success?: boolean;
+  error?: string;
+};
+
+export type BackgroundDetectionEvent = {
+  beaconCount: number;
 };
 
 export type BearoundError = {
@@ -267,7 +278,8 @@ clearUserProperties(): Promise<void>;
 
 // Event listeners
 addBeaconsListener(listener: (beacons: Beacon[]) => void): EmitterSubscription;
-addSyncStatusListener(listener: (status: SyncStatus) => void): EmitterSubscription;
+addSyncLifecycleListener(listener: (event: SyncLifecycleEvent) => void): EmitterSubscription;
+addBackgroundDetectionListener(listener: (event: BackgroundDetectionEvent) => void): EmitterSubscription;
 addScanningListener(listener: (isScanning: boolean) => void): EmitterSubscription;
 addErrorListener(listener: (error: BearoundError) => void): EmitterSubscription;
 
@@ -307,7 +319,8 @@ requestBackgroundLocation(): Promise<boolean>;
 ```ts
 import {
   addBeaconsListener,
-  addSyncStatusListener,
+  addSyncLifecycleListener,
+  addBackgroundDetectionListener,
   addScanningListener,
   addErrorListener,
 } from '@bearound/react-native-sdk';
@@ -316,8 +329,17 @@ const beaconsSub = addBeaconsListener((beacons) => {
   console.log('Beacons', beacons);
 });
 
-const syncSub = addSyncStatusListener((status) => {
-  console.log('Next sync in', status.secondsUntilNextSync);
+const syncLifecycleSub = addSyncLifecycleListener((event) => {
+  if (event.type === 'started') {
+    console.log(`Sync started with ${event.beaconCount} beacons`);
+  }
+  if (event.type === 'completed') {
+    console.log(`Sync ${event.success ? 'succeeded' : 'failed'}`);
+  }
+});
+
+const backgroundDetectionSub = addBackgroundDetectionListener((event) => {
+  console.log(`${event.beaconCount} beacons detected in background`);
 });
 
 const scanningSub = addScanningListener((isScanning) => {

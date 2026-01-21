@@ -33,15 +33,30 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, BeAroundSDKD
       let backgroundInterval = self.mapToBackgroundScanInterval(Int(backgroundScanInterval))
       let maxQueued = self.mapToMaxQueuedPayloads(Int(maxQueuedPayloads))
       
+      // FIX: If SDK was already scanning, stop it first so new config takes effect
+      let wasScanning = self.sdk.isScanning
+      if wasScanning {
+        self.sdk.stopScanning()
+      }
+      
       self.sdk.configure(
         businessToken: businessToken,
         foregroundScanInterval: foregroundInterval,
         backgroundScanInterval: backgroundInterval,
-        maxQueuedPayloads: maxQueued,
-        enableBluetoothScanning: enableBluetoothScanning,
-        enablePeriodicScanning: enablePeriodicScanning
+        maxQueuedPayloads: maxQueued
       )
       self.sdk.delegate = self
+      
+      // If SDK was scanning before, restart with new configuration
+      if wasScanning {
+        // Force correct foreground state
+        let appState = UIApplication.shared.applicationState
+        if appState == .active {
+          NotificationCenter.default.post(name: UIApplication.willEnterForegroundNotification, object: nil)
+        }
+        
+        self.sdk.startScanning()
+      }
     }
   }
 
@@ -65,9 +80,8 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, BeAroundSDKD
   }
 
   public func setBluetoothScanning(_ enabled: Bool) {
-    DispatchQueue.main.async {
-      self.sdk.setBluetoothScanning(enabled: enabled)
-    }
+    // v2.2.1: Bluetooth scanning is now automatic - method deprecated
+    // Maintained for backward compatibility but does nothing
   }
 
   public func setUserProperties(_ properties: NSDictionary) {
@@ -160,6 +174,8 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, BeAroundSDKD
     return CLLocationManager.authorizationStatus()
   }
 
+  // BeAroundSDKDelegate callbacks (v2.2.1)
+  
   public func didUpdateBeacons(_ beacons: [Beacon]) {
     let mapped = beacons.map { beacon -> [String: Any] in
       var payload: [String: Any] = [
@@ -201,14 +217,35 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, BeAroundSDKD
       BearoundReactSdkEventEmitter.emit("bearound:scanning", body: ["isScanning": isScanning])
     }
   }
-
-  public func didUpdateSyncStatus(secondsUntilNextSync: Int, isRanging: Bool) {
+  
+  public func willStartSync(beaconCount: Int) {
     let payload: [String: Any] = [
-      "secondsUntilNextSync": secondsUntilNextSync,
-      "isRanging": isRanging
+      "type": "started",
+      "beaconCount": beaconCount
     ]
     DispatchQueue.main.async {
-      BearoundReactSdkEventEmitter.emit("bearound:sync", body: payload)
+      BearoundReactSdkEventEmitter.emit("bearound:syncLifecycle", body: payload)
+    }
+  }
+  
+  public func didCompleteSync(beaconCount: Int, success: Bool, error: Error?) {
+    let payload: [String: Any] = [
+      "type": "completed",
+      "beaconCount": beaconCount,
+      "success": success,
+      "error": error?.localizedDescription as Any
+    ]
+    DispatchQueue.main.async {
+      BearoundReactSdkEventEmitter.emit("bearound:syncLifecycle", body: payload)
+    }
+  }
+  
+  public func didDetectBeaconInBackground(beaconCount: Int) {
+    let payload: [String: Any] = [
+      "beaconCount": beaconCount
+    ]
+    DispatchQueue.main.async {
+      BearoundReactSdkEventEmitter.emit("bearound:backgroundDetection", body: payload)
     }
   }
 
