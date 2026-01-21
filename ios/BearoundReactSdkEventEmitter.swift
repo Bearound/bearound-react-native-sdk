@@ -17,7 +17,8 @@ public class BearoundReactSdkEventEmitter: RCTEventEmitter {
   public override func supportedEvents() -> [String]! {
     return [
       "bearound:beacons",
-      "bearound:sync",
+      "bearound:syncLifecycle",
+      "bearound:backgroundDetection",
       "bearound:scanning",
       "bearound:error",
     ]

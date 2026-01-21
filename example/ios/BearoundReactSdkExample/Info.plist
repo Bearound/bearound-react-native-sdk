@@ -2,6 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>io.bearound.sdk.sync</string>
+		<string>io.bearound.sdk.processing</string>
+	</array>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
@@ -62,8 +67,10 @@
   <string>Permita "Sempre" para detectar beacons em segundo plano.</string>
   <key>UIBackgroundModes</key>
   <array>
-    <string>bluetooth-central</string>
+    <string>fetch</string>
     <string>location</string>
+    <string>processing</string>
+    <string>bluetooth-central</string>
   </array>
 </dict>
 </plist>
