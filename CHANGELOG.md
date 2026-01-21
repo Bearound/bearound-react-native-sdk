@@ -5,6 +5,79 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] - 2026-01-21
+
+### ⚠️ Breaking Changes
+
+- **Removed `enableBluetoothScanning` and `enablePeriodicScanning` parameters**: Bluetooth metadata and periodic scanning are now automatic in v2.2.1. These parameters are ignored if passed to `configure()`.
+- **Deprecated `addSyncStatusListener`**: Use `addSyncLifecycleListener` instead for sync events.
+
+### Added
+
+- **NEW Listeners**:
+  - `addSyncLifecycleListener()` - Listen to sync started/completed events
+  - `addBackgroundDetectionListener()` - Listen to background beacon detections
+  
+- **NEW Types**:
+  - `SyncLifecycleEvent` - Sync lifecycle event with type, beaconCount, success, error
+  - `BackgroundDetectionEvent` - Background detection event with beaconCount
+
+### Fixed
+
+- **iOS/Android: Auto-restored scan not respecting configuration**: Fixed bug where if the SDK auto-restored scanning from a previous session, it would continue with the old configuration. The bridge now detects if SDK was already scanning during `configure()`, stops it, applies the new configuration, and restarts with correct settings.
+- **Android: Listener being overwritten**: Android bridge now re-assigns listener in both `configure()` and `startScanning()` methods to ensure React Native always receives callbacks.
+- **iOS: App state synchronization**: Added workaround to force SDK to recognize correct foreground state when starting scan.
+
+### Changed
+
+- **Native SDKs Updated**:
+  - Android: `com.github.Bearound:bearound-android-sdk:v2.2.1`
+  - iOS: `BearoundSDK ~> 2.2.1`
+
+### Migration from 2.1.0 to 2.2.1
+
+**Before (v2.1.0):**
+```typescript
+// Configure with explicit flags
+await configure({
+  businessToken: 'token',
+  enableBluetoothScanning: true,  // ❌ Removed
+  enablePeriodicScanning: true,   // ❌ Removed
+});
+
+// Listen to sync status (countdown)
+addSyncStatusListener((status) => {
+  console.log(`Next sync in ${status.secondsUntilNextSync}s`);
+});
+```
+
+**After (v2.2.1):**
+```typescript
+// Simpler configuration
+await configure({
+  businessToken: 'token',
+  // ✅ Bluetooth metadata: always enabled
+  // ✅ Periodic scanning: automatic (FG: enabled, BG: continuous)
+});
+
+// NEW: Listen to sync lifecycle events
+addSyncLifecycleListener((event) => {
+  if (event.type === 'started') {
+    console.log(`Sync started with ${event.beaconCount} beacons`);
+  }
+  if (event.type === 'completed') {
+    console.log(`Sync ${event.success ? 'succeeded' : 'failed'}`);
+  }
+});
+
+// NEW: Listen to background detections
+addBackgroundDetectionListener((event) => {
+  console.log(`${event.beaconCount} beacons detected in background`);
+});
+```
+
+---
+
 ## [2.1.0] - 2026-01-13
 
 ### ⚠️ Breaking Changes

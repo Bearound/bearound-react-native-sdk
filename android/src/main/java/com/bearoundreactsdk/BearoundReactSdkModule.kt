@@ -11,7 +11,7 @@ import com.facebook.react.bridge.WritableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.facebook.react.module.annotations.ReactModule
 import io.bearound.sdk.BeAroundSDK
-import io.bearound.sdk.interfaces.BeAroundSDKDelegate
+import io.bearound.sdk.interfaces.BeAroundSDKListener
 import io.bearound.sdk.models.BackgroundScanInterval
 import io.bearound.sdk.models.Beacon
 import io.bearound.sdk.models.BeaconMetadata
@@ -21,12 +21,13 @@ import io.bearound.sdk.models.UserProperties
 
 @ReactModule(name = BearoundReactSdkModule.NAME)
 class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
-  NativeBearoundReactSdkSpec(ctx), BeAroundSDKDelegate {
+  NativeBearoundReactSdkSpec(ctx), BeAroundSDKListener {
 
   companion object {
     const val NAME = "BearoundReactSdk"
     private const val EVENT_BEACONS = "bearound:beacons"
-    private const val EVENT_SYNC = "bearound:sync"
+    private const val EVENT_SYNC_LIFECYCLE = "bearound:syncLifecycle"
+    private const val EVENT_BACKGROUND_DETECTION = "bearound:backgroundDetection"
     private const val EVENT_SCANNING = "bearound:scanning"
     private const val EVENT_ERROR = "bearound:error"
   }
@@ -69,15 +70,27 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
       val backgroundInterval = mapToBackgroundScanInterval(backgroundScanInterval.toInt())
       val maxQueued = mapToMaxQueuedPayloads(maxQueuedPayloads.toInt())
       
+      // FIX: If SDK was already scanning, stop it first so new config takes effect
+      val wasScanning = sdk.isScanning
+      if (wasScanning) {
+        sdk.stopScanning()
+      }
+      
+      // Ensure listener is set before configure
+      sdk.listener = this
+      
       sdk.configure(
         businessToken = businessToken.trim(),
         foregroundScanInterval = foregroundInterval,
         backgroundScanInterval = backgroundInterval,
-        maxQueuedPayloads = maxQueued,
-        enableBluetoothScanning = enableBluetoothScanning,
-        enablePeriodicScanning = enablePeriodicScanning
+        maxQueuedPayloads = maxQueued
       )
-      sdk.delegate = this
+      
+      // If SDK was scanning before, restart with new configuration
+      if (wasScanning) {
+        sdk.startScanning()
+      }
+      
       promise.resolve(null)
     } catch (t: Throwable) {
       promise.reject("CONFIG_ERROR", t)
@@ -86,6 +99,8 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
 
   override fun startScanning(promise: Promise) {
     try {
+      // Ensure listener is set before starting scan
+      sdk.listener = this
       sdk.startScanning()
       promise.resolve(null)
     } catch (t: Throwable) {
@@ -107,12 +122,9 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
   }
 
   override fun setBluetoothScanning(enabled: Boolean, promise: Promise) {
-    try {
-      sdk.setBluetoothScanning(enabled)
-      promise.resolve(null)
-    } catch (t: Throwable) {
-      promise.reject("BT_SCAN_ERROR", t)
-    }
+    // v2.2.1: Bluetooth scanning is now automatic - method deprecated
+    // Maintained for backward compatibility but does nothing
+    promise.resolve(null)
   }
 
   override fun setUserProperties(properties: ReadableMap, promise: Promise) {
@@ -150,29 +162,50 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     // Required for NativeEventEmitter; no-op for now.
   }
 
-  override fun didUpdateBeacons(beacons: List<Beacon>) {
+  // BeAroundSDKListener callbacks (v2.2.1)
+  
+  override fun onBeaconsUpdated(beacons: List<Beacon>) {
     val payload = Arguments.createMap()
     payload.putArray("beacons", mapBeacons(beacons))
     sendEvent(EVENT_BEACONS, payload)
   }
 
-  override fun didFailWithError(error: Exception) {
+  override fun onError(error: Exception) {
     val payload = Arguments.createMap()
     payload.putString("message", error.message ?: "Unknown error")
     sendEvent(EVENT_ERROR, payload)
   }
 
-  override fun didChangeScanning(isScanning: Boolean) {
+  override fun onScanningStateChanged(isScanning: Boolean) {
     val payload = Arguments.createMap()
     payload.putBoolean("isScanning", isScanning)
     sendEvent(EVENT_SCANNING, payload)
   }
-
-  override fun didUpdateSyncStatus(secondsUntilNextSync: Int, isRanging: Boolean) {
+  
+  override fun onAppStateChanged(isInBackground: Boolean) {
+    // Not needed for React Native - handled by framework
+  }
+  
+  override fun onSyncStarted(beaconCount: Int) {
     val payload = Arguments.createMap()
-    payload.putInt("secondsUntilNextSync", secondsUntilNextSync)
-    payload.putBoolean("isRanging", isRanging)
-    sendEvent(EVENT_SYNC, payload)
+    payload.putString("type", "started")
+    payload.putInt("beaconCount", beaconCount)
+    sendEvent(EVENT_SYNC_LIFECYCLE, payload)
+  }
+  
+  override fun onSyncCompleted(beaconCount: Int, success: Boolean, error: Exception?) {
+    val payload = Arguments.createMap()
+    payload.putString("type", "completed")
+    payload.putInt("beaconCount", beaconCount)
+    payload.putBoolean("success", success)
+    payload.putString("error", error?.message)
+    sendEvent(EVENT_SYNC_LIFECYCLE, payload)
+  }
+  
+  override fun onBeaconDetectedInBackground(beaconCount: Int) {
+    val payload = Arguments.createMap()
+    payload.putInt("beaconCount", beaconCount)
+    sendEvent(EVENT_BACKGROUND_DETECTION, payload)
   }
 
   private fun mapUserProperties(args: ReadableMap): UserProperties {

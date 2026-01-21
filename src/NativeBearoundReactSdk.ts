@@ -21,7 +21,7 @@
  * the core SDK functionality through async method calls.
  *
  * @author Bearound Team
- * @since 2.0.0
+ * @since 2.2.0
  */
 
 import type { TurboModule } from 'react-native';
