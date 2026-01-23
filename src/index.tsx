@@ -15,7 +15,7 @@
  * - Built-in permission management (Android/iOS)
  *
  * @author Bearound Team
- * @version 2.2.0
+ * @version 2.2.2
  */
 
 import {
@@ -29,8 +29,13 @@ import Native from './NativeBearoundReactSdk';
 
 /**
  * Foreground scan interval options (5-60 seconds).
+ *
+ * Note: SECONDS_5 uses continuous scanning mode (no pause between scans)
+ * for maximum beacon detection. Other intervals use periodic scanning
+ * with calculated scan/pause durations.
  */
 export enum ForegroundScanInterval {
+  /** Continuous scanning mode - no pause between scans */
   SECONDS_5 = 5,
   SECONDS_10 = 10,
   SECONDS_15 = 15,
