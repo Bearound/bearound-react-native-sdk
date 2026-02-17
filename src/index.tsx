@@ -15,7 +15,7 @@
  * - Built-in permission management (Android/iOS)
  *
  * @author Bearound Team
- * @version 2.2.2
+ * @version 2.3.0
  */
 
 import {
@@ -95,7 +95,7 @@ export type UserProperties = {
   customProperties?: Record<string, string>;
 };
 
-export type BeaconProximity = 'immediate' | 'near' | 'far' | 'unknown';
+export type BeaconProximity = 'immediate' | 'near' | 'far' | 'bt' | 'unknown';
 
 export type BeaconMetadata = {
   firmwareVersion: string;
@@ -173,6 +173,8 @@ const parseProximity = (value: unknown): BeaconProximity => {
       return 'near';
     case 'far':
       return 'far';
+    case 'bt':
+      return 'bt';
     default:
       return 'unknown';
   }
