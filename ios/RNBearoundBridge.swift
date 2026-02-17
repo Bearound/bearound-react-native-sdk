@@ -249,7 +249,7 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, BeAroundSDKD
     }
   }
 
-  private func mapProximity(_ proximity: CLProximity) -> String {
+  private func mapProximity(_ proximity: BeaconProximity) -> String {
     switch proximity {
     case .immediate:
       return "immediate"
@@ -257,9 +257,9 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, BeAroundSDKD
       return "near"
     case .far:
       return "far"
+    case .bt:
+      return "bt"
     case .unknown:
-      return "unknown"
-    @unknown default:
       return "unknown"
     }
   }
