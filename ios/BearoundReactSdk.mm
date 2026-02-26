@@ -14,13 +14,10 @@ RCT_EXPORT_METHOD(addListener:(NSString *)eventName) {}
 RCT_EXPORT_METHOD(removeListeners:(double)count) {}
 
 - (void)configure:(NSString *)businessToken
-  foregroundScanInterval:(double)foregroundScanInterval
-  backgroundScanInterval:(double)backgroundScanInterval
-     maxQueuedPayloads:(double)maxQueuedPayloads
-enableBluetoothScanning:(BOOL)enableBluetoothScanning
-enablePeriodicScanning:(BOOL)enablePeriodicScanning
-           resolve:(RCTPromiseResolveBlock)resolve
-            reject:(RCTPromiseRejectBlock)reject
+    scanPrecision:(NSString *)scanPrecision
+maxQueuedPayloads:(double)maxQueuedPayloads
+          resolve:(RCTPromiseResolveBlock)resolve
+           reject:(RCTPromiseRejectBlock)reject
 {
   NSString *token = businessToken ?: @"";
   NSString *trimmed = [token stringByTrimmingCharactersInSet:
@@ -32,11 +29,8 @@ enablePeriodicScanning:(BOOL)enablePeriodicScanning
   }
 
   [[RNBearoundBridge shared] configure:trimmed
-               foregroundScanInterval:foregroundScanInterval
-               backgroundScanInterval:backgroundScanInterval
-                  maxQueuedPayloads:maxQueuedPayloads
-               enableBluetoothScanning:enableBluetoothScanning
-                enablePeriodicScanning:enablePeriodicScanning];
+                         scanPrecision:scanPrecision ?: @"medium"
+                     maxQueuedPayloads:maxQueuedPayloads];
   resolve(nil);
 }
 
@@ -59,14 +53,6 @@ enablePeriodicScanning:(BOOL)enablePeriodicScanning
 {
   BOOL scanning = [[RNBearoundBridge shared] isScanning];
   resolve(@(scanning));
-}
-
-- (void)setBluetoothScanning:(BOOL)enabled
-                     resolve:(RCTPromiseResolveBlock)resolve
-                      reject:(RCTPromiseRejectBlock)reject
-{
-  [[RNBearoundBridge shared] setBluetoothScanning:enabled];
-  resolve(nil);
 }
 
 - (void)setUserProperties:(NSDictionary *)properties

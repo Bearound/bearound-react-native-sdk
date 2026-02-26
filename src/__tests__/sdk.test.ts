@@ -99,107 +99,43 @@ describe('Bearound SDK Core Functions', () => {
 
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
         'test-token-123',
-        15, // ForegroundScanInterval.SECONDS_15
-        30, // BackgroundScanInterval.SECONDS_30
-        100, // MaxQueuedPayloads.MEDIUM
-        false,
-        true
+        'medium',
+        100
       );
     });
 
-    it('should call native configure with custom businessToken', async () => {
-      const { configure } = require('../index');
-
-      await configure({ businessToken: 'custom-token' });
-
-      expect(mockNativeModule.configure).toHaveBeenCalledWith(
-        'custom-token',
-        15, // default foreground
-        30, // default background
-        100, // default max queued
-        false,
-        true
-      );
-    });
-
-    it('should call native configure with custom foregroundScanInterval', async () => {
-      const { configure, ForegroundScanInterval } = require('../index');
+    it('should call native configure with custom scanPrecision', async () => {
+      const { configure, ScanPrecision } = require('../index');
 
       await configure({
         businessToken: 'test-token',
-        foregroundScanInterval: ForegroundScanInterval.SECONDS_60,
+        scanPrecision: ScanPrecision.HIGH,
       });
 
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
         'test-token',
-        60,
-        30, // default background
-        100, // default max queued
-        false,
-        true
-      );
-    });
-
-    it('should call native configure with bluetooth scanning enabled', async () => {
-      const { configure } = require('../index');
-
-      await configure({
-        businessToken: 'test-token',
-        enableBluetoothScanning: true,
-      });
-
-      expect(mockNativeModule.configure).toHaveBeenCalledWith(
-        'test-token',
-        15,
-        30,
-        100,
-        true,
-        true
-      );
-    });
-
-    it('should call native configure with periodic scanning disabled', async () => {
-      const { configure } = require('../index');
-
-      await configure({
-        businessToken: 'test-token',
-        enablePeriodicScanning: false,
-      });
-
-      expect(mockNativeModule.configure).toHaveBeenCalledWith(
-        'test-token',
-        15,
-        30,
-        100,
-        false,
-        false
+        'high',
+        100
       );
     });
 
     it('should call native configure with all custom options', async () => {
       const {
         configure,
-        ForegroundScanInterval,
-        BackgroundScanInterval,
+        ScanPrecision,
         MaxQueuedPayloads,
       } = require('../index');
 
       await configure({
         businessToken: 'my-business-token',
-        foregroundScanInterval: ForegroundScanInterval.SECONDS_45,
-        backgroundScanInterval: BackgroundScanInterval.SECONDS_60,
+        scanPrecision: ScanPrecision.LOW,
         maxQueuedPayloads: MaxQueuedPayloads.LARGE,
-        enableBluetoothScanning: true,
-        enablePeriodicScanning: false,
       });
 
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
         'my-business-token',
-        45,
-        60,
-        200,
-        true,
-        false
+        'low',
+        200
       );
     });
 
@@ -210,11 +146,8 @@ describe('Bearound SDK Core Functions', () => {
 
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
         'my-token',
-        15,
-        30,
-        100,
-        false,
-        true
+        'medium',
+        100
       );
     });
   });
@@ -278,24 +211,6 @@ describe('Bearound SDK Core Functions', () => {
     });
   });
 
-  describe('setBluetoothScanning()', () => {
-    it('should enable bluetooth scanning', async () => {
-      const { setBluetoothScanning } = require('../index');
-
-      await setBluetoothScanning(true);
-
-      expect(mockNativeModule.setBluetoothScanning).toHaveBeenCalledWith(true);
-    });
-
-    it('should disable bluetooth scanning', async () => {
-      const { setBluetoothScanning } = require('../index');
-
-      await setBluetoothScanning(false);
-
-      expect(mockNativeModule.setBluetoothScanning).toHaveBeenCalledWith(false);
-    });
-  });
-
   describe('setUserProperties()', () => {
     it('should set user properties with all fields', async () => {
       const { setUserProperties } = require('../index');
@@ -352,7 +267,6 @@ describe('SDK Exports', () => {
     expect(typeof SDK.startScanning).toBe('function');
     expect(typeof SDK.stopScanning).toBe('function');
     expect(typeof SDK.isScanning).toBe('function');
-    expect(typeof SDK.setBluetoothScanning).toBe('function');
 
     // User properties
     expect(typeof SDK.setUserProperties).toBe('function');

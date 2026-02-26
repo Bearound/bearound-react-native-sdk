@@ -1,23 +1,3 @@
-/**
- * @fileoverview Main entry point for the Bearound React Native SDK
- *
- * This module provides the primary API for integrating Bearound's BLE beacon detection
- * capabilities into React Native applications.
- *
- * **Platform Support:**
- * - **Android**: Full native integration with permission management
- * - **iOS**: Native framework integration with explicit permission handling
- *
- * **Key Features:**
- * - SDK 2.0.0 configure/start/stop lifecycle
- * - Cross-platform BLE beacon detection
- * - Background monitoring capabilities
- * - Built-in permission management (Android/iOS)
- *
- * @author Bearound Team
- * @version 2.3.0
- */
-
 import {
   NativeEventEmitter,
   NativeModules,
@@ -27,43 +7,12 @@ import {
 
 import Native from './NativeBearoundReactSdk';
 
-/**
- * Foreground scan interval options (5-60 seconds).
- *
- * Note: SECONDS_5 uses continuous scanning mode (no pause between scans)
- * for maximum beacon detection. Other intervals use periodic scanning
- * with calculated scan/pause durations.
- */
-export enum ForegroundScanInterval {
-  /** Continuous scanning mode - no pause between scans */
-  SECONDS_5 = 5,
-  SECONDS_10 = 10,
-  SECONDS_15 = 15,
-  SECONDS_20 = 20,
-  SECONDS_25 = 25,
-  SECONDS_30 = 30,
-  SECONDS_35 = 35,
-  SECONDS_40 = 40,
-  SECONDS_45 = 45,
-  SECONDS_50 = 50,
-  SECONDS_55 = 55,
-  SECONDS_60 = 60,
+export enum ScanPrecision {
+  HIGH = 'high',
+  MEDIUM = 'medium',
+  LOW = 'low',
 }
 
-/**
- * Background scan interval options (15-120 seconds).
- */
-export enum BackgroundScanInterval {
-  SECONDS_15 = 15,
-  SECONDS_30 = 30,
-  SECONDS_60 = 60,
-  SECONDS_90 = 90,
-  SECONDS_120 = 120,
-}
-
-/**
- * Maximum queued payloads configuration.
- */
 export enum MaxQueuedPayloads {
   SMALL = 50,
   MEDIUM = 100,
@@ -71,18 +20,10 @@ export enum MaxQueuedPayloads {
   XLARGE = 500,
 }
 
-/**
- * Configuration options for the SDK.
- */
 export type SdkConfig = {
   businessToken: string;
-  foregroundScanInterval?: ForegroundScanInterval;
-  backgroundScanInterval?: BackgroundScanInterval;
+  scanPrecision?: ScanPrecision;
   maxQueuedPayloads?: MaxQueuedPayloads;
-  /** @deprecated Since v2.2.1 - Bluetooth scanning is now automatic (ignored) */
-  enableBluetoothScanning?: boolean;
-  /** @deprecated Since v2.2.1 - Periodic scanning is now automatic (ignored) */
-  enablePeriodicScanning?: boolean;
 };
 
 /**
@@ -246,41 +187,11 @@ const parseBackgroundDetectionEvent = (
   };
 };
 
-/**
- * Configures the Bearound SDK before starting scans.
- *
- * **Platform Behavior:**
- * - **Android**: Requires permissions to be granted before starting scanning.
- *   Use `ensurePermissions()` first to request all required permissions.
- * - **iOS**: Requests location permission via the permissions helper.
- *
- * **Important Notes:**
- * - Call before `startScanning()`
- * - Business token is required
- * - Sync intervals are in seconds (foreground: 5-60, background: 15-120)
- * - **v2.2.1**: `enableBluetoothScanning` and `enablePeriodicScanning` are ignored
- *   (Bluetooth metadata and periodic scanning are now automatic)
- *
- * @example
- * ```typescript
- * import { configure, ensurePermissions, ForegroundScanInterval, BackgroundScanInterval, MaxQueuedPayloads } from '@bearound/react-native-sdk';
- *
- * await configure({
- *   businessToken: 'your-business-token',
- *   foregroundScanInterval: ForegroundScanInterval.SECONDS_15,
- *   backgroundScanInterval: BackgroundScanInterval.SECONDS_30,
- *   maxQueuedPayloads: MaxQueuedPayloads.MEDIUM,
- * });
- * ```
- */
 export async function configure(config: SdkConfig) {
   const {
     businessToken,
-    foregroundScanInterval = ForegroundScanInterval.SECONDS_15,
-    backgroundScanInterval = BackgroundScanInterval.SECONDS_30,
+    scanPrecision = ScanPrecision.MEDIUM,
     maxQueuedPayloads = MaxQueuedPayloads.MEDIUM,
-    enableBluetoothScanning = false,
-    enablePeriodicScanning = true,
   } = config;
 
   if (!businessToken || businessToken.trim().length === 0) {
@@ -289,55 +200,27 @@ export async function configure(config: SdkConfig) {
 
   await Native.configure(
     businessToken.trim(),
-    foregroundScanInterval,
-    backgroundScanInterval,
-    maxQueuedPayloads,
-    enableBluetoothScanning,
-    enablePeriodicScanning
+    scanPrecision,
+    maxQueuedPayloads
   );
 }
 
-/**
- * Starts beacon scanning (requires `configure()`).
- */
 export async function startScanning() {
   await Native.startScanning();
 }
 
-/**
- * Stops beacon scanning and releases native resources.
- */
 export async function stopScanning() {
   await Native.stopScanning();
 }
 
-/**
- * Returns whether the SDK is currently scanning.
- */
 export async function isScanning() {
   return Native.isScanning();
 }
 
-/**
- * Enables or disables Bluetooth metadata scanning.
- *
- * @deprecated Since v2.2.1 - Bluetooth scanning is now automatic.
- * This method does nothing but is maintained for backward compatibility.
- */
-export async function setBluetoothScanning(enabled: boolean) {
-  await Native.setBluetoothScanning(enabled);
-}
-
-/**
- * Sets user properties associated with beacon events.
- */
 export async function setUserProperties(properties: UserProperties) {
   await Native.setUserProperties(properties as unknown as object);
 }
 
-/**
- * Clears user properties.
- */
 export async function clearUserProperties() {
   await Native.clearUserProperties();
 }
@@ -392,16 +275,4 @@ export function addErrorListener(
   });
 }
 
-/**
- * Re-export all permission-related functions and types.
- *
- * **Available exports:**
- * - `ensurePermissions(opts?)` - Request all required permissions (Android)
- * - `checkPermissions()` - Check current permission status (Android)
- * - `requestForegroundPermissions()` - Request foreground permissions only (Android)
- * - `requestBackgroundLocation()` - Request background location permission (Android)
- * - `PermissionResult` - Type definition for permission status
- *
- * **Note:** iOS permissions are requested via native helper methods in this SDK.
- */
 export * from './permissions';

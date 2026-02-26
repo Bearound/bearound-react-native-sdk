@@ -10,17 +10,13 @@ export const mockNativeModule = {
   configure: jest.fn(
     (
       _businessToken: string,
-      _foregroundScanInterval: number,
-      _backgroundScanInterval: number,
-      _maxQueuedPayloads: number,
-      _enableBluetoothScanning: boolean,
-      _enablePeriodicScanning: boolean
+      _scanPrecision: string,
+      _maxQueuedPayloads: number
     ) => Promise.resolve()
   ),
   startScanning: jest.fn(() => Promise.resolve()),
   stopScanning: jest.fn(() => Promise.resolve()),
   isScanning: jest.fn(() => Promise.resolve(false)),
-  setBluetoothScanning: jest.fn(() => Promise.resolve()),
   setUserProperties: jest.fn(() => Promise.resolve()),
   clearUserProperties: jest.fn(() => Promise.resolve()),
   checkPermissions: jest.fn(() => Promise.resolve(true)),
