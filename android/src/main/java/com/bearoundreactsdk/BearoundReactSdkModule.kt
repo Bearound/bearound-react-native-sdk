@@ -12,11 +12,10 @@ import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.facebook.react.module.annotations.ReactModule
 import io.bearound.sdk.BeAroundSDK
 import io.bearound.sdk.interfaces.BeAroundSDKListener
-import io.bearound.sdk.models.BackgroundScanInterval
 import io.bearound.sdk.models.Beacon
 import io.bearound.sdk.models.BeaconMetadata
-import io.bearound.sdk.models.ForegroundScanInterval
 import io.bearound.sdk.models.MaxQueuedPayloads
+import io.bearound.sdk.models.ScanPrecision
 import io.bearound.sdk.models.UserProperties
 
 @ReactModule(name = BearoundReactSdkModule.NAME)
@@ -66,23 +65,21 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
         return
       }
       
-      val foregroundInterval = mapToForegroundScanInterval(foregroundScanInterval.toInt())
-      val backgroundInterval = mapToBackgroundScanInterval(backgroundScanInterval.toInt())
+      val scanPrecision = mapToScanPrecision(foregroundScanInterval.toInt())
       val maxQueued = mapToMaxQueuedPayloads(maxQueuedPayloads.toInt())
-      
+
       // FIX: If SDK was already scanning, stop it first so new config takes effect
       val wasScanning = sdk.isScanning
       if (wasScanning) {
         sdk.stopScanning()
       }
-      
+
       // Ensure listener is set before configure
       sdk.listener = this
-      
+
       sdk.configure(
         businessToken = businessToken.trim(),
-        foregroundScanInterval = foregroundInterval,
-        backgroundScanInterval = backgroundInterval,
+        scanPrecision = scanPrecision,
         maxQueuedPayloads = maxQueued
       )
       
@@ -282,32 +279,11 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     }
   }
 
-  private fun mapToForegroundScanInterval(seconds: Int): ForegroundScanInterval {
-    return when (seconds) {
-      5 -> ForegroundScanInterval.SECONDS_5
-      10 -> ForegroundScanInterval.SECONDS_10
-      15 -> ForegroundScanInterval.SECONDS_15
-      20 -> ForegroundScanInterval.SECONDS_20
-      25 -> ForegroundScanInterval.SECONDS_25
-      30 -> ForegroundScanInterval.SECONDS_30
-      35 -> ForegroundScanInterval.SECONDS_35
-      40 -> ForegroundScanInterval.SECONDS_40
-      45 -> ForegroundScanInterval.SECONDS_45
-      50 -> ForegroundScanInterval.SECONDS_50
-      55 -> ForegroundScanInterval.SECONDS_55
-      60 -> ForegroundScanInterval.SECONDS_60
-      else -> ForegroundScanInterval.SECONDS_15
-    }
-  }
-
-  private fun mapToBackgroundScanInterval(seconds: Int): BackgroundScanInterval {
-    return when (seconds) {
-      15 -> BackgroundScanInterval.SECONDS_15
-      30 -> BackgroundScanInterval.SECONDS_30
-      60 -> BackgroundScanInterval.SECONDS_60
-      90 -> BackgroundScanInterval.SECONDS_90
-      120 -> BackgroundScanInterval.SECONDS_120
-      else -> BackgroundScanInterval.SECONDS_30
+  private fun mapToScanPrecision(foregroundSeconds: Int): ScanPrecision {
+    return when {
+      foregroundSeconds <= 5 -> ScanPrecision.HIGH
+      foregroundSeconds <= 20 -> ScanPrecision.MEDIUM
+      else -> ScanPrecision.LOW
     }
   }
 
