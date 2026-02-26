@@ -151,10 +151,8 @@ export default function App() {
 
     await BeAround.configure({
       businessToken: 'your-business-token',
-      foregroundScanInterval: BeAround.ForegroundScanInterval.SECONDS_15,
-      backgroundScanInterval: BeAround.BackgroundScanInterval.SECONDS_30,
+      scanPrecision: BeAround.ScanPrecision.MEDIUM,
       maxQueuedPayloads: BeAround.MaxQueuedPayloads.MEDIUM,
-      // Bluetooth metadata and periodic scanning are automatic since v2.2.1
     });
     await BeAround.startScanning();
     Alert.alert('Bearound', 'SDK started successfully');
@@ -181,19 +179,10 @@ export default function App() {
 ### Types
 
 ```ts
-export enum ForegroundScanInterval {
-  SECONDS_5 = 5,
-  SECONDS_10 = 10,
-  SECONDS_15 = 15, // default
-  // ... up to SECONDS_60
-}
-
-export enum BackgroundScanInterval {
-  SECONDS_15 = 15,
-  SECONDS_30 = 30, // default
-  SECONDS_60 = 60,
-  SECONDS_90 = 90,
-  SECONDS_120 = 120,
+export enum ScanPrecision {
+  HIGH = 'high',    // continuous scanning, sync every 15s
+  MEDIUM = 'medium', // 3 cycles/min (10s scan + 10s pause), sync every 60s
+  LOW = 'low',      // 1 cycle/min (10s scan + 50s pause), sync every 60s
 }
 
 export enum MaxQueuedPayloads {
@@ -205,11 +194,8 @@ export enum MaxQueuedPayloads {
 
 export type SdkConfig = {
   businessToken: string; // required - your business token
-  foregroundScanInterval?: ForegroundScanInterval; // defaults to SECONDS_15
-  backgroundScanInterval?: BackgroundScanInterval; // defaults to SECONDS_30
+  scanPrecision?: ScanPrecision; // defaults to MEDIUM
   maxQueuedPayloads?: MaxQueuedPayloads; // defaults to MEDIUM
-  enableBluetoothScanning?: boolean; // @deprecated v2.2.1 - ignored, always enabled
-  enablePeriodicScanning?: boolean; // @deprecated v2.2.1 - ignored, automatic
 };
 
 export type UserProperties = {
@@ -270,8 +256,7 @@ startScanning(): Promise<void>;
 stopScanning(): Promise<void>;
 isScanning(): Promise<boolean>;
 
-// Optional settings
-setBluetoothScanning(enabled: boolean): Promise<void>;
+// User properties
 setUserProperties(properties: UserProperties): Promise<void>;
 clearUserProperties(): Promise<void>;
 

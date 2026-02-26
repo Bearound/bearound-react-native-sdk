@@ -52,11 +52,8 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
 
   override fun configure(
     businessToken: String,
-    foregroundScanInterval: Double,
-    backgroundScanInterval: Double,
+    scanPrecision: String,
     maxQueuedPayloads: Double,
-    enableBluetoothScanning: Boolean,
-    enablePeriodicScanning: Boolean,
     promise: Promise
   ) {
     try {
@@ -64,30 +61,27 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
         promise.reject("INVALID_ARGUMENT", "Business token is required")
         return
       }
-      
-      val scanPrecision = mapToScanPrecision(foregroundScanInterval.toInt())
+
+      val precision = mapToScanPrecision(scanPrecision)
       val maxQueued = mapToMaxQueuedPayloads(maxQueuedPayloads.toInt())
 
-      // FIX: If SDK was already scanning, stop it first so new config takes effect
       val wasScanning = sdk.isScanning
       if (wasScanning) {
         sdk.stopScanning()
       }
 
-      // Ensure listener is set before configure
       sdk.listener = this
 
       sdk.configure(
         businessToken = businessToken.trim(),
-        scanPrecision = scanPrecision,
+        scanPrecision = precision,
         maxQueuedPayloads = maxQueued
       )
-      
-      // If SDK was scanning before, restart with new configuration
+
       if (wasScanning) {
         sdk.startScanning()
       }
-      
+
       promise.resolve(null)
     } catch (t: Throwable) {
       promise.reject("CONFIG_ERROR", t)
@@ -116,12 +110,6 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
 
   override fun isScanning(promise: Promise) {
     promise.resolve(sdk.isScanning)
-  }
-
-  override fun setBluetoothScanning(enabled: Boolean, promise: Promise) {
-    // v2.2.1: Bluetooth scanning is now automatic - method deprecated
-    // Maintained for backward compatibility but does nothing
-    promise.resolve(null)
   }
 
   override fun setUserProperties(properties: ReadableMap, promise: Promise) {
@@ -279,11 +267,12 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     }
   }
 
-  private fun mapToScanPrecision(foregroundSeconds: Int): ScanPrecision {
-    return when {
-      foregroundSeconds <= 5 -> ScanPrecision.HIGH
-      foregroundSeconds <= 20 -> ScanPrecision.MEDIUM
-      else -> ScanPrecision.LOW
+  private fun mapToScanPrecision(value: String): ScanPrecision {
+    return when (value.lowercase()) {
+      "high" -> ScanPrecision.HIGH
+      "medium" -> ScanPrecision.MEDIUM
+      "low" -> ScanPrecision.LOW
+      else -> ScanPrecision.MEDIUM
     }
   }
 

@@ -20,8 +20,7 @@ import {
   addBackgroundDetectionListener,
   checkPermissions,
   ensurePermissions,
-  ForegroundScanInterval,
-  BackgroundScanInterval,
+  ScanPrecision,
   MaxQueuedPayloads,
   type Beacon,
   type BeaconProximity,
@@ -98,12 +97,7 @@ const formatTime = (date: Date) =>
   date.toLocaleTimeString('pt-BR', { hour12: false });
 
 export default function App() {
-  const [foregroundInterval, setForegroundInterval] = useState(
-    ForegroundScanInterval.SECONDS_15
-  );
-  const [backgroundInterval, setBackgroundInterval] = useState(
-    BackgroundScanInterval.SECONDS_30
-  );
+  const [scanPrecision, setScanPrecision] = useState(ScanPrecision.MEDIUM);
   const [maxQueuedPayloads, setMaxQueuedPayloads] = useState(
     MaxQueuedPayloads.MEDIUM
   );
@@ -120,19 +114,16 @@ export default function App() {
   const [lastScanTime, setLastScanTime] = useState<Date | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
 
-  const scanDuration = useMemo(() => {
-    const calculated = foregroundInterval / 3;
-    return Math.max(5, Math.min(calculated, 10));
-  }, [foregroundInterval]);
-
-  const pauseDuration = useMemo(
-    () => Math.max(0, foregroundInterval - scanDuration),
-    [foregroundInterval, scanDuration]
-  );
-
-  const scanMode = useMemo(() => {
-    return pauseDuration > 0 ? 'Periódico' : 'Contínuo';
-  }, [pauseDuration]);
+  const precisionLabel = useMemo(() => {
+    switch (scanPrecision) {
+      case ScanPrecision.HIGH:
+        return 'Alta (contínuo)';
+      case ScanPrecision.MEDIUM:
+        return 'Média (3 ciclos/min)';
+      case ScanPrecision.LOW:
+        return 'Baixa (1 ciclo/min)';
+    }
+  }, [scanPrecision]);
 
   const sortedBeacons = useMemo(
     () => sortBeacons(beacons, sortOption),
@@ -204,16 +195,14 @@ export default function App() {
   const configureSdk = useCallback(
     async (
       overrides: Partial<{
-        foregroundScanInterval: ForegroundScanInterval;
-        backgroundScanInterval: BackgroundScanInterval;
+        scanPrecision: ScanPrecision;
         maxQueuedPayloads: MaxQueuedPayloads;
       }> = {}
     ) => {
       setLastError(null);
       const config = {
         businessToken: 'your-business-token',
-        foregroundScanInterval: foregroundInterval,
-        backgroundScanInterval: backgroundInterval,
+        scanPrecision: scanPrecision,
         maxQueuedPayloads: maxQueuedPayloads,
         ...overrides,
       };
@@ -229,7 +218,7 @@ export default function App() {
         throw error;
       }
     },
-    [foregroundInterval, backgroundInterval, maxQueuedPayloads]
+    [scanPrecision, maxQueuedPayloads]
   );
 
   const startScan = useCallback(async () => {
@@ -421,20 +410,8 @@ export default function App() {
         {isScanning ? (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Informações do Scan</Text>
-            <InfoRow label="Modo" value={scanMode} />
-            <InfoRow label="Foreground" value={`${foregroundInterval}s`} />
-            <InfoRow label="Background" value={`${backgroundInterval}s`} />
+            <InfoRow label="Precisão" value={precisionLabel} />
             <InfoRow label="Fila Retry" value={`${maxQueuedPayloads}`} />
-            <InfoRow
-              label="Duração do scan"
-              value={`${Math.round(scanDuration)}s`}
-            />
-            {pauseDuration > 0 ? (
-              <InfoRow
-                label="Tempo de pausa"
-                value={`${Math.round(pauseDuration)}s`}
-              />
-            ) : null}
             <View style={styles.divider} />
             <Text style={styles.infoNote}>
               ✨ Sync automático: eventos em syncLifecycleListener
@@ -457,57 +434,33 @@ export default function App() {
             )}
           </View>
 
-          <Text style={styles.optionLabel}>Foreground Interval</Text>
+          <Text style={styles.optionLabel}>Scan Precision</Text>
           <View style={styles.chipRow}>
-            {[5, 10, 15, 20, 30, 45, 60].map((seconds) => (
+            {[
+              { value: ScanPrecision.HIGH, label: 'High' },
+              { value: ScanPrecision.MEDIUM, label: 'Medium' },
+              { value: ScanPrecision.LOW, label: 'Low' },
+            ].map((option) => (
               <Pressable
-                key={`fg-${seconds}`}
+                key={option.value}
                 onPress={() => {
-                  setForegroundInterval(seconds as ForegroundScanInterval);
+                  setScanPrecision(option.value);
                   configureSdk({
-                    foregroundScanInterval: seconds as ForegroundScanInterval,
+                    scanPrecision: option.value,
                   }).catch(() => null);
                 }}
                 style={[
                   styles.chip,
-                  seconds === foregroundInterval && styles.chipActive,
+                  option.value === scanPrecision && styles.chipActive,
                 ]}
               >
                 <Text
                   style={[
                     styles.chipText,
-                    seconds === foregroundInterval && styles.chipTextActive,
+                    option.value === scanPrecision && styles.chipTextActive,
                   ]}
                 >
-                  {seconds}s
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-
-          <Text style={styles.optionLabel}>Background Interval</Text>
-          <View style={styles.chipRow}>
-            {[15, 30, 60, 90, 120].map((seconds) => (
-              <Pressable
-                key={`bg-${seconds}`}
-                onPress={() => {
-                  setBackgroundInterval(seconds as BackgroundScanInterval);
-                  configureSdk({
-                    backgroundScanInterval: seconds as BackgroundScanInterval,
-                  }).catch(() => null);
-                }}
-                style={[
-                  styles.chip,
-                  seconds === backgroundInterval && styles.chipActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    seconds === backgroundInterval && styles.chipTextActive,
-                  ]}
-                >
-                  {seconds}s
+                  {option.label}
                 </Text>
               </Pressable>
             ))}
@@ -567,20 +520,6 @@ export default function App() {
                 </Text>
               </Pressable>
             ))}
-          </View>
-
-          <Text style={styles.optionLabel}>✨ Automático em v2.2.1</Text>
-          <View style={styles.extraRow}>
-            <View style={styles.autoFeature}>
-              <Text style={styles.autoFeatureText}>
-                • Bluetooth metadata: sempre ativo
-              </Text>
-            </View>
-            <View style={styles.autoFeature}>
-              <Text style={styles.autoFeatureText}>
-                • Scan periódico: FG ativo, BG contínuo
-              </Text>
-            </View>
           </View>
         </View>
 

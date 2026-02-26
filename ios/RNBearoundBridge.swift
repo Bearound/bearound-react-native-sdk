@@ -22,39 +22,26 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, BeAroundSDKD
 
   public func configure(
     _ businessToken: String,
-    foregroundScanInterval: Double,
-    backgroundScanInterval: Double,
-    maxQueuedPayloads: Double,
-    enableBluetoothScanning: Bool,
-    enablePeriodicScanning: Bool
+    scanPrecision: String,
+    maxQueuedPayloads: Double
   ) {
     DispatchQueue.main.async {
-      let foregroundInterval = self.mapToForegroundScanInterval(Int(foregroundScanInterval))
-      let backgroundInterval = self.mapToBackgroundScanInterval(Int(backgroundScanInterval))
+      let precision = self.mapToScanPrecision(scanPrecision)
       let maxQueued = self.mapToMaxQueuedPayloads(Int(maxQueuedPayloads))
-      
-      // FIX: If SDK was already scanning, stop it first so new config takes effect
+
       let wasScanning = self.sdk.isScanning
       if wasScanning {
         self.sdk.stopScanning()
       }
-      
+
       self.sdk.configure(
         businessToken: businessToken,
-        foregroundScanInterval: foregroundInterval,
-        backgroundScanInterval: backgroundInterval,
+        scanPrecision: precision,
         maxQueuedPayloads: maxQueued
       )
       self.sdk.delegate = self
-      
-      // If SDK was scanning before, restart with new configuration
+
       if wasScanning {
-        // Force correct foreground state
-        let appState = UIApplication.shared.applicationState
-        if appState == .active {
-          NotificationCenter.default.post(name: UIApplication.willEnterForegroundNotification, object: nil)
-        }
-        
         self.sdk.startScanning()
       }
     }
@@ -77,11 +64,6 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, BeAroundSDKD
     return mainThreadSync {
       self.sdk.isScanning
     }
-  }
-
-  public func setBluetoothScanning(_ enabled: Bool) {
-    // v2.2.1: Bluetooth scanning is now automatic - method deprecated
-    // Maintained for backward compatibility but does nothing
   }
 
   public func setUserProperties(_ properties: NSDictionary) {
@@ -296,32 +278,12 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, BeAroundSDKD
     return result
   }
 
-  private func mapToForegroundScanInterval(_ seconds: Int) -> ForegroundScanInterval {
-    switch seconds {
-    case 5: return .seconds5
-    case 10: return .seconds10
-    case 15: return .seconds15
-    case 20: return .seconds20
-    case 25: return .seconds25
-    case 30: return .seconds30
-    case 35: return .seconds35
-    case 40: return .seconds40
-    case 45: return .seconds45
-    case 50: return .seconds50
-    case 55: return .seconds55
-    case 60: return .seconds60
-    default: return .seconds15
-    }
-  }
-
-  private func mapToBackgroundScanInterval(_ seconds: Int) -> BackgroundScanInterval {
-    switch seconds {
-    case 15: return .seconds15
-    case 30: return .seconds30
-    case 60: return .seconds60
-    case 90: return .seconds90
-    case 120: return .seconds120
-    default: return .seconds30
+  private func mapToScanPrecision(_ value: String) -> ScanPrecision {
+    switch value.lowercased() {
+    case "high": return .high
+    case "medium": return .medium
+    case "low": return .low
+    default: return .medium
     }
   }
 
