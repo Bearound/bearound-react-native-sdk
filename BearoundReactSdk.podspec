@@ -16,7 +16,7 @@ Pod::Spec.new do |s|
   s.source_files = "ios/**/*.{h,m,mm,cpp,swift}"
   s.private_header_files = "ios/**/*.h"
   
-  s.dependency "BearoundSDK", "~> 2.3.6"
+  s.dependency "BearoundSDK", "~> 2.3.7"
 
   s.frameworks = "CoreBluetooth", "CoreLocation", "UIKit", "Foundation", "AdSupport"
 
