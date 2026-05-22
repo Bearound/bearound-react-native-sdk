@@ -14,6 +14,7 @@ import io.bearound.sdk.BeAroundSDK
 import io.bearound.sdk.interfaces.BeAroundSDKListener
 import io.bearound.sdk.models.Beacon
 import io.bearound.sdk.models.BeaconMetadata
+import io.bearound.sdk.models.LocationCaptureResult
 import io.bearound.sdk.models.MaxQueuedPayloads
 import io.bearound.sdk.models.ScanPrecision
 import io.bearound.sdk.models.UserProperties
@@ -29,6 +30,10 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     private const val EVENT_BACKGROUND_DETECTION = "bearound:backgroundDetection"
     private const val EVENT_SCANNING = "bearound:scanning"
     private const val EVENT_ERROR = "bearound:error"
+    // v2.4 — region + location capture lifecycle
+    private const val EVENT_BEACON_REGION = "bearound:beaconRegion"
+    private const val EVENT_ACTIVE_SCAN = "bearound:activeScan"
+    private const val EVENT_LOCATION_CAPTURE = "bearound:locationCapture"
   }
 
   private val mainHandler = Handler(Looper.getMainLooper())
@@ -191,6 +196,56 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     val payload = Arguments.createMap()
     payload.putInt("beaconCount", beaconCount)
     sendEvent(EVENT_BACKGROUND_DETECTION, payload)
+  }
+
+  // v2.4 — Beacon region + location capture lifecycle
+
+  override fun onEnterBeaconRegion() {
+    val payload = Arguments.createMap()
+    payload.putString("type", "enter")
+    sendEvent(EVENT_BEACON_REGION, payload)
+  }
+
+  override fun onExitBeaconRegion() {
+    val payload = Arguments.createMap()
+    payload.putString("type", "exit")
+    sendEvent(EVENT_BEACON_REGION, payload)
+  }
+
+  override fun onActiveScanStateChanged(isActive: Boolean) {
+    val payload = Arguments.createMap()
+    payload.putBoolean("isActive", isActive)
+    sendEvent(EVENT_ACTIVE_SCAN, payload)
+  }
+
+  override fun onStartLocationCapture(reason: String) {
+    val payload = Arguments.createMap()
+    payload.putString("type", "started")
+    payload.putString("reason", reason)
+    sendEvent(EVENT_LOCATION_CAPTURE, payload)
+  }
+
+  override fun onCompleteLocationCapture(result: LocationCaptureResult) {
+    val payload = Arguments.createMap()
+    payload.putString("type", "completed")
+    payload.putString("reason", result.reason)
+    payload.putString("outcome", result.outcome)
+    payload.putBoolean("hasFix", result.hasFix)
+    payload.putDouble("timestamp", result.timestamp.time.toDouble())
+
+    result.location?.let { loc ->
+      val locMap = Arguments.createMap()
+      locMap.putDouble("latitude", loc.latitude)
+      locMap.putDouble("longitude", loc.longitude)
+      if (loc.hasAccuracy()) locMap.putDouble("horizontalAccuracy", loc.accuracy.toDouble())
+      if (loc.hasAltitude()) locMap.putDouble("altitude", loc.altitude)
+      if (loc.hasSpeed()) locMap.putDouble("speed", loc.speed.toDouble())
+      if (loc.hasBearing()) locMap.putDouble("course", loc.bearing.toDouble())
+      locMap.putDouble("timestamp", loc.time.toDouble())
+      payload.putMap("location", locMap)
+    }
+
+    sendEvent(EVENT_LOCATION_CAPTURE, payload)
   }
 
   private fun mapUserProperties(args: ReadableMap): UserProperties {

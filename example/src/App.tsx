@@ -18,12 +18,16 @@ import {
   addScanningListener,
   addSyncLifecycleListener,
   addBackgroundDetectionListener,
+  addBeaconRegionListener,
+  addActiveScanListener,
+  addLocationCaptureListener,
   checkPermissions,
   ensurePermissions,
   ScanPrecision,
   MaxQueuedPayloads,
   type Beacon,
   type BeaconProximity,
+  type CapturedLocation,
   type PermissionResult,
 } from '@bearound/react-native-sdk';
 
@@ -96,6 +100,65 @@ const proximityColor = (value: BeaconProximity) => {
 const formatTime = (date: Date) =>
   date.toLocaleTimeString('pt-BR', { hour12: false });
 
+type GeofenceEventKind =
+  | 'region-enter'
+  | 'region-exit'
+  | 'scan-active'
+  | 'scan-paused'
+  | 'capture-started'
+  | 'capture-fix'
+  | 'capture-no-fix';
+
+type GeofenceEventEntry = {
+  id: string;
+  kind: GeofenceEventKind;
+  timestamp: number;
+  detail: string;
+};
+
+const geofenceEventTitle = (kind: GeofenceEventKind) => {
+  switch (kind) {
+    case 'region-enter':
+      return 'ENTROU NA ZONA';
+    case 'region-exit':
+      return 'SAIU DA ZONA';
+    case 'scan-active':
+      return 'SCAN LIGADO';
+    case 'scan-paused':
+      return 'SCAN PAUSADO';
+    case 'capture-started':
+      return 'GPS DISPARADO';
+    case 'capture-fix':
+      return 'FIX OK';
+    case 'capture-no-fix':
+      return 'SEM FIX';
+  }
+};
+
+const geofenceEventColor = (kind: GeofenceEventKind) => {
+  switch (kind) {
+    case 'region-enter':
+    case 'scan-active':
+    case 'capture-fix':
+      return '#4caf50';
+    case 'region-exit':
+      return '#ff9800';
+    case 'scan-paused':
+      return '#9e9e9e';
+    case 'capture-started':
+      return '#2196f3';
+    case 'capture-no-fix':
+      return '#f44336';
+  }
+};
+
+const formatAge = (ms: number) => {
+  const sec = Math.max(0, Math.floor(ms / 1000));
+  if (sec < 60) return `${sec}s atrás`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}min ${sec % 60}s atrás`;
+  return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}min atrás`;
+};
+
 export default function App() {
   const [scanPrecision, setScanPrecision] = useState(ScanPrecision.MEDIUM);
   const [maxQueuedPayloads, setMaxQueuedPayloads] = useState(
@@ -113,6 +176,44 @@ export default function App() {
   const [beacons, setBeacons] = useState<Beacon[]>([]);
   const [lastScanTime, setLastScanTime] = useState<Date | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
+
+  // v2.4 — Geofence Debug state
+  const [isInBeaconRegion, setIsInBeaconRegion] = useState(false);
+  const [isActiveScan, setIsActiveScan] = useState(false);
+  const [isCapturingLocation, setIsCapturingLocation] = useState(false);
+  const [lastCaptureOpenReason, setLastCaptureOpenReason] = useState('—');
+  const [lastCaptureOutcome, setLastCaptureOutcome] = useState('—');
+  const [lastCaptureCompletedAt, setLastCaptureCompletedAt] = useState<
+    number | null
+  >(null);
+  const [lastCapturedLocation, setLastCapturedLocation] =
+    useState<CapturedLocation | null>(null);
+  const [geofenceEvents, setGeofenceEvents] = useState<GeofenceEventEntry[]>(
+    []
+  );
+  // 1Hz tick so live "X seg atrás" ages render in real time.
+  const [nowMs, setNowMs] = useState(Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const pushGeofenceEvent = useCallback(
+    (kind: GeofenceEventKind, detail: string) => {
+      setGeofenceEvents((prev) => {
+        const entry: GeofenceEventEntry = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          kind,
+          timestamp: Date.now(),
+          detail,
+        };
+        return [entry, ...prev].slice(0, 30);
+      });
+    },
+    []
+  );
+
+  const clearGeofenceLog = useCallback(() => setGeofenceEvents([]), []);
 
   const precisionLabel = useMemo(() => {
     switch (scanPrecision) {
@@ -305,14 +406,70 @@ export default function App() {
       setStatusMessage(`Erro: ${error.message}`);
     });
 
+    const regionSub = addBeaconRegionListener((event) => {
+      if (event.type === 'enter') {
+        setIsInBeaconRegion(true);
+        pushGeofenceEvent(
+          'region-enter',
+          'iOS/Android reportou entrada na zona do beacon'
+        );
+      } else {
+        setIsInBeaconRegion(false);
+        pushGeofenceEvent('region-exit', 'Saiu da zona do beacon');
+      }
+    });
+
+    const activeScanSub = addActiveScanListener((event) => {
+      setIsActiveScan(event.isActive);
+      pushGeofenceEvent(
+        event.isActive ? 'scan-active' : 'scan-paused',
+        event.isActive
+          ? 'Scan ativo (ranging + BLE) LIGADO'
+          : 'Scan ativo DESLIGADO — só monitoring de região'
+      );
+    });
+
+    const locationCaptureSub = addLocationCaptureListener((event) => {
+      if (event.type === 'started') {
+        setIsCapturingLocation(true);
+        setLastCaptureOpenReason(event.reason);
+        pushGeofenceEvent(
+          'capture-started',
+          `Janela GPS aberta — motivo: ${event.reason}`
+        );
+      } else {
+        setIsCapturingLocation(false);
+        setLastCaptureOutcome(event.outcome);
+        setLastCaptureCompletedAt(event.timestamp || Date.now());
+        setLastCapturedLocation(event.location ?? null);
+        if (event.location) {
+          const acc = event.location.horizontalAccuracy ?? -1;
+          pushGeofenceEvent(
+            'capture-fix',
+            `Fix: ${event.location.latitude.toFixed(5)}, ${event.location.longitude.toFixed(
+              5
+            )} ±${acc >= 0 ? Math.round(acc) : '?'}m | abriu: ${event.reason} | fechou: ${event.outcome}`
+          );
+        } else {
+          pushGeofenceEvent(
+            'capture-no-fix',
+            `Sem fix — abriu: ${event.reason} | fechou: ${event.outcome}`
+          );
+        }
+      }
+    });
+
     return () => {
       beaconsSub.remove();
       syncLifecycleSub.remove();
       backgroundDetectionSub.remove();
       scanningSub.remove();
       errorSub.remove();
+      regionSub.remove();
+      activeScanSub.remove();
+      locationCaptureSub.remove();
     };
-  }, [refreshPermissions]);
+  }, [pushGeofenceEvent, refreshPermissions]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -416,6 +573,88 @@ export default function App() {
             <Text style={styles.infoNote}>
               ✨ Sync automático: eventos em syncLifecycleListener
             </Text>
+          </View>
+        ) : null}
+
+        {isScanning ? (
+          <View style={styles.section}>
+            <View style={styles.geofenceHeader}>
+              <Text style={styles.sectionTitle}>Debug Geofence</Text>
+              {geofenceEvents.length > 0 ? (
+                <Pressable onPress={clearGeofenceLog}>
+                  <Text style={styles.clearLogText}>Limpar</Text>
+                </Pressable>
+              ) : null}
+            </View>
+
+            <InfoRow
+              label="Zona do beacon"
+              value={isInBeaconRegion ? 'DENTRO' : 'fora'}
+              valueColor={isInBeaconRegion ? '#4caf50' : '#9e9e9e'}
+            />
+            <InfoRow
+              label="Scan ativo"
+              value={isActiveScan ? 'LIGADO' : 'desligado'}
+              valueColor={isActiveScan ? '#4caf50' : '#9e9e9e'}
+            />
+            <InfoRow
+              label="Captura GPS"
+              value={isCapturingLocation ? 'EM ANDAMENTO…' : 'idle'}
+              valueColor={isCapturingLocation ? '#2196f3' : '#9e9e9e'}
+            />
+
+            <View style={styles.divider} />
+
+            <InfoRow label="Última abertura" value={lastCaptureOpenReason} />
+            <InfoRow label="Último fechamento" value={lastCaptureOutcome} />
+            {lastCapturedLocation ? (
+              <InfoRow
+                label="Última coord"
+                value={`${lastCapturedLocation.latitude.toFixed(5)}, ${lastCapturedLocation.longitude.toFixed(5)} ±${
+                  lastCapturedLocation.horizontalAccuracy !== undefined
+                    ? Math.round(lastCapturedLocation.horizontalAccuracy)
+                    : '?'
+                }m`}
+              />
+            ) : (
+              <InfoRow label="Última coord" value="—" />
+            )}
+            {lastCaptureCompletedAt ? (
+              <InfoRow
+                label="Concluído em"
+                value={`${formatTime(new Date(lastCaptureCompletedAt))}  (${formatAge(nowMs - lastCaptureCompletedAt)})`}
+              />
+            ) : null}
+
+            {geofenceEvents.length > 0 ? (
+              <>
+                <View style={styles.divider} />
+                <Text style={styles.eventLogTitle}>Eventos recentes</Text>
+                {geofenceEvents.slice(0, 10).map((event) => {
+                  const age = nowMs - event.timestamp;
+                  const color = geofenceEventColor(event.kind);
+                  return (
+                    <View key={event.id} style={styles.eventRow}>
+                      <View
+                        style={[styles.eventDot, { backgroundColor: color }]}
+                      />
+                      <View style={styles.eventBody}>
+                        <View style={styles.eventHeader}>
+                          <Text style={[styles.eventTitle, { color }]}>
+                            {geofenceEventTitle(event.kind)}
+                          </Text>
+                          <Text style={styles.eventTime}>
+                            {formatTime(new Date(event.timestamp))} ·{' '}
+                            {formatAge(age)}
+                          </Text>
+                        </View>
+                        <Text style={styles.eventDetail}>{event.detail}</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </>
+            ) : null}
           </View>
         ) : null}
 
@@ -871,5 +1110,55 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: '#ff7675',
+  },
+  geofenceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  clearLogText: {
+    color: '#bdbdbd',
+    fontSize: 12,
+  },
+  eventLogTitle: {
+    color: '#bdbdbd',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  eventRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 6,
+  },
+  eventDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginTop: 4,
+    marginRight: 8,
+  },
+  eventBody: {
+    flex: 1,
+  },
+  eventHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  eventTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  eventTime: {
+    color: '#9e9e9e',
+    fontSize: 10,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  eventDetail: {
+    color: '#bdbdbd',
+    fontSize: 11,
+    marginTop: 2,
   },
 });
