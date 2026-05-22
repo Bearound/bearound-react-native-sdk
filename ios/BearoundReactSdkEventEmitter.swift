@@ -21,6 +21,10 @@ public class BearoundReactSdkEventEmitter: RCTEventEmitter {
       "bearound:backgroundDetection",
       "bearound:scanning",
       "bearound:error",
+      // v2.4 — region + location capture lifecycle
+      "bearound:beaconRegion",
+      "bearound:activeScan",
+      "bearound:locationCapture",
     ]
   }
 

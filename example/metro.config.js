@@ -1,6 +1,5 @@
 const path = require('path');
 const { getDefaultConfig } = require('@react-native/metro-config');
-const { withMetroConfig } = require('react-native-monorepo-config');
 
 const root = path.resolve(__dirname, '..');
 
@@ -8,9 +7,16 @@ const root = path.resolve(__dirname, '..');
  * Metro configuration
  * https://facebook.github.io/metro/docs/configuration
  *
- * @type {import('metro-config').MetroConfig}
+ * Uses dynamic import for `react-native-monorepo-config` because the package
+ * publishes as ESM-only and `require()` of ESM is gated by a Node flag until
+ * Node 23. Metro accepts a Promise-resolved config.
+ *
+ * @type {Promise<import('metro-config').MetroConfig>}
  */
-module.exports = withMetroConfig(getDefaultConfig(__dirname), {
-  root,
-  dirname: __dirname,
-});
+module.exports = (async () => {
+  const { withMetroConfig } = await import('react-native-monorepo-config');
+  return withMetroConfig(getDefaultConfig(__dirname), {
+    root,
+    dirname: __dirname,
+  });
+})();

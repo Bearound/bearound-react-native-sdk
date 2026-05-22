@@ -75,11 +75,52 @@ export type BearoundError = {
   message: string;
 };
 
+// v2.4 — region + location capture lifecycle
+
+export type BeaconRegionEvent = {
+  type: 'enter' | 'exit';
+};
+
+export type ActiveScanEvent = {
+  isActive: boolean;
+};
+
+export type CapturedLocation = {
+  latitude: number;
+  longitude: number;
+  horizontalAccuracy?: number;
+  altitude?: number;
+  speed?: number;
+  course?: number;
+  timestamp: number;
+};
+
+export type LocationCaptureStartedEvent = {
+  type: 'started';
+  reason: string;
+};
+
+export type LocationCaptureCompletedEvent = {
+  type: 'completed';
+  reason: string;
+  outcome: string;
+  hasFix: boolean;
+  timestamp: number;
+  location?: CapturedLocation;
+};
+
+export type LocationCaptureEvent =
+  | LocationCaptureStartedEvent
+  | LocationCaptureCompletedEvent;
+
 const EVENT_BEACONS = 'bearound:beacons';
 const EVENT_SYNC_LIFECYCLE = 'bearound:syncLifecycle';
 const EVENT_BACKGROUND_DETECTION = 'bearound:backgroundDetection';
 const EVENT_SCANNING = 'bearound:scanning';
 const EVENT_ERROR = 'bearound:error';
+const EVENT_BEACON_REGION = 'bearound:beaconRegion';
+const EVENT_ACTIVE_SCAN = 'bearound:activeScan';
+const EVENT_LOCATION_CAPTURE = 'bearound:locationCapture';
 
 const nativeModules = NativeModules as { [key: string]: NativeModule };
 const nativeModule: NativeModule =
@@ -187,6 +228,60 @@ const parseBackgroundDetectionEvent = (
   };
 };
 
+const parseBeaconRegionEvent = (event: unknown): BeaconRegionEvent => {
+  const payload = asMap(event);
+  const type = String(payload.type ?? '').toLowerCase();
+  return {
+    type: type === 'exit' ? 'exit' : 'enter',
+  };
+};
+
+const parseActiveScanEvent = (event: unknown): ActiveScanEvent => {
+  const payload = asMap(event);
+  return { isActive: Boolean(payload.isActive) };
+};
+
+const parseCapturedLocation = (
+  value: unknown
+): CapturedLocation | undefined => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+  const payload = value as Record<string, unknown>;
+  return {
+    latitude: asNumber(payload.latitude),
+    longitude: asNumber(payload.longitude),
+    horizontalAccuracy:
+      payload.horizontalAccuracy === undefined
+        ? undefined
+        : asNumber(payload.horizontalAccuracy),
+    altitude:
+      payload.altitude === undefined ? undefined : asNumber(payload.altitude),
+    speed: payload.speed === undefined ? undefined : asNumber(payload.speed),
+    course: payload.course === undefined ? undefined : asNumber(payload.course),
+    timestamp: asNumber(payload.timestamp),
+  };
+};
+
+const parseLocationCaptureEvent = (event: unknown): LocationCaptureEvent => {
+  const payload = asMap(event);
+  const type = String(payload.type ?? '').toLowerCase();
+  if (type === 'started') {
+    return {
+      type: 'started',
+      reason: String(payload.reason ?? ''),
+    };
+  }
+  return {
+    type: 'completed',
+    reason: String(payload.reason ?? ''),
+    outcome: String(payload.outcome ?? ''),
+    hasFix: Boolean(payload.hasFix),
+    timestamp: asNumber(payload.timestamp),
+    location: parseCapturedLocation(payload.location),
+  };
+};
+
 export async function configure(config: SdkConfig) {
   const {
     businessToken,
@@ -272,6 +367,47 @@ export function addErrorListener(
     }
     const payload = asMap(event);
     listener({ message: String(payload.message ?? 'Unknown error') });
+  });
+}
+
+/**
+ * Subscribe to beacon region enter/exit transitions.
+ *
+ * v2.4: fires when the device enters or exits the BLE proximity zone of a
+ * known beacon. Outside the region only the low-power kernel filter scan is
+ * active — active BLE scanning and GPS are off.
+ */
+export function addBeaconRegionListener(
+  listener: (event: BeaconRegionEvent) => void
+): EmitterSubscription {
+  return eventEmitter.addListener(EVENT_BEACON_REGION, (event) => {
+    listener(parseBeaconRegionEvent(event));
+  });
+}
+
+/**
+ * Subscribe to active-scan gating changes. Active scanning (BLE ranging +
+ * duty cycle) runs only while inside a beacon region.
+ */
+export function addActiveScanListener(
+  listener: (event: ActiveScanEvent) => void
+): EmitterSubscription {
+  return eventEmitter.addListener(EVENT_ACTIVE_SCAN, (event) => {
+    listener(parseActiveScanEvent(event));
+  });
+}
+
+/**
+ * Subscribe to beacon-triggered location capture lifecycle. Fires `started`
+ * when the SDK opens a one-shot GPS window because a beacon was detected,
+ * then `completed` with an outcome (and optional location fix) when the
+ * window closes.
+ */
+export function addLocationCaptureListener(
+  listener: (event: LocationCaptureEvent) => void
+): EmitterSubscription {
+  return eventEmitter.addListener(EVENT_LOCATION_CAPTURE, (event) => {
+    listener(parseLocationCaptureEvent(event));
   });
 }
 
