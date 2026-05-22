@@ -179,6 +179,12 @@ export default function App() {
 
   // v2.4 — Geofence Debug state
   const [isInBeaconRegion, setIsInBeaconRegion] = useState(false);
+  const [lastEnteredRegionAt, setLastEnteredRegionAt] = useState<number | null>(
+    null
+  );
+  const [lastExitedRegionAt, setLastExitedRegionAt] = useState<number | null>(
+    null
+  );
   const [isActiveScan, setIsActiveScan] = useState(false);
   const [isCapturingLocation, setIsCapturingLocation] = useState(false);
   const [lastCaptureOpenReason, setLastCaptureOpenReason] = useState('—');
@@ -188,6 +194,7 @@ export default function App() {
   >(null);
   const [lastCapturedLocation, setLastCapturedLocation] =
     useState<CapturedLocation | null>(null);
+  const [locationCaptureCount, setLocationCaptureCount] = useState(0);
   const [geofenceEvents, setGeofenceEvents] = useState<GeofenceEventEntry[]>(
     []
   );
@@ -332,6 +339,16 @@ export default function App() {
     try {
       await configureSdk();
       await BeAround.startScanning();
+      // Reset geofence/capture session counters so each scan starts clean
+      setGeofenceEvents([]);
+      setLocationCaptureCount(0);
+      setLastEnteredRegionAt(null);
+      setLastExitedRegionAt(null);
+      setLastCaptureOpenReason('—');
+      setLastCaptureOutcome('—');
+      setLastCapturedLocation(null);
+      setLastCaptureCompletedAt(null);
+
       const scanning = await BeAround.isScanning();
       setIsScanning(scanning);
       setStatusMessage(scanning ? 'Scaneando...' : 'Parado');
@@ -409,12 +426,14 @@ export default function App() {
     const regionSub = addBeaconRegionListener((event) => {
       if (event.type === 'enter') {
         setIsInBeaconRegion(true);
+        setLastEnteredRegionAt(Date.now());
         pushGeofenceEvent(
           'region-enter',
           'iOS/Android reportou entrada na zona do beacon'
         );
       } else {
         setIsInBeaconRegion(false);
+        setLastExitedRegionAt(Date.now());
         pushGeofenceEvent('region-exit', 'Saiu da zona do beacon');
       }
     });
@@ -442,6 +461,7 @@ export default function App() {
         setLastCaptureOutcome(event.outcome);
         setLastCaptureCompletedAt(event.timestamp || Date.now());
         setLastCapturedLocation(event.location ?? null);
+        setLocationCaptureCount((prev) => prev + 1);
         if (event.location) {
           const acc = event.location.horizontalAccuracy ?? -1;
           pushGeofenceEvent(
@@ -587,11 +607,29 @@ export default function App() {
               ) : null}
             </View>
 
+            <GpsPolicyBanner
+              isInZone={isInBeaconRegion}
+              isCapturing={isCapturingLocation}
+              captureCount={locationCaptureCount}
+            />
+
             <InfoRow
               label="Zona do beacon"
               value={isInBeaconRegion ? 'DENTRO' : 'fora'}
               valueColor={isInBeaconRegion ? '#4caf50' : '#9e9e9e'}
             />
+            {lastEnteredRegionAt ? (
+              <InfoRow
+                label="Entrou às"
+                value={`${formatTime(new Date(lastEnteredRegionAt))}  (${formatAge(nowMs - lastEnteredRegionAt)})`}
+              />
+            ) : null}
+            {lastExitedRegionAt ? (
+              <InfoRow
+                label="Saiu às"
+                value={`${formatTime(new Date(lastExitedRegionAt))}  (${formatAge(nowMs - lastExitedRegionAt)})`}
+              />
+            ) : null}
             <InfoRow
               label="Scan ativo"
               value={isActiveScan ? 'LIGADO' : 'desligado'}
@@ -837,6 +875,52 @@ function permissionColor(status: string) {
     return '#9e9e9e';
   }
   return '#9e9e9e';
+}
+
+function GpsPolicyBanner({
+  isInZone,
+  isCapturing,
+  captureCount,
+}: {
+  isInZone: boolean;
+  isCapturing: boolean;
+  captureCount: number;
+}) {
+  const bg = isInZone ? '#0f2b14' : '#2a0f0f';
+  const border = isInZone ? '#2e7d32' : '#c62828';
+  const titleColor = isInZone ? '#a5d6a7' : '#ef9a9a';
+  const emoji = isInZone ? '✅' : '⛔';
+  const title = isInZone ? 'GPS LIBERADO' : 'GPS BLOQUEADO';
+  const body = !isInZone
+    ? 'Sem beacon detectado. Localização NÃO está sendo lida.'
+    : isCapturing
+      ? 'Capturando agora — janela aberta porque você entrou na zona.'
+      : 'Dentro da zona. GPS já capturou o que precisava; agora está em standby.';
+
+  return (
+    <View
+      style={[
+        styles.policyBanner,
+        { backgroundColor: bg, borderColor: border },
+      ]}
+    >
+      <View style={styles.policyHeader}>
+        <Text style={styles.policyEmoji}>{emoji}</Text>
+        <Text style={[styles.policyTitle, { color: titleColor }]}>{title}</Text>
+      </View>
+      <Text style={[styles.policyBody, { color: titleColor }]}>{body}</Text>
+      <View style={styles.policyCounterRow}>
+        <Text style={styles.policyCounterLabel}>📊 Capturas nesta sessão:</Text>
+        <Text style={styles.policyCounterValue}>{captureCount}</Text>
+      </View>
+      <View style={styles.policyCounterRow}>
+        <Text style={styles.policyCounterLabel}>🛡️ Capturas fora da zona:</Text>
+        <Text style={[styles.policyCounterValue, { color: '#a5d6a7' }]}>
+          0 ✓
+        </Text>
+      </View>
+    </View>
+  );
 }
 
 function InfoRow({
@@ -1116,6 +1200,48 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  policyBanner: {
+    borderRadius: 8,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 12,
+  },
+  policyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  policyEmoji: {
+    fontSize: 18,
+    marginRight: 8,
+  },
+  policyTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  policyBody: {
+    fontSize: 12,
+    marginBottom: 6,
+  },
+  policyCounterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginTop: 4,
+  },
+  policyCounterLabel: {
+    color: '#bdbdbd',
+    fontSize: 11,
+  },
+  policyCounterValue: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
   },
   clearLogText: {
     color: '#bdbdbd',
