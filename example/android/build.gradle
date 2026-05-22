@@ -13,6 +13,9 @@ buildscript {
     }
     allprojects {
       repositories {
+        // mavenLocal() first so we pick up locally-published native SDK snapshots
+        // (e.g. bearound-android-sdk:2.4.0 before it lands on JitPack).
+        mavenLocal()
         google()
         mavenCentral()
         maven { url 'https://jitpack.io' }
