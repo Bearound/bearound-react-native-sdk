@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-05-21
+
+### Changed
+
+- **Native SDKs bumped to v2.4.0**:
+  - iOS: `BearoundSDK ~> 2.4.0`
+  - Android: `com.github.Bearound:bearound-android-sdk:2.4.0`
+- **Location + active scan now strictly beacon-gated.** GPS and active BLE ranging only run while inside a beacon region. Outside the region, only the kernel-level filter scan is on. See native SDK v2.4.0 release notes for full behavior.
+
+### Added
+
+- 3 new event channels surfaced from the native SDKs:
+  - `bearound:beaconRegion` — fires on region enter/exit transitions
+  - `bearound:activeScan` — fires when active scanning (ranging + BLE) toggles
+  - `bearound:locationCapture` — fires `started` when a beacon-triggered GPS window opens and `completed` when it closes (with or without a fix)
+- 3 new listener helpers in `@bearound/react-native-sdk`:
+  - `addBeaconRegionListener(listener)` — `BeaconRegionEvent { type: 'enter' | 'exit' }`
+  - `addActiveScanListener(listener)` — `ActiveScanEvent { isActive: boolean }`
+  - `addLocationCaptureListener(listener)` — `LocationCaptureEvent` discriminated union
+- New exported types: `BeaconRegionEvent`, `ActiveScanEvent`, `CapturedLocation`, `LocationCaptureStartedEvent`, `LocationCaptureCompletedEvent`, `LocationCaptureEvent`.
+- Example app: new **Debug Geofence** section showing live region status, active-scan state, in-flight GPS capture, last captured coordinates, and a rolling log of geofence events with 1 Hz live ages.
+
+### Non-breaking
+
+- All new event channels and listeners are additive. Existing event names and listeners (`addBeaconsListener`, `addSyncLifecycleListener`, etc.) are unchanged.
+
+---
+
 ## [2.3.2] - 2026-02-19
 
 ### Changed

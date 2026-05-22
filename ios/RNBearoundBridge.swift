@@ -231,6 +231,60 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, BeAroundSDKD
     }
   }
 
+  // v2.4 — Beacon region + location capture lifecycle
+
+  public func didEnterBeaconRegion() {
+    DispatchQueue.main.async {
+      BearoundReactSdkEventEmitter.emit("bearound:beaconRegion", body: ["type": "enter"])
+    }
+  }
+
+  public func didExitBeaconRegion() {
+    DispatchQueue.main.async {
+      BearoundReactSdkEventEmitter.emit("bearound:beaconRegion", body: ["type": "exit"])
+    }
+  }
+
+  public func didChangeActiveScanState(isActive: Bool) {
+    DispatchQueue.main.async {
+      BearoundReactSdkEventEmitter.emit("bearound:activeScan", body: ["isActive": isActive])
+    }
+  }
+
+  public func didStartLocationCapture(reason: String) {
+    let payload: [String: Any] = [
+      "type": "started",
+      "reason": reason
+    ]
+    DispatchQueue.main.async {
+      BearoundReactSdkEventEmitter.emit("bearound:locationCapture", body: payload)
+    }
+  }
+
+  public func didCompleteLocationCapture(_ result: BeAroundLocationCapture) {
+    var payload: [String: Any] = [
+      "type": "completed",
+      "reason": result.reason,
+      "outcome": result.outcome,
+      "hasFix": result.hasFix,
+      "timestamp": Int(result.timestamp.timeIntervalSince1970 * 1000)
+    ]
+    if let loc = result.location {
+      payload["location"] = [
+        "latitude": loc.coordinate.latitude,
+        "longitude": loc.coordinate.longitude,
+        "horizontalAccuracy": loc.horizontalAccuracy,
+        "altitude": loc.altitude,
+        "speed": loc.speed,
+        "course": loc.course,
+        "timestamp": Int(loc.timestamp.timeIntervalSince1970 * 1000)
+      ]
+    }
+    DispatchQueue.main.async {
+      BearoundReactSdkEventEmitter.emit("bearound:locationCapture", body: payload)
+    }
+  }
+
   private func mapProximity(_ proximity: BeaconProximity) -> String {
     switch proximity {
     case .immediate:
