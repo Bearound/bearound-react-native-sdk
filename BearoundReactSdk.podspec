@@ -18,7 +18,7 @@ Pod::Spec.new do |s|
   
   # Exact pin, kept in lockstep with the Android gradle dep (same native release).
   # Bumping is a deliberate, guarded step — see scripts/check-native-versions.mjs.
-  s.dependency "BearoundSDK", "3.0.0"
+  s.dependency "BearoundSDK", "3.3.0"
 
   s.frameworks = "CoreBluetooth", "CoreLocation", "UIKit", "Foundation", "AdSupport"
 
