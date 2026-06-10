@@ -30,8 +30,7 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
   public func configure(
     _ businessToken: String,
     scanPrecision: String,
-    maxQueuedPayloads: Double,
-    technology: String
+    maxQueuedPayloads: Double
   ) {
     DispatchQueue.main.async {
       let precision = self.mapToScanPrecision(scanPrecision)
@@ -46,7 +45,7 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
         businessToken: businessToken,
         scanPrecision: precision,
         maxQueuedPayloads: maxQueued,
-        technology: technology
+        technology: "react-native"
       )
       self.sdk.delegate = self
       self.configured = true

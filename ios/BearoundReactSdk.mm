@@ -16,7 +16,6 @@ RCT_EXPORT_METHOD(removeListeners:(double)count) {}
 - (void)configure:(NSString *)businessToken
     scanPrecision:(NSString *)scanPrecision
 maxQueuedPayloads:(double)maxQueuedPayloads
-       technology:(NSString *)technology
           resolve:(RCTPromiseResolveBlock)resolve
            reject:(RCTPromiseRejectBlock)reject
 {
@@ -31,8 +30,7 @@ maxQueuedPayloads:(double)maxQueuedPayloads
 
   [[RNBearoundBridge shared] configure:trimmed
                          scanPrecision:scanPrecision ?: @"medium"
-                     maxQueuedPayloads:maxQueuedPayloads
-                            technology:technology];
+                     maxQueuedPayloads:maxQueuedPayloads];
   resolve(nil);
 }
 
