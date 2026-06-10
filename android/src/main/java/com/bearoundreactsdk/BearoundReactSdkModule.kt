@@ -107,7 +107,6 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     businessToken: String,
     scanPrecision: String,
     maxQueuedPayloads: Double,
-    technology: String,
     promise: Promise
   ) {
     try {
@@ -130,7 +129,7 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
         businessToken = businessToken.trim(),
         scanPrecision = precision,
         maxQueuedPayloads = maxQueued,
-        technology = technology
+        technology = "react-native"
       )
 
       if (wasScanning) {

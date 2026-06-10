@@ -26,11 +26,6 @@ export type SdkConfig = {
   maxQueuedPayloads?: MaxQueuedPayloads;
 };
 
-// Single source of truth for this bridge's `technology` tag. Passed down to the
-// native layer via `configure` so the value lives in one place (not duplicated
-// as a literal in the iOS/Android bridges). Internal — not a user-facing option.
-const SDK_TECHNOLOGY = 'react-native';
-
 /**
  * User properties associated with beacon events.
  */
@@ -393,8 +388,7 @@ export async function configure(config: SdkConfig) {
   await Native.configure(
     businessToken.trim(),
     scanPrecision,
-    maxQueuedPayloads,
-    SDK_TECHNOLOGY
+    maxQueuedPayloads
   );
 }
 

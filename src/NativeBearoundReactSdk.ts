@@ -5,8 +5,7 @@ export interface Spec extends TurboModule {
   configure(
     businessToken: string,
     scanPrecision: string,
-    maxQueuedPayloads: number,
-    technology: string
+    maxQueuedPayloads: number
   ): Promise<void>;
 
   startScanning(): Promise<void>;
