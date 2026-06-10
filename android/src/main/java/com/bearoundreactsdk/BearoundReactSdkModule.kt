@@ -128,7 +128,8 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
       sdk.configure(
         businessToken = businessToken.trim(),
         scanPrecision = precision,
-        maxQueuedPayloads = maxQueued
+        maxQueuedPayloads = maxQueued,
+        technology = "react-native"
       )
 
       if (wasScanning) {

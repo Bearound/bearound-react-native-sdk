@@ -44,7 +44,8 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
       self.sdk.configure(
         businessToken: businessToken,
         scanPrecision: precision,
-        maxQueuedPayloads: maxQueued
+        maxQueuedPayloads: maxQueued,
+        technology: "react-native"
       )
       self.sdk.delegate = self
       self.configured = true
