@@ -40,6 +40,7 @@ Editar **3 arquivos**:
 ```json
 "version": "X.Y.Z"
 ```
+> A versao do pacote vive **apenas** no `package.json` (gerenciada pelo `release-it`). O `BearoundReactSdk.podspec` le essa versao via `package["version"]` (`s.version`), entao **nao** ha versao duplicada no podspec — so os pins de dependencia nativa (`BearoundSDK` no podspec e `bearound-android-sdk` no `android/build.gradle`) precisam ser editados a mao, e ambos devem casar com uma versao nativa **ja publicada**.
 
 #### `android/build.gradle` - SDK Android (JitPack)
 ```groovy
@@ -180,3 +181,9 @@ Ao atualizar todos os SDKs Bearound, seguir esta ordem:
 | `example/android/gradle.properties` | Timeout HTTP do Gradle |
 | `.github/workflows/ci-cd.yaml` | Workflow de CI/CD (trigger: tag `v*`) |
 | `.github/workflows/ci.yml` | Workflow de CI (trigger: PR / push develop) |
+
+---
+
+## Notas
+
+- O campo `technology` passado ao `sdk.configure(...)` nativo e uma **constante hardcoded** (`"react-native"`) nos bridges nativos (`ios/RNBearoundBridge.swift` e `android/.../BearoundReactSdkModule.kt`) — **nao** e configuravel via JS nem faz parte do contrato do TurboModule.
