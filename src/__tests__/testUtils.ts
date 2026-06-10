@@ -11,7 +11,8 @@ export const mockNativeModule = {
     (
       _businessToken: string,
       _scanPrecision: string,
-      _maxQueuedPayloads: number
+      _maxQueuedPayloads: number,
+      _technology: string
     ) => Promise.resolve()
   ),
   startScanning: jest.fn(() => Promise.resolve()),

@@ -98,10 +98,12 @@ describe('Bearound SDK Core Functions', () => {
       await configure({ businessToken: 'test-token-123' });
 
       // Default precision is HIGH (iOS-aligned) since 3.x.
+      // 4th arg is the bridge's technology tag (single JS source of truth).
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
         'test-token-123',
         'high',
-        100
+        100,
+        'react-native'
       );
     });
 
@@ -116,7 +118,8 @@ describe('Bearound SDK Core Functions', () => {
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
         'test-token',
         'high',
-        100
+        100,
+        'react-native'
       );
     });
 
@@ -136,7 +139,8 @@ describe('Bearound SDK Core Functions', () => {
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
         'my-business-token',
         'low',
-        200
+        200,
+        'react-native'
       );
     });
 
@@ -148,7 +152,8 @@ describe('Bearound SDK Core Functions', () => {
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
         'my-token',
         'high',
-        100
+        100,
+        'react-native'
       );
     });
   });
