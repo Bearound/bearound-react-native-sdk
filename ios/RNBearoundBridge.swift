@@ -1,10 +1,11 @@
 import Foundation
 import CoreLocation
+import CoreBluetooth
 import BearoundSDK
 
 @objcMembers
 @objc(RNBearoundBridge)
-public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, BeAroundSDKDelegate {
+public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralManagerDelegate, BeAroundSDKDelegate {
   @objc public static let shared = RNBearoundBridge()
   private lazy var sdk: BeAroundSDK = {
     if Thread.isMainThread {
@@ -19,6 +20,12 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, BeAroundSDKD
 
   private var permissionManager: CLLocationManager?
   private var permissionCompletion: ((Bool) -> Void)?
+  private var configured = false
+
+  // Bluetooth eye state — mirrors the iOS native demo's CBCentralManager status.
+  // The two eyes (Location / Bluetooth) are independent: the SDK works with either.
+  private var btManager: CBCentralManager?
+  private var btState: String = "unknown"
 
   public func configure(
     _ businessToken: String,
@@ -40,12 +47,126 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, BeAroundSDKD
         maxQueuedPayloads: maxQueued
       )
       self.sdk.delegate = self
+      self.configured = true
 
       if wasScanning {
         self.sdk.startScanning()
       }
     }
   }
+
+  // MARK: - Diagnostic / state getters (parity with native public API)
+
+  public func getSdkVersion() -> String {
+    return BeAroundSDK.version
+  }
+
+  public func getCurrentScanPrecision() -> String {
+    return mainThreadSync { self.sdk.currentScanPrecision?.rawValue ?? "" }
+  }
+
+  public func getBleDiagnosticInfo() -> String {
+    return mainThreadSync { self.sdk.bleDiagnosticInfo }
+  }
+
+  public func getPendingBatchCount() -> Int {
+    return mainThreadSync { self.sdk.pendingBatchCount }
+  }
+
+  public func isConfigured() -> Bool {
+    return configured
+  }
+
+  public func isLocationAvailable() -> Bool {
+    return BeAroundSDK.isLocationAvailable()
+  }
+
+  public func getAuthorizationStatus() -> String {
+    switch BeAroundSDK.authorizationStatus() {
+    case .authorizedAlways: return "always"
+    case .authorizedWhenInUse: return "whenInUse"
+    case .denied: return "denied"
+    case .restricted: return "restricted"
+    case .notDetermined: return "notDetermined"
+    @unknown default: return "unknown"
+    }
+  }
+
+  public func requestLocationAuthorization(_ level: String) {
+    let mapped: BeAroundLocationAuthorization =
+      level.lowercased() == "wheninuse" ? .whenInUse : .always
+    DispatchQueue.main.async {
+      self.sdk.requestLocationAuthorization(mapped)
+    }
+  }
+
+  // Bluetooth eye — current CBCentralManager state. Independent of Location.
+
+  public func getBluetoothState() -> String {
+    ensureBluetoothManager()
+    return mainThreadSync { self.btState }
+  }
+
+  private func ensureBluetoothManager() {
+    if btManager != nil { return }
+    let make = {
+      self.btManager = CBCentralManager(
+        delegate: self,
+        queue: nil,
+        options: [CBCentralManagerOptionShowPowerAlertKey: false]
+      )
+    }
+    if Thread.isMainThread {
+      make()
+    } else {
+      DispatchQueue.main.sync { make() }
+    }
+  }
+
+  public func centralManagerDidUpdateState(_ central: CBCentralManager) {
+    btState = mapBluetoothState(central.state)
+    DispatchQueue.main.async {
+      BearoundReactSdkEventEmitter.emit(
+        "bearound:bluetoothState",
+        body: ["state": self.btState]
+      )
+    }
+  }
+
+  private func mapBluetoothState(_ state: CBManagerState) -> String {
+    switch state {
+    case .poweredOn: return "poweredOn"
+    case .poweredOff: return "poweredOff"
+    case .unauthorized: return "unauthorized"
+    case .unsupported: return "unsupported"
+    case .resetting: return "resetting"
+    case .unknown: return "unknown"
+    @unknown default: return "unknown"
+    }
+  }
+
+  // Persistent detection log is owned by the native SDK (survives app restarts
+  // and captures background/closed activity). The bridge just delegates.
+  public func getPersistedLog() -> String {
+    return mainThreadSync { self.sdk.getDetectionLogJson() }
+  }
+
+  public func clearPersistedLog() {
+    DispatchQueue.main.async { self.sdk.clearDetectionLog() }
+  }
+
+  // Foreground-service scanning is Android-only — iOS uses BGTaskScheduler/region
+  // monitoring, with no persistent-notification foreground service. These are no-ops.
+
+  public func enableForegroundScanning(_ config: NSDictionary) {}
+
+  public func disableForegroundScanning() {}
+
+  public func isForegroundScanningEnabled() -> Bool {
+    return false
+  }
+
+  public func setForegroundNotificationContent(_ content: NSDictionary) {}
 
   public func startScanning() {
     DispatchQueue.main.async {
@@ -159,29 +280,44 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, BeAroundSDKD
   // BeAroundSDKDelegate callbacks (v2.2.1)
   
   public func didUpdateBeacons(_ beacons: [Beacon]) {
-    let mapped = beacons.map { beacon -> [String: Any] in
-      var payload: [String: Any] = [
-        "uuid": beacon.uuid.uuidString,
-        "major": beacon.major,
-        "minor": beacon.minor,
-        "rssi": beacon.rssi,
-        "proximity": mapProximity(beacon.proximity),
-        "accuracy": beacon.accuracy,
-        "timestamp": Int(beacon.timestamp.timeIntervalSince1970 * 1000)
-      ]
-
-      if let metadata = beacon.metadata {
-        payload["metadata"] = mapMetadata(metadata)
-      }
-      if let txPower = beacon.txPower {
-        payload["txPower"] = txPower
-      }
-
-      return payload
-    }
-
+    let mapped = beacons.map { mapBeacon($0) }
     DispatchQueue.main.async {
       BearoundReactSdkEventEmitter.emit("bearound:beacons", body: ["beacons": mapped])
+    }
+  }
+
+  private func mapBeacon(_ beacon: Beacon) -> [String: Any] {
+    var payload: [String: Any] = [
+      "uuid": beacon.uuid.uuidString,
+      "major": beacon.major,
+      "minor": beacon.minor,
+      "rssi": beacon.rssi,
+      "proximity": mapProximity(beacon.proximity),
+      "accuracy": beacon.accuracy,
+      "timestamp": Int(beacon.timestamp.timeIntervalSince1970 * 1000),
+      // iOS-only: which detector(s) saw this beacon — drives the "two eyes" model.
+      "discoverySources": beacon.discoverySources.map { mapDiscoverySource($0) },
+      "alreadySynced": beacon.alreadySynced
+    ]
+
+    if let metadata = beacon.metadata {
+      payload["metadata"] = mapMetadata(metadata)
+    }
+    if let txPower = beacon.txPower {
+      payload["txPower"] = txPower
+    }
+    if let syncedAt = beacon.syncedAt {
+      payload["syncedAt"] = Int(syncedAt.timeIntervalSince1970 * 1000)
+    }
+
+    return payload
+  }
+
+  private func mapDiscoverySource(_ source: BeaconDiscoverySource) -> String {
+    switch source {
+    case .serviceUUID: return "serviceUUID"
+    case .name: return "name"
+    case .coreLocation: return "coreLocation"
     }
   }
 
@@ -220,18 +356,22 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, BeAroundSDKD
     DispatchQueue.main.async {
       BearoundReactSdkEventEmitter.emit("bearound:syncLifecycle", body: payload)
     }
+    // Push + persisted log handled by the SDK's SDKNotifier — no duplication.
   }
-  
-  public func didDetectBeaconInBackground(beaconCount: Int) {
+
+  // v3.0: native changed the signature from (beaconCount: Int) to (beacons: [Beacon]).
+  // The JS event keeps the {beaconCount} shape for cross-platform parity with Android.
+  public func didDetectBeaconInBackground(beacons: [Beacon]) {
     let payload: [String: Any] = [
-      "beaconCount": beaconCount
+      "beaconCount": beacons.count
     ]
     DispatchQueue.main.async {
       BearoundReactSdkEventEmitter.emit("bearound:backgroundDetection", body: payload)
     }
+    // Push + persisted log handled by SDK.
   }
 
-  // v2.4 — Beacon region + location capture lifecycle
+  // v2.4 — Beacon region lifecycle (SDK posts the push; bridge only forwards the event)
 
   public func didEnterBeaconRegion() {
     DispatchQueue.main.async {
@@ -251,37 +391,29 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, BeAroundSDKD
     }
   }
 
-  public func didStartLocationCapture(reason: String) {
-    let payload: [String: Any] = [
-      "type": "started",
-      "reason": reason
-    ]
+  // v2.5 — Bluetooth "two eyes" zone (iOS-only; Android has no equivalent).
+
+  public func didEnterBluetoothZone() {
     DispatchQueue.main.async {
-      BearoundReactSdkEventEmitter.emit("bearound:locationCapture", body: payload)
+      BearoundReactSdkEventEmitter.emit("bearound:bluetoothZone", body: ["type": "enter"])
     }
   }
 
-  public func didCompleteLocationCapture(_ result: BeAroundLocationCapture) {
+  public func didExitBluetoothZone() {
+    DispatchQueue.main.async {
+      BearoundReactSdkEventEmitter.emit("bearound:bluetoothZone", body: ["type": "exit"])
+    }
+  }
+
+  public func didChangeBluetoothScanMode(_ mode: BluetoothScanMode, nextIdleScanAt: Date?) {
     var payload: [String: Any] = [
-      "type": "completed",
-      "reason": result.reason,
-      "outcome": result.outcome,
-      "hasFix": result.hasFix,
-      "timestamp": Int(result.timestamp.timeIntervalSince1970 * 1000)
+      "mode": mode.rawValue
     ]
-    if let loc = result.location {
-      payload["location"] = [
-        "latitude": loc.coordinate.latitude,
-        "longitude": loc.coordinate.longitude,
-        "horizontalAccuracy": loc.horizontalAccuracy,
-        "altitude": loc.altitude,
-        "speed": loc.speed,
-        "course": loc.course,
-        "timestamp": Int(loc.timestamp.timeIntervalSince1970 * 1000)
-      ]
+    if let nextIdleScanAt = nextIdleScanAt {
+      payload["nextIdleScanAt"] = Int(nextIdleScanAt.timeIntervalSince1970 * 1000)
     }
     DispatchQueue.main.async {
-      BearoundReactSdkEventEmitter.emit("bearound:locationCapture", body: payload)
+      BearoundReactSdkEventEmitter.emit("bearound:bluetoothScanMode", body: payload)
     }
   }
 

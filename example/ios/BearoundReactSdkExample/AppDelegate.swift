@@ -3,10 +3,11 @@ import React
 import React_RCTAppDelegate
 import ReactAppDependencyProvider
 import BearoundSDK
+import BearoundReactSdk
 import UserNotifications
 
 @main
-class AppDelegate: UIResponder, UIApplicationDelegate {
+class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
   var window: UIWindow?
 
   var reactNativeDelegate: ReactNativeDelegate?
@@ -16,14 +17,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
-    // CRITICAL: Register background tasks BEFORE app finishes launching
+    // CRITICAL — terminated/background relaunch path:
+    // When iOS relaunches the app from a beacon-region event, accessing
+    // BeAroundSDK.shared runs its init, which auto-restores the saved config and
+    // RE-ARMS region monitoring synchronously. The region-enter callback then
+    // fires asynchronously on the run loop. The SDK delegate is a runtime object
+    // (not persisted), so it MUST be re-set NOW — before that callback fires —
+    // otherwise didEnterBeaconRegion lands on a nil delegate and the persisted
+    // log + local notification never happen. Doing this via the async JS
+    // configure() path is too late and races the relaunch region event.
+    BeAroundSDK.shared.delegate = RNBearoundBridge.shared
+
+    // Register background tasks BEFORE app finishes launching
     BeAroundSDK.shared.registerBackgroundTasks()
-    
-    // Check if app was relaunched due to location event (beacon region entry)
-    if launchOptions?[.location] != nil {
-      NSLog("[BearoundReactSdkExample] App launched due to LOCATION event (beacon region entry)")
-    }
-    
+
+    // Become the notification delegate so banners show while the app is in the
+    // foreground (iOS suppresses them by default without willPresent → .banner).
+    UNUserNotificationCenter.current().delegate = self
+
     // Request notification permissions for background alerts
     UNUserNotificationCenter.current().requestAuthorization(
       options: [.alert, .sound, .badge]
@@ -34,7 +45,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         NSLog("[BearoundReactSdkExample] Notification permission error: %@", error.localizedDescription)
       }
     }
-    
+
+    // If iOS relaunched us due to a region/bluetooth event, surface it immediately
+    // (the SDK auto-restores scanning from storage; we don't reconfigure here so
+    // the user's saved scan precision is preserved).
+    if launchOptions?[.location] != nil {
+      NSLog("[BearoundReactSdkExample] App launched due to LOCATION event (beacon region entry)")
+      postRelaunchNotification()
+    }
+    if launchOptions?[.bluetoothCentrals] != nil {
+      NSLog("[BearoundReactSdkExample] App launched due to BLUETOOTH event (state restoration)")
+      postRelaunchNotification()
+    }
+
     let delegate = ReactNativeDelegate()
     let factory = RCTReactNativeFactory(delegate: delegate)
     delegate.dependencyProvider = RCTAppDependencyProvider()
@@ -62,6 +85,46 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     BeAroundSDK.shared.performBackgroundFetch { success in
       completionHandler(success ? .newData : .noData)
     }
+  }
+
+  // Background URLSession: iOS relaunches the app to deliver completed beacon-upload
+  // transfers. Forward to the SDK so it finalizes the pending upload(s), invokes their
+  // delegate callbacks (batch removal on success) and calls the system completion handler.
+  // Without this, terminated-state uploads complete in nsurlsessiond but the app is never
+  // re-attached to process the result.
+  func application(
+    _ application: UIApplication,
+    handleEventsForBackgroundURLSession identifier: String,
+    completionHandler: @escaping () -> Void
+  ) {
+    NSLog("[BearoundReactSdkExample] handleEventsForBackgroundURLSession: %@", identifier)
+    BeAroundSDK.shared.handleBackgroundURLSessionEvents(
+      identifier: identifier,
+      completionHandler: completionHandler
+    )
+  }
+
+  // Present banners + sound while the app is in the FOREGROUND. Without this,
+  // iOS silently drops notifications added while the app is active.
+  func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification,
+    withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+  ) {
+    completionHandler([.banner, .list, .sound, .badge])
+  }
+
+  private func postRelaunchNotification() {
+    let content = UNMutableNotificationContent()
+    content.title = "App reativado"
+    content.body = "Bearound detectou uma região de beacon em segundo plano"
+    content.sound = .default
+    let request = UNNotificationRequest(
+      identifier: "bearound-relaunch-\(UUID().uuidString)",
+      content: content,
+      trigger: nil
+    )
+    UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
   }
 }
 

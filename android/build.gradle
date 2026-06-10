@@ -66,6 +66,8 @@ android {
 }
 
 repositories {
+  // Dev: resolve the locally-published (modified) SDK first. Remove for release.
+  mavenLocal()
   mavenCentral()
   google()
   maven { url 'https://jitpack.io' }
@@ -75,5 +77,9 @@ def kotlin_version = getExtOrDefault("kotlinVersion")
 
 dependencies {
   implementation "com.facebook.react:react-android"
-  implementation 'com.github.Bearound:bearound-android-sdk:2.4.0'
+  // Dev: 3.0.1 is the locally-published SDK (mavenLocal) with the new
+  // notification/log/prefs subsystem. JitPack has no 3.0.1, so this resolves
+  // deterministically from mavenLocal. Revert to 3.0.0 (or the published
+  // version) for release.
+  implementation 'com.github.Bearound:bearound-android-sdk:3.1.0-local'
 }
