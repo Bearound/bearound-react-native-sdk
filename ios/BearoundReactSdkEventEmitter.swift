@@ -21,10 +21,14 @@ public class BearoundReactSdkEventEmitter: RCTEventEmitter {
       "bearound:backgroundDetection",
       "bearound:scanning",
       "bearound:error",
-      // v2.4 — region + location capture lifecycle
+      // v2.4 — beacon region lifecycle
       "bearound:beaconRegion",
       "bearound:activeScan",
-      "bearound:locationCapture",
+      // v2.5 — Bluetooth "two eyes" zone (iOS-only)
+      "bearound:bluetoothZone",
+      "bearound:bluetoothScanMode",
+      // Bluetooth adapter state (poweredOn/off/unauthorized/...)
+      "bearound:bluetoothState",
     ]
   }
 

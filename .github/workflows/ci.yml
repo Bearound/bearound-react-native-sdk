@@ -33,6 +33,9 @@ jobs:
       - name: Typecheck files
         run: yarn typecheck
 
+      - name: Check native version alignment
+        run: yarn check:versions
+
   test:
     runs-on: ubuntu-latest
     steps:

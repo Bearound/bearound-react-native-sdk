@@ -97,9 +97,10 @@ describe('Bearound SDK Core Functions', () => {
 
       await configure({ businessToken: 'test-token-123' });
 
+      // Default precision is HIGH (iOS-aligned) since 3.x.
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
         'test-token-123',
-        'medium',
+        'high',
         100
       );
     });
@@ -146,7 +147,7 @@ describe('Bearound SDK Core Functions', () => {
 
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
         'my-token',
-        'medium',
+        'high',
         100
       );
     });
