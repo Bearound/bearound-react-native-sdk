@@ -78,5 +78,5 @@ dependencies {
   // Exact pin, kept in lockstep with the iOS podspec dep (same native release).
   // 3.3.0 carries the new configure(technology:) param — the native 3.3.0
   // Android SDK must be published to JitPack before this resolves.
-  implementation 'com.github.Bearound:bearound-android-sdk:3.3.0'
+  implementation 'com.github.Bearound:bearound-android-sdk:3.3.1'
 }
