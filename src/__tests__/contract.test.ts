@@ -334,6 +334,81 @@ describe('Foreground scanning (Android-only)', () => {
   });
 });
 
+describe('Persisted detection log parsing (iOS-only)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    resetMocks();
+  });
+
+  it('parses entries across all four app-state buckets', async () => {
+    const entries = [
+      {
+        id: '1',
+        timestamp: 1717000000000,
+        state: 'foreground',
+        type: 'beacons',
+        detail: '3 beacons',
+      },
+      {
+        id: '2',
+        timestamp: 1717000001000,
+        state: 'background',
+        type: 'sync',
+        detail: 'started',
+      },
+      {
+        id: '3',
+        timestamp: 1717000002000,
+        state: 'backgroundLocked',
+        type: 'region',
+        detail: 'enter',
+      },
+      {
+        id: '4',
+        timestamp: 1717000003000,
+        state: 'terminated',
+        type: 'wake',
+        detail: 'BLE wake',
+      },
+    ];
+    mockNativeModule.getPersistedLog.mockResolvedValueOnce(
+      JSON.stringify(entries)
+    );
+
+    const { getPersistedLog } = require('../index');
+
+    await expect(getPersistedLog()).resolves.toEqual(entries);
+  });
+
+  it('falls back to "background" for an unknown state', async () => {
+    mockNativeModule.getPersistedLog.mockResolvedValueOnce(
+      JSON.stringify([
+        {
+          id: '5',
+          timestamp: 1717000004000,
+          state: 'bogus',
+          type: 't',
+          detail: 'd',
+        },
+      ])
+    );
+
+    const { getPersistedLog } = require('../index');
+    const log = await getPersistedLog();
+
+    expect(log).toHaveLength(1);
+    expect(log[0].state).toBe('background');
+  });
+
+  it('resolves [] for malformed JSON', async () => {
+    mockNativeModule.getPersistedLog.mockResolvedValueOnce('not-json{');
+
+    const { getPersistedLog } = require('../index');
+
+    await expect(getPersistedLog()).resolves.toEqual([]);
+  });
+});
+
 describe('Bluetooth state (two-eyes anyOf gating)', () => {
   beforeEach(() => {
     jest.clearAllMocks();

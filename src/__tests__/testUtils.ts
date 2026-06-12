@@ -86,11 +86,6 @@ export const mockEventEmitter = {
   removeSubscription: jest.fn(),
 };
 
-// Mock subscription
-export const createMockSubscription = () => ({
-  remove: jest.fn(),
-});
-
 // Helper to setup platform mock
 export const setPlatform = (os: 'android' | 'ios', version: number = 31) => {
   const Platform = require('react-native').Platform;
@@ -119,8 +114,8 @@ export const sampleBeaconData = {
   accuracy: 1.5,
   timestamp: Date.now(),
   metadata: {
-    firmwareVersion: '4.1.0',
-    batteryLevel: 95,
+    firmwareVersion: '4',
+    batteryLevel: 3269,
     movements: 120,
     temperature: 22.5,
     txPower: -12,
@@ -138,11 +133,6 @@ export const sampleBeaconDataMinimal = {
   proximity: 'far',
   accuracy: 10.0,
   timestamp: Date.now(),
-};
-
-export const sampleSyncStatus = {
-  secondsUntilNextSync: 30,
-  isRanging: true,
 };
 
 export const sampleUserProperties = {

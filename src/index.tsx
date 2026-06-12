@@ -423,7 +423,7 @@ export type AuthorizationStatus =
   | 'unknown'
   | string;
 
-/** Native SDK version. **iOS** returns the SDK version; Android returns `''`. */
+/** Native SDK version. Both platforms return the native SDK version (Android via `BuildConfig.SDK_VERSION`). */
 export async function getSdkVersion(): Promise<string> {
   return Native.getSdkVersion();
 }
@@ -438,7 +438,7 @@ export async function getBleDiagnosticInfo(): Promise<string> {
   return Native.getBleDiagnosticInfo();
 }
 
-/** Number of failed sync batches queued for retry. **iOS-only**; Android returns `0`. */
+/** Number of failed sync batches queued for retry. Both platforms return the real queued-batch count. */
 export async function getPendingBatchCount(): Promise<number> {
   return Native.getPendingBatchCount();
 }
@@ -470,12 +470,14 @@ export async function getBluetoothState(): Promise<BluetoothState> {
 }
 
 /**
- * App-state bucket recorded natively for each persisted log entry.
+ * App-state bucket recorded natively for each persisted log entry. The
+ * persisted log is iOS-only (see {@link getPersistedLog}), so these states
+ * only ever come from iOS.
  *
  * - `foreground` — app active and on screen.
  * - `background` — app backgrounded, device screen unlocked.
  * - `backgroundLocked` — app backgrounded AND device screen locked
- *   (iOS: `isProtectedDataAvailable`; Android: `KeyguardManager`).
+ *   (iOS: `isProtectedDataAvailable`).
  * - `terminated` — event fired during a system-initiated relaunch
  *   (BLE/region wake-up) BEFORE the app's UI became active.
  */
@@ -494,10 +496,11 @@ export type PersistedLogEntry = {
 };
 
 /**
- * Read the **native** detection log. Entries are persisted by the SDK on every
- * event — including while the app is backgrounded or **closed** (Android writes
- * them from a process-start listener), so JS can show what happened while it
- * wasn't running.
+ * Read the **native** detection log. **iOS-only** — the Android SDK 3.3.1
+ * exposes no detection-log API; Android always resolves `[]` (see
+ * EVENT-PARITY.md). On iOS, entries are persisted natively on every event,
+ * including backgrounded/terminated-state wakes, so JS can show what happened
+ * while it wasn't running.
  */
 export async function getPersistedLog(): Promise<PersistedLogEntry[]> {
   const raw = await Native.getPersistedLog();
@@ -521,7 +524,7 @@ export async function getPersistedLog(): Promise<PersistedLogEntry[]> {
   }
 }
 
-/** Clear the native persisted detection log. */
+/** Clear the native persisted detection log. **iOS-only** (no-op on Android). */
 export async function clearPersistedLog(): Promise<void> {
   await Native.clearPersistedLog();
 }

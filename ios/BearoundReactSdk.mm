@@ -29,7 +29,7 @@ maxQueuedPayloads:(double)maxQueuedPayloads
   }
 
   [[RNBearoundBridge shared] configure:trimmed
-                         scanPrecision:scanPrecision ?: @"medium"
+                         scanPrecision:scanPrecision ?: @"high"
                      maxQueuedPayloads:maxQueuedPayloads];
   resolve(nil);
 }

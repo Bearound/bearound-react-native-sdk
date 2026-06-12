@@ -50,22 +50,26 @@ implementation 'com.github.Bearound:bearound-android-sdk:X.Y.Z'
 
 #### `BearoundReactSdk.podspec` - SDK iOS (CocoaPods)
 ```ruby
-s.dependency "BearoundSDK", "~> X.Y.Z"
+s.dependency "BearoundSDK", "X.Y.Z"
 ```
+> O pin e **exato** (sem `~>`): o bridge RN anda em lockstep com o nativo. O alinhamento entre `package.json`, `android/build.gradle` e o podspec e verificado por `yarn check:versions` (roda na CI).
 
-### 2. Deletar Podfile.lock do example (se existir)
+### 2. Regenerar o Podfile.lock do example
+
+O `example/ios/Podfile.lock` **nao e versionado** (esta no `.gitignore` — alterna entre dev-pod local e trunk). Nao ha nada para deletar nem commitar — basta rodar `pod install` no example para regenerar localmente:
 
 ```bash
-rm -f example/ios/Podfile.lock
+cd example/ios && pod install
 ```
 
-O `Podfile.lock` trava a versao do `BearoundSDK`. Ao atualizar a dependencia no podspec, ele precisa ser regenerado.
+#### Desenvolvimento local (dev-pod)
+
+`BEAROUND_LOCAL_PODS=1 pod install` resolve o `BearoundSDK` a partir do dev-pod irmao em `../../../bearound-ios-sdk` (util para testar mudancas nativas nao publicadas). Sem a variavel — e sempre na CI/release — o pod e resolvido do trunk do CocoaPods.
 
 ### 3. Commit e push
 
 ```bash
 git add package.json android/build.gradle BearoundReactSdk.podspec
-git add example/ios/Podfile.lock  # se foi deletado
 
 git commit -m "chore: bump to vX.Y.Z, update native SDK dependencies"
 git push origin main
@@ -144,12 +148,11 @@ Uma versao ja publicada no npm **nao pode ser republicada**, mesmo apos `npm unp
 
 ### Podfile.lock desatualizado
 
-Se o build iOS falhar com conflito de versao no `Podfile.lock`:
+Se o build iOS local falhar com conflito de versao no `Podfile.lock`, basta regenera-lo — ele **nao e versionado**, entao nao ha commit a fazer:
 
 ```bash
-rm example/ios/Podfile.lock
-git add example/ios/Podfile.lock
-git commit -m "fix: remove stale Podfile.lock"
+rm -f example/ios/Podfile.lock
+cd example/ios && pod install
 ```
 
 ---
@@ -176,7 +179,7 @@ Ao atualizar todos os SDKs Bearound, seguir esta ordem:
 | `package.json` | Versao do pacote npm |
 | `android/build.gradle` | Dependencia do Android SDK (JitPack) |
 | `BearoundReactSdk.podspec` | Dependencia do iOS SDK (CocoaPods) |
-| `example/ios/Podfile.lock` | Lock de pods do example (deletar ao atualizar) |
+| `example/ios/Podfile.lock` | Lock de pods do example (**nao versionado** — gerado pelo `pod install`) |
 | `example/android/build.gradle` | Repos do Gradle (inclui JitPack) |
 | `example/android/gradle.properties` | Timeout HTTP do Gradle |
 | `.github/workflows/ci-cd.yaml` | Workflow de CI/CD (trigger: tag `v*`) |

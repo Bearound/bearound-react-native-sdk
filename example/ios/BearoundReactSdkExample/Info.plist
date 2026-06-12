@@ -53,8 +53,6 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
-  <key>NSUserTrackingUsageDescription</key>
-  <string>Usamos seu ID de publicidade para fornecer anúncios mais relevantes.</string>
   <key>NSBluetoothAlwaysUsageDescription</key>
   <string>Usamos Bluetooth para detectar beacons nas proximidades.</string>
   <key>NSBluetoothPeripheralUsageDescription</key>
