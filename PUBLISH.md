@@ -12,7 +12,9 @@ Antes de publicar o React Native SDK, os SDKs nativos **precisam estar publicado
 ### Verificar disponibilidade dos SDKs nativos
 
 ```bash
-# Android - verificar no JitPack (usar tag SEM prefixo "v")
+# Android - verificar no JitPack. A tag git do repo Android e criada COM prefixo "v"
+# (ex: v3.3.1); apenas a coordenada JitPack a referencia SEM o prefixo (<VERSION> = 3.3.1,
+# o JitPack remove o "v" ao resolver).
 curl -s https://jitpack.io/api/builds/com.github.Bearound/bearound-android-sdk/<VERSION>
 
 # iOS - verificar no CocoaPods
@@ -31,6 +33,8 @@ curl -s https://trunk.cocoapods.org/api/v1/pods/BearoundSDK | python3 -m json.to
 ---
 
 ## Passo a passo
+
+> **⚠️ O publish no npm é feito SOMENTE pelo CI (`ci-cd.yaml`) — o `release-it` local apenas bumpa versão e cria a tag (`npm.publish`/`github.release` desativados).**
 
 ### 1. Atualizar dependencias nativas
 

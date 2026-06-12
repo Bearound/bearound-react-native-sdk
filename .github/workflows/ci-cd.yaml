@@ -4,14 +4,6 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
-    inputs:
-      release_type:
-        description: 'Opcional: bump de versão antes do publish'
-        required: false
-        type: choice
-        options: [none, patch, minor, major]
-        default: none
-
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref }}
@@ -267,4 +259,4 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           echo "Publishing package..."
-          npm publish --access public
+          npm publish --access public --provenance

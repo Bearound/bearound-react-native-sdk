@@ -87,6 +87,28 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     }
   }
 
+  // Silent push (cold-launch race): the SDK's push swizzle only installs once
+  // configure() runs — in RN that's after JS boots. iOS delivers the
+  // launch-triggering push before that, so handle it here. After configure(),
+  // the SDK's swizzle consumes bearound pushes itself (no double-handling).
+  func application(
+    _ application: UIApplication,
+    didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+    fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+  ) {
+    guard userInfo["bearound"] != nil else {
+      completionHandler(.noData)
+      return
+    }
+    NSLog("[BearoundReactSdkExample] Silent push received (bearound) — triggering BLE refresh + sync")
+    BeAroundSDK.shared.performBackgroundBLERefreshAndSync(
+      bleScanDuration: 10,
+      trigger: "silent_push"
+    ) { success in
+      completionHandler(success ? .newData : .noData)
+    }
+  }
+
   // Background URLSession: iOS relaunches the app to deliver completed beacon-upload
   // transfers. Forward to the SDK so it finalizes the pending upload(s), invokes their
   // delegate callbacks (batch removal on success) and calls the system completion handler.
