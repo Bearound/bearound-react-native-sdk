@@ -19,10 +19,13 @@ end
 target 'BearoundReactSdkExample' do
   config = use_native_modules!
 
-  # Dev: build against the local iOS SDK 3.0.0 source (sibling repo) instead of
-  # resolving BearoundSDK ~> 3.0 from the CocoaPods trunk. Guarantees the example
-  # exercises the exact local native source.
-  pod 'BearoundSDK', :path => '../../../bearound-ios-sdk'
+  # Dev: build against the local iOS SDK source (sibling repo) instead of
+  # resolving BearoundSDK from the CocoaPods trunk. Opt-in only
+  # (BEAROUND_LOCAL_PODS=1 pod install) — CI resolves from trunk via the
+  # module podspec dependency.
+  if ENV['BEAROUND_LOCAL_PODS'] == '1'
+    pod 'BearoundSDK', :path => '../../../bearound-ios-sdk'
+  end
 
   use_react_native!(
     :path => config[:reactNativePath],
