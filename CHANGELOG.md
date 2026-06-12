@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.1] - 2026-06-11
+
+Native SDKs bumped **2.4.0 → 3.3.1** (both platforms). This crosses the native 3.0.0 major, so the bridge surface changed accordingly.
+
+### Breaking
+
+- **`locationCapture` API removed.** Native SDK 3.x dropped beacon-triggered GPS capture, so the bridge removed:
+  - `addLocationCaptureListener(listener)`
+  - the `bearound:locationCapture` event channel
+  - the types `CapturedLocation`, `LocationCaptureStartedEvent`, `LocationCaptureCompletedEvent`, `LocationCaptureEvent`
+- **`BeaconMetadata` semantics changed** (native SDK 3.0.0):
+  - `batteryLevel` is now in **millivolts** (e.g. `3269`), not a 0–100 percentage as in 2.x.
+  - `firmwareVersion` is now an integer encoded as a string (e.g. `"1"`), not a semantic version (`"2.1.0"`) as in 2.x.
+- **`configure()` default `scanPrecision` is now `HIGH`** (was `MEDIUM`), aligned with the iOS native default. Pass `scanPrecision: ScanPrecision.MEDIUM` explicitly to keep the old duty cycle.
+
+### Added
+
+- **"Two eyes" listeners:**
+  - `addBluetoothZoneListener(listener)` — Bluetooth-zone enter/exit (the "Bluetooth eye"). **iOS-only event** — on Android the listener registers but never fires.
+  - `addBluetoothScanModeListener(listener)` — BLE scanner duty-cycle changes (`idle` ↔ `active`, with `nextIdleScanAt`). **iOS-only event** — on Android the listener registers but never fires.
+  - `addBluetoothStateListener(listener)` — Bluetooth adapter state changes (`poweredOn`/`poweredOff`/`unauthorized`/...). Fires on **both platforms**.
+- **Persisted detection log:** `getPersistedLog()` / `clearPersistedLog()` — reads/clears the native detection log written even while the app is backgrounded or terminated. **iOS-only**; Android resolves `[]`.
+- **Foreground-service APIs** (**Android-only**; no-op on iOS): `enableForegroundScanning(config)`, `disableForegroundScanning()`, `isForegroundScanningEnabled()`, `setForegroundNotificationContent(content)`.
+- **Diagnostics getters:** `getSdkVersion()`, `getCurrentScanPrecision()`, `getBleDiagnosticInfo()` (iOS-only; Android returns `''`), `getPendingBatchCount()`, `isConfigured()`, `isLocationAvailable()`, `getAuthorizationStatus()`, `getBluetoothState()`. `getSdkVersion()` and `getPendingBatchCount()` return real values on both platforms.
+- **`requestLocationAuthorization(level)`** — requests `'always'`/`'whenInUse'` location authorization. **iOS-only**; no-op on Android (use `requestForegroundPermissions()` there).
+- **New `Beacon` fields:** `alreadySynced`, `syncedAt`, `discoverySources` (**iOS-only**), `rssiRaw`, `rssiSamples`, `isStale` (**Android-only**).
+- **`sdk.technology: "react-native"`** tagged on every ingest event — hardcoded in the native bridges (`ios/RNBearoundBridge.swift`, `android/.../BearoundReactSdkModule.kt`), not configurable from JS.
+
+### Fixed
+
+- **Native 3.3.1 — three correctness fixes around BLE zone presence:**
+  1. **Phantom zone exit→enter flap** (~1ms apart, every 5-10 min, device stationary inside zone) — cleanup-immune `lastBeaconSeenAt` + grace bumped 60s → 300s.
+  2. **iOS-only: CoreLocation daemon churn → BLE delivery stalls.** Five `CLLocationManager()` throwaways replaced with a single lifetime-scoped instance.
+  3. **Phantom ENTER after OS termination + state restoration** (iOS) / **PendingIntent wake** (Android). Zone state persisted to UserDefaults / SharedPreferences and restored on cold start; snapshots > 1h are stale and ignored.
+
+  Pins:
+  - iOS: `BearoundSDK 3.3.1`
+  - Android: `com.github.Bearound:bearound-android-sdk:3.3.1`
+
+  See native CHANGELOGs for root-cause details.
+
 ## [2.4.0] - 2026-05-21
 
 ### Changed

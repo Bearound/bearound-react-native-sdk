@@ -29,7 +29,7 @@ maxQueuedPayloads:(double)maxQueuedPayloads
   }
 
   [[RNBearoundBridge shared] configure:trimmed
-                         scanPrecision:scanPrecision ?: @"medium"
+                         scanPrecision:scanPrecision ?: @"high"
                      maxQueuedPayloads:maxQueuedPayloads];
   resolve(nil);
 }
@@ -84,6 +84,104 @@ maxQueuedPayloads:(double)maxQueuedPayloads
   [[RNBearoundBridge shared] requestPermissions:^(BOOL granted) {
     resolve(@(granted));
   }];
+}
+
+- (void)getSdkVersion:(RCTPromiseResolveBlock)resolve
+               reject:(RCTPromiseRejectBlock)reject
+{
+  resolve([[RNBearoundBridge shared] getSdkVersion]);
+}
+
+- (void)getCurrentScanPrecision:(RCTPromiseResolveBlock)resolve
+                         reject:(RCTPromiseRejectBlock)reject
+{
+  resolve([[RNBearoundBridge shared] getCurrentScanPrecision]);
+}
+
+- (void)getBleDiagnosticInfo:(RCTPromiseResolveBlock)resolve
+                      reject:(RCTPromiseRejectBlock)reject
+{
+  resolve([[RNBearoundBridge shared] getBleDiagnosticInfo]);
+}
+
+- (void)getPendingBatchCount:(RCTPromiseResolveBlock)resolve
+                      reject:(RCTPromiseRejectBlock)reject
+{
+  resolve(@([[RNBearoundBridge shared] getPendingBatchCount]));
+}
+
+- (void)isConfigured:(RCTPromiseResolveBlock)resolve
+              reject:(RCTPromiseRejectBlock)reject
+{
+  resolve(@([[RNBearoundBridge shared] isConfigured]));
+}
+
+- (void)isLocationAvailable:(RCTPromiseResolveBlock)resolve
+                     reject:(RCTPromiseRejectBlock)reject
+{
+  resolve(@([[RNBearoundBridge shared] isLocationAvailable]));
+}
+
+- (void)getAuthorizationStatus:(RCTPromiseResolveBlock)resolve
+                        reject:(RCTPromiseRejectBlock)reject
+{
+  resolve([[RNBearoundBridge shared] getAuthorizationStatus]);
+}
+
+- (void)getBluetoothState:(RCTPromiseResolveBlock)resolve
+                   reject:(RCTPromiseRejectBlock)reject
+{
+  resolve([[RNBearoundBridge shared] getBluetoothState]);
+}
+
+- (void)getPersistedLog:(RCTPromiseResolveBlock)resolve
+                 reject:(RCTPromiseRejectBlock)reject
+{
+  resolve([[RNBearoundBridge shared] getPersistedLog]);
+}
+
+- (void)clearPersistedLog:(RCTPromiseResolveBlock)resolve
+                   reject:(RCTPromiseRejectBlock)reject
+{
+  [[RNBearoundBridge shared] clearPersistedLog];
+  resolve(nil);
+}
+
+- (void)requestLocationAuthorization:(NSString *)level
+                             resolve:(RCTPromiseResolveBlock)resolve
+                              reject:(RCTPromiseRejectBlock)reject
+{
+  [[RNBearoundBridge shared] requestLocationAuthorization:level ?: @"always"];
+  resolve(nil);
+}
+
+- (void)enableForegroundScanning:(NSDictionary *)config
+                         resolve:(RCTPromiseResolveBlock)resolve
+                          reject:(RCTPromiseRejectBlock)reject
+{
+  [[RNBearoundBridge shared] enableForegroundScanning:config ?: @{}];
+  resolve(nil);
+}
+
+- (void)disableForegroundScanning:(RCTPromiseResolveBlock)resolve
+                           reject:(RCTPromiseRejectBlock)reject
+{
+  [[RNBearoundBridge shared] disableForegroundScanning];
+  resolve(nil);
+}
+
+- (void)isForegroundScanningEnabled:(RCTPromiseResolveBlock)resolve
+                             reject:(RCTPromiseRejectBlock)reject
+{
+  resolve(@([[RNBearoundBridge shared] isForegroundScanningEnabled]));
+}
+
+- (void)setForegroundNotificationContent:(NSDictionary *)content
+                                 resolve:(RCTPromiseResolveBlock)resolve
+                                  reject:(RCTPromiseRejectBlock)reject
+{
+  [[RNBearoundBridge shared] setForegroundNotificationContent:content ?: @{}];
+  resolve(nil);
 }
 
 @end

@@ -1,8 +1,9 @@
 /**
  * @fileoverview Tests for SDK event listeners and data parsing
  *
- * Tests addBeaconsListener, addSyncStatusListener, addScanningListener, addErrorListener
- * and the parsing functions for beacon data, sync status, and errors.
+ * Tests addBeaconsListener, addSyncLifecycleListener, addBackgroundDetectionListener,
+ * addScanningListener, addErrorListener and the parsing functions for beacon
+ * data, sync lifecycle, and errors.
  */
 
 import {
@@ -165,8 +166,8 @@ describe('Event Listeners', () => {
 
       const beacons = callback.mock.calls[0][0];
       expect(beacons[0].metadata).toEqual({
-        firmwareVersion: '4.1.0',
-        batteryLevel: 95,
+        firmwareVersion: '4',
+        batteryLevel: 3269,
         movements: 120,
         temperature: 22.5,
         txPower: -12,
@@ -609,14 +610,14 @@ describe('Data Parsing', () => {
       beaconsCallback!([
         {
           ...sampleBeaconData,
-          metadata: { firmwareVersion: '4.0.0', batteryLevel: 50 },
+          metadata: { firmwareVersion: '4', batteryLevel: 3050 },
         },
       ]);
 
       const beacon = callback.mock.calls[0][0][0];
       expect(beacon.metadata).toEqual({
-        firmwareVersion: '4.0.0',
-        batteryLevel: 50,
+        firmwareVersion: '4',
+        batteryLevel: 3050,
         movements: 0,
         temperature: 0,
         txPower: undefined,

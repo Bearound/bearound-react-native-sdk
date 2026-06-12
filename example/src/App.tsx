@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
+  AppState,
   Button,
   Platform,
   Pressable,
@@ -20,16 +21,32 @@ import {
   addBackgroundDetectionListener,
   addBeaconRegionListener,
   addActiveScanListener,
-  addLocationCaptureListener,
+  addBluetoothZoneListener,
+  addBluetoothScanModeListener,
+  addBluetoothStateListener,
+  getSdkVersion,
+  getBluetoothState,
   checkPermissions,
   ensurePermissions,
   ScanPrecision,
   MaxQueuedPayloads,
   type Beacon,
   type BeaconProximity,
-  type CapturedLocation,
+  type BluetoothScanMode,
+  type BluetoothState,
   type PermissionResult,
 } from '@bearound/react-native-sdk';
+import { TwoEyesModal } from './TwoEyesModal';
+import { SettingsModal } from './SettingsModal';
+import { LogModal } from './LogModal';
+import {
+  geofenceEventColor,
+  geofenceEventTitle,
+  type GeofenceEventEntry,
+  type GeofenceEventKind,
+  type AppStateBucket,
+  type DetectionLogEntry,
+} from './events';
 
 type SortOption = 'proximity' | 'id';
 const sortOptions: Array<{ key: SortOption; label: string }> = [
@@ -52,8 +69,10 @@ const sortBeacons = (beacons: Beacon[], option: SortOption) => {
         return 1;
       case 'far':
         return 2;
-      default:
+      case 'bt':
         return 3;
+      default:
+        return 4;
     }
   };
 
@@ -79,6 +98,8 @@ const proximityLabel = (value: BeaconProximity) => {
       return 'Perto';
     case 'far':
       return 'Longe';
+    case 'bt':
+      return 'Bluetooth';
     default:
       return 'Desconhecido';
   }
@@ -92,6 +113,8 @@ const proximityColor = (value: BeaconProximity) => {
       return '#ff9800';
     case 'far':
       return '#f44336';
+    case 'bt':
+      return '#2196f3';
     default:
       return '#9e9e9e';
   }
@@ -100,56 +123,41 @@ const proximityColor = (value: BeaconProximity) => {
 const formatTime = (date: Date) =>
   date.toLocaleTimeString('pt-BR', { hour12: false });
 
-type GeofenceEventKind =
-  | 'region-enter'
-  | 'region-exit'
-  | 'scan-active'
-  | 'scan-paused'
-  | 'capture-started'
-  | 'capture-fix'
-  | 'capture-no-fix';
-
-type GeofenceEventEntry = {
-  id: string;
-  kind: GeofenceEventKind;
-  timestamp: number;
-  detail: string;
+// iOS-only discoverySources → display badges (mirrors the native demo).
+const sourceBadges = (
+  sources?: Beacon['discoverySources']
+): Array<{ label: string; color: string }> => {
+  if (!sources || sources.length === 0) return [];
+  const hasSU = sources.includes('serviceUUID');
+  const hasCL = sources.includes('coreLocation');
+  const hasName = sources.includes('name');
+  const badges: Array<{ label: string; color: string }> = [];
+  if (hasSU) badges.push({ label: 'Service UUID', color: '#7e57c2' });
+  if (hasCL) badges.push({ label: 'iBeacon', color: '#5c6bc0' });
+  if (hasName && !hasSU && !hasCL)
+    badges.push({ label: 'Name', color: '#26a69a' });
+  return badges;
 };
 
-const geofenceEventTitle = (kind: GeofenceEventKind) => {
-  switch (kind) {
-    case 'region-enter':
-      return 'ENTROU NA ZONA';
-    case 'region-exit':
-      return 'SAIU DA ZONA';
-    case 'scan-active':
-      return 'SCAN LIGADO';
-    case 'scan-paused':
-      return 'SCAN PAUSADO';
-    case 'capture-started':
-      return 'GPS DISPARADO';
-    case 'capture-fix':
-      return 'FIX OK';
-    case 'capture-no-fix':
-      return 'SEM FIX';
-  }
-};
+const batteryColor = (mV: number) =>
+  mV > 2800 ? '#4caf50' : mV > 2400 ? '#ff9800' : '#f44336';
 
-const geofenceEventColor = (kind: GeofenceEventKind) => {
-  switch (kind) {
-    case 'region-enter':
-    case 'scan-active':
-    case 'capture-fix':
-      return '#4caf50';
-    case 'region-exit':
-      return '#ff9800';
-    case 'scan-paused':
-      return '#9e9e9e';
-    case 'capture-started':
-      return '#2196f3';
-    case 'capture-no-fix':
-      return '#f44336';
-  }
+// Bluetooth adapter state → label/color, mirroring the iOS native demo.
+const BT_LABEL: Record<BluetoothState, string> = {
+  poweredOn: 'Ligado',
+  poweredOff: 'Desligado',
+  unauthorized: 'Não autorizado',
+  unsupported: 'Não suportado',
+  resetting: 'Reiniciando',
+  unknown: 'Verificando...',
+};
+const BT_COLOR: Record<BluetoothState, string> = {
+  poweredOn: '#4caf50',
+  poweredOff: '#f44336',
+  unauthorized: '#f44336',
+  unsupported: '#f44336',
+  resetting: '#ff9800',
+  unknown: '#ff9800',
 };
 
 const formatAge = (ms: number) => {
@@ -160,22 +168,35 @@ const formatAge = (ms: number) => {
 };
 
 export default function App() {
-  const [scanPrecision, setScanPrecision] = useState(ScanPrecision.MEDIUM);
+  const [scanPrecision, setScanPrecision] = useState(ScanPrecision.HIGH);
   const [maxQueuedPayloads, setMaxQueuedPayloads] = useState(
     MaxQueuedPayloads.MEDIUM
   );
   const [sortOption, setSortOption] = useState<SortOption>('proximity');
   const [isScanning, setIsScanning] = useState(false);
-  const [hasPermissions, setHasPermissions] = useState(false);
+  // Two-eyes model: scanning works with EITHER location OR bluetooth (anyOf),
+  // exactly like the iOS native SDK. Tracked independently.
+  const [locationGranted, setLocationGranted] = useState(false);
+  const [bluetoothState, setBluetoothState] =
+    useState<BluetoothState>('unknown');
   const [permissionStatus, setPermissionStatus] = useState({
     location: 'Verificando...',
-    bluetooth: 'Verificando...',
     notifications: 'Verificando...',
   });
   const [statusMessage, setStatusMessage] = useState('Pronto');
   const [beacons, setBeacons] = useState<Beacon[]>([]);
   const [lastScanTime, setLastScanTime] = useState<Date | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
+
+  // Sync info (mirrors the iOS native "Informações do Sync" card).
+  const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
+  const [lastSyncCount, setLastSyncCount] = useState(0);
+  const [lastSyncDuration, setLastSyncDuration] = useState<number | null>(null);
+  const [lastSyncResult, setLastSyncResult] = useState<
+    'success' | 'failed' | null
+  >(null);
+  const syncStartRef = useRef<number | null>(null);
+  const lastEnteredRegionRef = useRef<number | null>(null);
 
   // v2.4 — Geofence Debug state
   const [isInBeaconRegion, setIsInBeaconRegion] = useState(false);
@@ -186,17 +207,96 @@ export default function App() {
     null
   );
   const [isActiveScan, setIsActiveScan] = useState(false);
-  const [isCapturingLocation, setIsCapturingLocation] = useState(false);
-  const [lastCaptureOpenReason, setLastCaptureOpenReason] = useState('—');
-  const [lastCaptureOutcome, setLastCaptureOutcome] = useState('—');
-  const [lastCaptureCompletedAt, setLastCaptureCompletedAt] = useState<
-    number | null
-  >(null);
-  const [lastCapturedLocation, setLastCapturedLocation] =
-    useState<CapturedLocation | null>(null);
-  const [locationCaptureCount, setLocationCaptureCount] = useState(0);
   const [geofenceEvents, setGeofenceEvents] = useState<GeofenceEventEntry[]>(
     []
+  );
+
+  // v2.5 — Two Eyes state (Bluetooth eye is iOS-only)
+  const [locationEnterCount, setLocationEnterCount] = useState(0);
+  const [isInBluetoothZone, setIsInBluetoothZone] = useState(false);
+  const [lastBtEnterAt, setLastBtEnterAt] = useState<number | null>(null);
+  const [lastBtExitAt, setLastBtExitAt] = useState<number | null>(null);
+  const [btZoneEnterCount, setBtZoneEnterCount] = useState(0);
+  const [btScanMode, setBtScanMode] = useState<BluetoothScanMode>('idle');
+  const [btNextIdleScanAt, setBtNextIdleScanAt] = useState<number | null>(null);
+  const [locationKeys, setLocationKeys] = useState<Set<string>>(new Set());
+  const [bluetoothKeys, setBluetoothKeys] = useState<Set<string>>(new Set());
+  const [sdkVersion, setSdkVersion] = useState('');
+  const [showTwoEyes, setShowTwoEyes] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+
+  // State-aware detection log (Foreground / Background / Closed) + clear.
+  const [detectionLog, setDetectionLog] = useState<DetectionLogEntry[]>([]);
+  const [showLog, setShowLog] = useState(false);
+  const appStateBucketRef = useRef<AppStateBucket>('foreground');
+  const lastBeaconLogRef = useRef(0);
+
+  const pushLog = useCallback((type: string, detail: string) => {
+    setDetectionLog((prev) => {
+      const entry: DetectionLogEntry = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        timestamp: Date.now(),
+        state: appStateBucketRef.current,
+        type,
+        detail,
+      };
+      return [entry, ...prev].slice(0, 300);
+    });
+  }, []);
+
+  // Load the NATIVE persisted log (iOS-only — the Android SDK exposes no
+  // detection-log API and always resolves [], which would wipe the optimistic
+  // in-memory log; on Android we keep the JS log as the only source).
+  const refreshLog = useCallback(async () => {
+    if (Platform.OS !== 'ios') return;
+    try {
+      const entries = await BeAround.getPersistedLog();
+      setDetectionLog(entries as unknown as DetectionLogEntry[]);
+    } catch {
+      // keep the optimistic in-memory log
+    }
+  }, []);
+
+  useEffect(() => {
+    // AppState only knows active/background/inactive — the native SDK is the
+    // source of truth for `backgroundLocked`/`terminated`. Local optimistic
+    // log entries from JS only tag foreground vs background.
+    const map = (s: string): AppStateBucket =>
+      s === 'active' ? 'foreground' : 'background';
+    appStateBucketRef.current = map(AppState.currentState ?? 'active');
+    refreshLog();
+    const sub = AppState.addEventListener('change', (s) => {
+      appStateBucketRef.current = map(s);
+      if (s === 'active') refreshLog();
+    });
+    return () => sub.remove();
+  }, [refreshLog]);
+
+  // Refresh the persisted log periodically while the Log modal is open.
+  useEffect(() => {
+    if (!showLog) return;
+    refreshLog();
+    const t = setInterval(refreshLog, 3000);
+    return () => clearInterval(t);
+  }, [showLog, refreshLog]);
+
+  const isIOS = Platform.OS === 'ios';
+
+  // anyOf: the SDK detects beacons with EITHER eye — location OR bluetooth.
+  const canScan = locationGranted || bluetoothState === 'poweredOn';
+
+  const locationBeaconsNow = useMemo(
+    () =>
+      beacons.filter((b) => b.discoverySources?.includes('coreLocation'))
+        .length,
+    [beacons]
+  );
+  const bluetoothBeaconsNow = useMemo(
+    () =>
+      beacons.filter((b) =>
+        b.discoverySources?.some((s) => s === 'serviceUUID' || s === 'name')
+      ).length,
+    [beacons]
   );
   // 1Hz tick so live "X seg atrás" ages render in real time.
   const [nowMs, setNowMs] = useState(Date.now());
@@ -239,31 +339,13 @@ export default function App() {
   );
 
   const updatePermissionStatus = useCallback((status: PermissionResult) => {
-    const ok =
-      Platform.OS === 'android'
-        ? status.fineLocation &&
-          status.btScan &&
-          status.btConnect &&
-          status.notifications &&
-          status.backgroundLocation
-        : status.fineLocation;
-
-    setHasPermissions(ok);
+    setLocationGranted(status.fineLocation);
 
     const locationStatus = status.fineLocation
       ? Platform.OS === 'android' && status.backgroundLocation
         ? 'Sempre (Background habilitado)'
         : 'Quando em uso'
-      : 'Negada (SDK não funcionará)';
-
-    const bluetoothStatus =
-      Platform.OS === 'android'
-        ? status.btScan && status.btConnect
-          ? 'Autorizado'
-          : 'Não autorizado'
-        : status.fineLocation
-          ? 'Autorizado'
-          : 'Indisponível';
+      : 'Negada (só o olho Bluetooth funcionará)';
 
     const notificationStatus =
       Platform.OS === 'android'
@@ -274,11 +356,10 @@ export default function App() {
 
     setPermissionStatus({
       location: locationStatus,
-      bluetooth: bluetoothStatus,
       notifications: notificationStatus,
     });
 
-    return ok;
+    return status.fineLocation;
   }, []);
 
   const refreshPermissions = useCallback(async () => {
@@ -288,12 +369,22 @@ export default function App() {
 
   const requestPermissions = useCallback(async () => {
     const status = await ensurePermissions({ askBackground: true });
-    const ok = updatePermissionStatus(status);
+    updatePermissionStatus(status);
 
+    // NOTE: push is app-level now — the SDK no longer owns notifications, so the
+    // example requests no notification permission via the bridge. POST_NOTIFICATIONS
+    // (Android 13+) is still handled by ensurePermissions above.
+
+    // Refresh the Bluetooth eye state (also prompts the BT permission on iOS).
+    const bt = await getBluetoothState();
+    setBluetoothState(bt);
+
+    // anyOf: the SDK works with either eye. Only warn if NEITHER is available.
+    const ok = status.fineLocation || bt === 'poweredOn';
     if (!ok) {
       Alert.alert(
         'Permissões',
-        'Algumas permissões ainda não foram concedidas.'
+        'Conceda a Localização OU mantenha o Bluetooth ligado para detectar beacons.'
       );
     }
 
@@ -309,7 +400,7 @@ export default function App() {
     ) => {
       setLastError(null);
       const config = {
-        businessToken: 'your-business-token',
+        businessToken: 'ee2ec9c46d2b2ad99bddcdd0afe224e6',
         scanPrecision: scanPrecision,
         maxQueuedPayloads: maxQueuedPayloads,
         ...overrides,
@@ -331,23 +422,35 @@ export default function App() {
 
   const startScan = useCallback(async () => {
     setLastError(null);
-    const ok = await requestPermissions();
-    if (!ok) {
-      return;
-    }
+    // Prompt for permissions but DO NOT block — the iOS native SDK never gates
+    // scanning. Whichever eye is available (Location and/or Bluetooth) activates.
+    await requestPermissions();
 
     try {
       await configureSdk();
       await BeAround.startScanning();
-      // Reset geofence/capture session counters so each scan starts clean
+
+      // NOTE: push is app-level now — the SDK no longer posts notifications.
+      // Android: keep the process alive in background via the foreground service.
+      if (Platform.OS === 'android') {
+        await BeAround.enableForegroundScanning({
+          notificationTitle: 'Bearound',
+          notificationText: 'Procurando beacons por perto',
+        }).catch(() => null);
+      }
+
+      // Reset geofence session counters so each scan starts clean
       setGeofenceEvents([]);
-      setLocationCaptureCount(0);
       setLastEnteredRegionAt(null);
       setLastExitedRegionAt(null);
-      setLastCaptureOpenReason('—');
-      setLastCaptureOutcome('—');
-      setLastCapturedLocation(null);
-      setLastCaptureCompletedAt(null);
+      // v2.5 — reset two-eyes session counters
+      setLocationEnterCount(0);
+      setBtZoneEnterCount(0);
+      setIsInBluetoothZone(false);
+      setLastBtEnterAt(null);
+      setLastBtExitAt(null);
+      setLocationKeys(new Set());
+      setBluetoothKeys(new Set());
 
       const scanning = await BeAround.isScanning();
       setIsScanning(scanning);
@@ -383,36 +486,88 @@ export default function App() {
     const beaconsSub = addBeaconsListener((items) => {
       setBeacons(items);
       setLastScanTime(new Date());
+
+      // v2.5 — accumulate unique beacon keys per eye (iOS discoverySources).
+      const locHits: string[] = [];
+      const btHits: string[] = [];
+      items.forEach((b) => {
+        const key = `${b.major}.${b.minor}`;
+        if (b.discoverySources?.includes('coreLocation')) locHits.push(key);
+        if (
+          b.discoverySources?.some((s) => s === 'serviceUUID' || s === 'name')
+        )
+          btHits.push(key);
+      });
+      if (locHits.length) {
+        setLocationKeys((prev) => new Set([...prev, ...locHits]));
+      }
+      if (btHits.length) {
+        setBluetoothKeys((prev) => new Set([...prev, ...btHits]));
+      }
+
       if (items.length === 0) {
         setStatusMessage('Scaneando...');
       } else {
         setStatusMessage(
           `${items.length} beacon${items.length === 1 ? '' : 's'}`
         );
+        // Throttle beacon-detection log entries to keep the log readable.
+        if (Date.now() - lastBeaconLogRef.current > 4000) {
+          lastBeaconLogRef.current = Date.now();
+          pushLog('Beacons', `${items.length} detectado(s)`);
+        }
       }
     });
 
     const syncLifecycleSub = addSyncLifecycleListener((event) => {
       if (event.type === 'started') {
-        console.log(`🚀 Sync started with ${event.beaconCount} beacons`);
+        syncStartRef.current = Date.now();
+        setLastSyncCount(event.beaconCount);
+        pushLog('Sync iniciado', `${event.beaconCount} beacon(s) na fila`);
       } else if (event.type === 'completed') {
+        const startedAt = syncStartRef.current;
+        const durationMs = startedAt ? Date.now() - startedAt : 0;
+        const enteredAt = lastEnteredRegionRef.current;
+        syncStartRef.current = null;
+
+        setLastSyncTime(Date.now());
+        setLastSyncCount(event.beaconCount);
+        setLastSyncDuration(durationMs);
+        setLastSyncResult(event.success ? 'success' : 'failed');
+
+        const durationLabel =
+          durationMs >= 1000
+            ? `${(durationMs / 1000).toFixed(1)}s`
+            : `${durationMs}ms`;
+        const enteredLabel = enteredAt
+          ? new Date(enteredAt).toLocaleTimeString('pt-BR', { hour12: false })
+          : '—';
+
         if (event.success) {
-          console.log(`✅ Sync succeeded: ${event.beaconCount} beacons sent`);
-          setLastError(null); // Clear error on success
+          setLastError(null);
+          pushLog(
+            'Sync OK',
+            `${event.beaconCount} beacon(s) · ${durationLabel} · entrou ${enteredLabel}`
+          );
         } else {
-          console.log(`❌ Sync failed: ${event.error}`);
           setLastError(event.error || 'Sync failed');
+          pushLog(
+            'Sync falhou',
+            `${event.beaconCount} beacon(s) · ${durationLabel} · ${event.error ?? 'erro'}`
+          );
         }
       }
     });
 
     const backgroundDetectionSub = addBackgroundDetectionListener((event) => {
       console.log(`🌙 Background: ${event.beaconCount} beacons detected`);
+      pushLog('Background', `${event.beaconCount} beacon(s) detectado(s)`);
     });
 
     const scanningSub = addScanningListener((scanning) => {
       setIsScanning(scanning);
       setStatusMessage(scanning ? 'Scaneando...' : 'Parado');
+      pushLog('Scan', scanning ? 'Iniciado' : 'Parado');
       if (!scanning) {
         setBeacons([]);
       }
@@ -421,22 +576,57 @@ export default function App() {
     const errorSub = addErrorListener((error) => {
       setLastError(error.message);
       setStatusMessage(`Erro: ${error.message}`);
+      pushLog('Erro', error.message);
     });
 
     const regionSub = addBeaconRegionListener((event) => {
       if (event.type === 'enter') {
         setIsInBeaconRegion(true);
+        lastEnteredRegionRef.current = Date.now();
         setLastEnteredRegionAt(Date.now());
+        setLocationEnterCount((c) => c + 1);
         pushGeofenceEvent(
           'region-enter',
           'iOS/Android reportou entrada na zona do beacon'
         );
+        pushLog('Região', 'Entrou na zona do beacon');
       } else {
         setIsInBeaconRegion(false);
         setLastExitedRegionAt(Date.now());
         pushGeofenceEvent('region-exit', 'Saiu da zona do beacon');
+        pushLog('Região', 'Saiu da zona do beacon');
       }
     });
+
+    // v2.5 — Bluetooth "two eyes" zone (iOS-only; never fires on Android)
+    const btZoneSub = addBluetoothZoneListener((event) => {
+      if (event.type === 'enter') {
+        setIsInBluetoothZone(true);
+        setLastBtEnterAt(Date.now());
+        setBtZoneEnterCount((c) => c + 1);
+        pushGeofenceEvent(
+          'bt-zone-enter',
+          'BLE detectou beacon (CBCentralManager)'
+        );
+        pushLog('Zona BT', 'Entrou (BLE detectou beacon)');
+      } else {
+        setIsInBluetoothZone(false);
+        setLastBtExitAt(Date.now());
+        pushGeofenceEvent('bt-zone-exit', 'Zona BLE vazia (graça expirou)');
+        pushLog('Zona BT', 'Saiu (zona BLE vazia)');
+      }
+    });
+
+    const btScanModeSub = addBluetoothScanModeListener((event) => {
+      setBtScanMode(event.mode);
+      setBtNextIdleScanAt(event.nextIdleScanAt ?? null);
+    });
+
+    // Bluetooth eye availability — independent of location.
+    getBluetoothState()
+      .then(setBluetoothState)
+      .catch(() => null);
+    const btStateSub = addBluetoothStateListener(setBluetoothState);
 
     const activeScanSub = addActiveScanListener((event) => {
       setIsActiveScan(event.isActive);
@@ -448,36 +638,9 @@ export default function App() {
       );
     });
 
-    const locationCaptureSub = addLocationCaptureListener((event) => {
-      if (event.type === 'started') {
-        setIsCapturingLocation(true);
-        setLastCaptureOpenReason(event.reason);
-        pushGeofenceEvent(
-          'capture-started',
-          `Janela GPS aberta — motivo: ${event.reason}`
-        );
-      } else {
-        setIsCapturingLocation(false);
-        setLastCaptureOutcome(event.outcome);
-        setLastCaptureCompletedAt(event.timestamp || Date.now());
-        setLastCapturedLocation(event.location ?? null);
-        setLocationCaptureCount((prev) => prev + 1);
-        if (event.location) {
-          const acc = event.location.horizontalAccuracy ?? -1;
-          pushGeofenceEvent(
-            'capture-fix',
-            `Fix: ${event.location.latitude.toFixed(5)}, ${event.location.longitude.toFixed(
-              5
-            )} ±${acc >= 0 ? Math.round(acc) : '?'}m | abriu: ${event.reason} | fechou: ${event.outcome}`
-          );
-        } else {
-          pushGeofenceEvent(
-            'capture-no-fix',
-            `Sem fix — abriu: ${event.reason} | fechou: ${event.outcome}`
-          );
-        }
-      }
-    });
+    getSdkVersion()
+      .then(setSdkVersion)
+      .catch(() => null);
 
     return () => {
       beaconsSub.remove();
@@ -487,9 +650,22 @@ export default function App() {
       errorSub.remove();
       regionSub.remove();
       activeScanSub.remove();
-      locationCaptureSub.remove();
+      btZoneSub.remove();
+      btScanModeSub.remove();
+      btStateSub.remove();
     };
-  }, [pushGeofenceEvent, refreshPermissions]);
+  }, [pushGeofenceEvent, pushLog, refreshPermissions]);
+
+  // Auto-run: start scanning as soon as the app opens (mirrors the iOS native
+  // demo, which configures + startScanning() on launch). Runs once.
+  const didAutoStartRef = useRef(false);
+  useEffect(() => {
+    if (didAutoStartRef.current) {
+      return;
+    }
+    didAutoStartRef.current = true;
+    startScan();
+  }, [startScan]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -500,6 +676,27 @@ export default function App() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.headerActions}>
+          <Pressable
+            style={styles.eyesButton}
+            onPress={() => setShowTwoEyes(true)}
+          >
+            <Text style={styles.eyesButtonText}>👁 👁 Abrir Dois Olhos</Text>
+          </Pressable>
+          <Pressable
+            style={styles.settingsButton}
+            onPress={() => setShowLog(true)}
+          >
+            <Text style={styles.settingsButtonText}>📋</Text>
+          </Pressable>
+          <Pressable
+            style={styles.settingsButton}
+            onPress={() => setShowSettings(true)}
+          >
+            <Text style={styles.settingsButtonText}>⚙︎</Text>
+          </Pressable>
+        </View>
+
         {lastError ? (
           <View style={styles.errorBox}>
             <Text style={styles.errorText}>{lastError}</Text>
@@ -534,11 +731,7 @@ export default function App() {
               <View
                 style={[
                   styles.statusDot,
-                  {
-                    backgroundColor: permissionColor(
-                      permissionStatus.bluetooth
-                    ),
-                  },
+                  { backgroundColor: BT_COLOR[bluetoothState] },
                 ]}
               />
               <Text style={styles.permissionText}>Bluetooth</Text>
@@ -546,10 +739,10 @@ export default function App() {
             <Text
               style={[
                 styles.permissionValue,
-                { color: permissionColor(permissionStatus.bluetooth) },
+                { color: BT_COLOR[bluetoothState] },
               ]}
             >
-              {permissionStatus.bluetooth}
+              {BT_LABEL[bluetoothState]}
             </Text>
           </View>
           <View style={styles.permissionRow}>
@@ -575,6 +768,16 @@ export default function App() {
               {permissionStatus.notifications}
             </Text>
           </View>
+          <Text
+            style={[
+              styles.readyHint,
+              { color: canScan ? '#4caf50' : '#ff9800' },
+            ]}
+          >
+            {canScan
+              ? '✓ Pronto para detectar (Localização e/ou Bluetooth)'
+              : '⚠ Conceda Localização ou ligue o Bluetooth'}
+          </Text>
           <View style={styles.inlineButton}>
             <Button
               title="Solicitar permissões"
@@ -598,6 +801,49 @@ export default function App() {
 
         {isScanning ? (
           <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Informações do Sync</Text>
+            <InfoRow
+              label="Último sync"
+              value={lastSyncTime ? formatTime(new Date(lastSyncTime)) : '--'}
+            />
+            <InfoRow label="Beacons sincronizados" value={`${lastSyncCount}`} />
+            <InfoRow
+              label="Duração"
+              value={
+                lastSyncDuration == null
+                  ? '--'
+                  : lastSyncDuration >= 1000
+                    ? `${(lastSyncDuration / 1000).toFixed(1)}s`
+                    : `${lastSyncDuration}ms`
+              }
+            />
+            <View style={styles.infoRow}>
+              <Text style={styles.infoLabel}>Resultado</Text>
+              <Text
+                style={[
+                  styles.infoValue,
+                  {
+                    color:
+                      lastSyncResult === 'success'
+                        ? '#4caf50'
+                        : lastSyncResult === 'failed'
+                          ? '#f44336'
+                          : '#9e9e9e',
+                  },
+                ]}
+              >
+                {lastSyncResult === 'success'
+                  ? 'Sucesso'
+                  : lastSyncResult === 'failed'
+                    ? 'Falha'
+                    : 'Aguardando...'}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
+        {isScanning ? (
+          <View style={styles.section}>
             <View style={styles.geofenceHeader}>
               <Text style={styles.sectionTitle}>Debug Geofence</Text>
               {geofenceEvents.length > 0 ? (
@@ -606,12 +852,6 @@ export default function App() {
                 </Pressable>
               ) : null}
             </View>
-
-            <GpsPolicyBanner
-              isInZone={isInBeaconRegion}
-              isCapturing={isCapturingLocation}
-              captureCount={locationCaptureCount}
-            />
 
             <InfoRow
               label="Zona do beacon"
@@ -635,34 +875,6 @@ export default function App() {
               value={isActiveScan ? 'LIGADO' : 'desligado'}
               valueColor={isActiveScan ? '#4caf50' : '#9e9e9e'}
             />
-            <InfoRow
-              label="Captura GPS"
-              value={isCapturingLocation ? 'EM ANDAMENTO…' : 'idle'}
-              valueColor={isCapturingLocation ? '#2196f3' : '#9e9e9e'}
-            />
-
-            <View style={styles.divider} />
-
-            <InfoRow label="Última abertura" value={lastCaptureOpenReason} />
-            <InfoRow label="Último fechamento" value={lastCaptureOutcome} />
-            {lastCapturedLocation ? (
-              <InfoRow
-                label="Última coord"
-                value={`${lastCapturedLocation.latitude.toFixed(5)}, ${lastCapturedLocation.longitude.toFixed(5)} ±${
-                  lastCapturedLocation.horizontalAccuracy !== undefined
-                    ? Math.round(lastCapturedLocation.horizontalAccuracy)
-                    : '?'
-                }m`}
-              />
-            ) : (
-              <InfoRow label="Última coord" value="—" />
-            )}
-            {lastCaptureCompletedAt ? (
-              <InfoRow
-                label="Concluído em"
-                value={`${formatTime(new Date(lastCaptureCompletedAt))}  (${formatAge(nowMs - lastCaptureCompletedAt)})`}
-              />
-            ) : null}
 
             {geofenceEvents.length > 0 ? (
               <>
@@ -704,7 +916,6 @@ export default function App() {
                 title="Iniciar Scan"
                 color="#1976d2"
                 onPress={startScan}
-                disabled={!hasPermissions}
               />
             ) : (
               <Button title="Parar Scan" color="#c0392b" onPress={stopScan} />
@@ -846,7 +1057,71 @@ export default function App() {
                         {beacon.accuracy.toFixed(1)}m
                       </Text>
                     ) : null}
+                    {beacon.isStale ? (
+                      <Text
+                        style={[styles.beaconMetaText, { color: '#ff9800' }]}
+                      >
+                        stale
+                      </Text>
+                    ) : null}
+                    {beacon.alreadySynced ? (
+                      <Text
+                        style={[styles.beaconMetaText, { color: '#4caf50' }]}
+                      >
+                        ✓ synced
+                      </Text>
+                    ) : null}
                   </View>
+
+                  {sourceBadges(beacon.discoverySources).length > 0 ? (
+                    <View style={styles.beaconBadgeRow}>
+                      {sourceBadges(beacon.discoverySources).map((b) => (
+                        <View
+                          key={b.label}
+                          style={[styles.sourceBadge, { borderColor: b.color }]}
+                        >
+                          <Text
+                            style={[styles.sourceBadgeText, { color: b.color }]}
+                          >
+                            {b.label}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+
+                  {beacon.metadata ? (
+                    <View style={styles.beaconBadgeRow}>
+                      <Text
+                        style={[
+                          styles.metaChip,
+                          { color: batteryColor(beacon.metadata.batteryLevel) },
+                        ]}
+                      >
+                        🔋 {beacon.metadata.batteryLevel}mV
+                      </Text>
+                      <Text style={styles.metaChip}>
+                        🌡 {beacon.metadata.temperature}°C
+                      </Text>
+                      <Text style={styles.metaChip}>
+                        🚶 {beacon.metadata.movements}
+                      </Text>
+                      <Text style={styles.metaChip}>
+                        v{beacon.metadata.firmwareVersion}
+                      </Text>
+                      {beacon.txPower !== undefined ? (
+                        <Text style={styles.metaChip}>tx {beacon.txPower}</Text>
+                      ) : null}
+                    </View>
+                  ) : null}
+
+                  {beacon.rssiSamples ? (
+                    <Text style={styles.beaconMetaText}>
+                      RSSI avg {Math.round(beacon.rssiSamples.avg)} dBm (
+                      {beacon.rssiSamples.min}…{beacon.rssiSamples.max}, n=
+                      {beacon.rssiSamples.count})
+                    </Text>
+                  ) : null}
                 </View>
                 <Text style={styles.rssiText}>{beacon.rssi} dB</Text>
               </View>
@@ -854,6 +1129,66 @@ export default function App() {
           ))
         )}
       </ScrollView>
+
+      <TwoEyesModal
+        visible={showTwoEyes}
+        onClose={() => setShowTwoEyes(false)}
+        nowMs={nowMs}
+        events={geofenceEvents}
+        onClearLog={clearGeofenceLog}
+        location={{
+          available: true,
+          isInZone: isInBeaconRegion,
+          lastEnter: lastEnteredRegionAt,
+          lastExit: lastExitedRegionAt,
+          enterCount: locationEnterCount,
+          beaconsNow: locationBeaconsNow,
+          totalDetected: locationKeys.size,
+          modeLabel: isActiveScan ? 'RANGING' : 'REGION',
+          modeIsActive: isActiveScan,
+          cadenceLabel: isActiveScan ? '~1Hz' : 'kernel-level',
+          nextScanAt: null,
+        }}
+        bluetooth={{
+          available: isIOS,
+          isInZone: isInBluetoothZone,
+          lastEnter: lastBtEnterAt,
+          lastExit: lastBtExitAt,
+          enterCount: btZoneEnterCount,
+          beaconsNow: bluetoothBeaconsNow,
+          totalDetected: bluetoothKeys.size,
+          modeLabel: btScanMode === 'active' ? 'ATIVO' : 'STANDBY',
+          modeIsActive: btScanMode === 'active',
+          cadenceLabel: btScanMode === 'active' ? '10s tick' : '5min cycle',
+          nextScanAt: btNextIdleScanAt,
+        }}
+      />
+
+      <LogModal
+        visible={showLog}
+        onClose={() => setShowLog(false)}
+        entries={detectionLog}
+        onClear={() => {
+          BeAround.clearPersistedLog().catch(() => null);
+          setDetectionLog([]);
+        }}
+      />
+
+      <SettingsModal
+        visible={showSettings}
+        onClose={() => setShowSettings(false)}
+        scanPrecision={scanPrecision}
+        maxQueuedPayloads={maxQueuedPayloads}
+        sdkVersion={sdkVersion}
+        onChangePrecision={setScanPrecision}
+        onChangeQueue={setMaxQueuedPayloads}
+        onApply={() => {
+          setShowSettings(false);
+          if (isScanning) {
+            configureSdk();
+          }
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -875,52 +1210,6 @@ function permissionColor(status: string) {
     return '#9e9e9e';
   }
   return '#9e9e9e';
-}
-
-function GpsPolicyBanner({
-  isInZone,
-  isCapturing,
-  captureCount,
-}: {
-  isInZone: boolean;
-  isCapturing: boolean;
-  captureCount: number;
-}) {
-  const bg = isInZone ? '#0f2b14' : '#2a0f0f';
-  const border = isInZone ? '#2e7d32' : '#c62828';
-  const titleColor = isInZone ? '#a5d6a7' : '#ef9a9a';
-  const emoji = isInZone ? '✅' : '⛔';
-  const title = isInZone ? 'GPS LIBERADO' : 'GPS BLOQUEADO';
-  const body = !isInZone
-    ? 'Sem beacon detectado. Localização NÃO está sendo lida.'
-    : isCapturing
-      ? 'Capturando agora — janela aberta porque você entrou na zona.'
-      : 'Dentro da zona. GPS já capturou o que precisava; agora está em standby.';
-
-  return (
-    <View
-      style={[
-        styles.policyBanner,
-        { backgroundColor: bg, borderColor: border },
-      ]}
-    >
-      <View style={styles.policyHeader}>
-        <Text style={styles.policyEmoji}>{emoji}</Text>
-        <Text style={[styles.policyTitle, { color: titleColor }]}>{title}</Text>
-      </View>
-      <Text style={[styles.policyBody, { color: titleColor }]}>{body}</Text>
-      <View style={styles.policyCounterRow}>
-        <Text style={styles.policyCounterLabel}>📊 Capturas nesta sessão:</Text>
-        <Text style={styles.policyCounterValue}>{captureCount}</Text>
-      </View>
-      <View style={styles.policyCounterRow}>
-        <Text style={styles.policyCounterLabel}>🛡️ Capturas fora da zona:</Text>
-        <Text style={[styles.policyCounterValue, { color: '#a5d6a7' }]}>
-          0 ✓
-        </Text>
-      </View>
-    </View>
-  );
 }
 
 function InfoRow({
@@ -970,6 +1259,36 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
   },
+  headerActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  eyesButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 20,
+    alignItems: 'center',
+    backgroundColor: '#1565c0',
+  },
+  eyesButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  settingsButton: {
+    width: 48,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+    backgroundColor: '#0f0f0f',
+  },
+  settingsButtonText: {
+    color: '#bdbdbd',
+    fontSize: 18,
+  },
   section: {
     marginBottom: 20,
     padding: 16,
@@ -997,6 +1316,11 @@ const styles = StyleSheet.create({
   permissionText: {
     color: '#bdbdbd',
     marginLeft: 8,
+  },
+  readyHint: {
+    marginTop: 10,
+    fontSize: 12,
+    fontWeight: '600',
   },
   permissionValue: {
     fontSize: 12,
@@ -1182,6 +1506,27 @@ const styles = StyleSheet.create({
     color: '#9e9e9e',
     fontSize: 12,
   },
+  beaconBadgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 8,
+  },
+  sourceBadge: {
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  sourceBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  metaChip: {
+    color: '#bdbdbd',
+    fontSize: 11,
+  },
   rssiText: {
     color: '#bdbdbd',
     fontSize: 12,
@@ -1200,48 +1545,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
-  },
-  policyBanner: {
-    borderRadius: 8,
-    borderWidth: 1,
-    padding: 12,
-    marginBottom: 12,
-  },
-  policyHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  policyEmoji: {
-    fontSize: 18,
-    marginRight: 8,
-  },
-  policyTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  policyBody: {
-    fontSize: 12,
-    marginBottom: 6,
-  },
-  policyCounterRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    marginTop: 4,
-  },
-  policyCounterLabel: {
-    color: '#bdbdbd',
-    fontSize: 11,
-  },
-  policyCounterValue: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '700',
   },
   clearLogText: {
     color: '#bdbdbd',

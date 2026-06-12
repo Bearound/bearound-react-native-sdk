@@ -1,6 +1,6 @@
 {
   "name": "@bearound/react-native-sdk",
-  "version": "2.4.0",
+  "version": "3.3.1",
   "description": "bearound",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
@@ -35,6 +35,7 @@
     "example": "yarn workspace bearound-react-sdk-example",
     "test": "jest",
     "typecheck": "tsc",
+    "check:versions": "node scripts/check-native-versions.mjs",
     "lint": "eslint \"**/*.{js,ts,tsx}\"",
     "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
     "prepare": "bob build",
@@ -103,10 +104,10 @@
       "tagName": "v${version}"
     },
     "npm": {
-      "publish": true
+      "publish": false
     },
     "github": {
-      "release": true
+      "release": false
     },
     "plugins": {
       "@release-it/conventional-changelog": {

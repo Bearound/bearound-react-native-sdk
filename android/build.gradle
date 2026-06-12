@@ -75,5 +75,7 @@ def kotlin_version = getExtOrDefault("kotlinVersion")
 
 dependencies {
   implementation "com.facebook.react:react-android"
-  implementation 'com.github.Bearound:bearound-android-sdk:2.4.0'
+  // Exact pin, kept in lockstep with the iOS podspec dep (same native release).
+  // 3.3.x carries the configure(technology:) param.
+  implementation 'com.github.Bearound:bearound-android-sdk:3.3.1'
 }

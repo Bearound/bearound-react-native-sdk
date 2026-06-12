@@ -19,6 +19,14 @@ end
 target 'BearoundReactSdkExample' do
   config = use_native_modules!
 
+  # Dev: build against the local iOS SDK source (sibling repo) instead of
+  # resolving BearoundSDK from the CocoaPods trunk. Opt-in only
+  # (BEAROUND_LOCAL_PODS=1 pod install) — CI resolves from trunk via the
+  # module podspec dependency.
+  if ENV['BEAROUND_LOCAL_PODS'] == '1'
+    pod 'BearoundSDK', :path => '../../../bearound-ios-sdk'
+  end
+
   use_react_native!(
     :path => config[:reactNativePath],
     # An absolute path to your application root.
@@ -33,5 +41,20 @@ target 'BearoundReactSdkExample' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    # Workaround: fmt 11.0.2 (bundled with RN 0.79) selects FMT_USE_CONSTEVAL=1
+    # on modern Apple clang, but the Xcode 26 clang rejects fmt's consteval usage
+    # ("call to consteval function ... is not a constant expression"). The macro
+    # block in base.h is NOT #ifndef-guarded, so a -D define can't override it —
+    # we patch the Apple-clang condition so it always picks 0 (constexpr path).
+    fmt_base = File.join(__dir__, 'Pods/fmt/include/fmt/base.h')
+    if File.exist?(fmt_base)
+      src = File.read(fmt_base)
+      patched = src.gsub(
+        '#elif defined(__apple_build_version__) && __apple_build_version__ < 14000029L',
+        '#elif defined(__apple_build_version__)'
+      )
+      File.write(fmt_base, patched) if patched != src
+    end
   end
 end
