@@ -85,3 +85,6 @@ android/generated
 # React Native Nitro Modules
 nitrogen/
 */coverage/
+
+# Example Podfile.lock alterna entre dev-pod local (BEAROUND_LOCAL_PODS) e trunk — não versionar
+example/ios/Podfile.lock
