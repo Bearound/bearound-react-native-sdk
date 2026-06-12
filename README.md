@@ -14,6 +14,7 @@ Aligned with Bearound native SDKs **3.3.1**.
 * [Permission Configuration](#permission-configuration)
   * [Android – Manifest](#android--manifest)
   * [iOS – Info.plist and Background Modes](#ios--infoplist-and-background-modes)
+* [iOS Background Integration (required)](#ios-background-integration-required)
 * [Quick Start](#quick-start)
 * [API](#api)
   * [Types](#types)
@@ -101,6 +102,7 @@ In `Info.plist`:
   <string>location</string>
   <string>processing</string>
   <string>bluetooth-central</string>
+  <string>remote-notification</string>
 </array>
 
 <key>NSBluetoothAlwaysUsageDescription</key>
@@ -114,9 +116,152 @@ In `Info.plist`:
 ```
 
 > **Important for terminated app detection:**
-> - `fetch` mode allows iOS to wake the app when beacons are detected via region monitoring
+> - Waking the app on beacon detection is done by **CoreLocation region monitoring** (the `location` background mode + "Always" permission) — `fetch` does **not** wake the app for beacons; it only grants periodic background windows the SDK uses to sync queued data
+> - `remote-notification` enables the **silent-push wake vector** — the only mechanism that resurrects a fully terminated app (see [iOS Background Integration](#ios-background-integration-required))
 > - User must grant "Always" location permission
 > - User must enable "Background App Refresh" in Settings > General > Background App Refresh
+
+---
+
+## iOS Background Integration (required)
+
+This section is the **consumer contract** for background and terminated-state operation. Without this wiring the SDK still works in foreground, but it **silently degrades** in background: terminated-state uploads never finalize, BGTasks never run, and the app is never woken once iOS kills it.
+
+The snippets below mirror the example app (`example/ios/BearoundReactSdkExample/AppDelegate.swift` and `Info.plist`) — copy them as-is.
+
+### 1. AppDelegate wiring
+
+In `didFinishLaunchingWithOptions`, touch `BeAroundSDK.shared` **synchronously** and register the background tasks. Accessing `BeAroundSDK.shared` runs its init while the BLE state-restoration window is still open and sets up relaunch auto-resume — deferring it to the async JS `configure()` path is too late and races the relaunch event.
+
+```swift
+import BearoundSDK
+import BearoundReactSdk
+
+@main
+class AppDelegate: UIResponder, UIApplicationDelegate {
+  func application(
+    _ application: UIApplication,
+    didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+  ) -> Bool {
+    // CRITICAL — terminated/background relaunch path:
+    // When iOS relaunches the app from a beacon-region event, accessing
+    // BeAroundSDK.shared runs its init, which auto-restores the saved config and
+    // RE-ARMS region monitoring synchronously. The region-enter callback then
+    // fires asynchronously on the run loop. The SDK delegate is a runtime object
+    // (not persisted), so it MUST be re-set NOW — before that callback fires —
+    // otherwise didEnterBeaconRegion lands on a nil delegate and the persisted
+    // log + local notification never happen. Doing this via the async JS
+    // configure() path is too late and races the relaunch region event.
+    BeAroundSDK.shared.delegate = RNBearoundBridge.shared
+
+    // Register background tasks BEFORE app finishes launching
+    BeAroundSDK.shared.registerBackgroundTasks()
+
+    // ... your React Native bootstrap (factory.startReactNative...) ...
+
+    return true
+  }
+
+  // Handle background fetch - called by iOS when app needs to refresh data
+  func application(
+    _ application: UIApplication,
+    performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+  ) {
+    BeAroundSDK.shared.performBackgroundFetch { success in
+      completionHandler(success ? .newData : .noData)
+    }
+  }
+
+  // Background URLSession: iOS relaunches the app to deliver completed beacon-upload
+  // transfers. Forward to the SDK so it finalizes the pending upload(s), invokes their
+  // delegate callbacks (batch removal on success) and calls the system completion handler.
+  // Without this, terminated-state uploads complete in nsurlsessiond but the app is never
+  // re-attached to process the result.
+  func application(
+    _ application: UIApplication,
+    handleEventsForBackgroundURLSession identifier: String,
+    completionHandler: @escaping () -> Void
+  ) {
+    BeAroundSDK.shared.handleBackgroundURLSessionEvents(
+      identifier: identifier,
+      completionHandler: completionHandler
+    )
+  }
+}
+```
+
+### 2. Info.plist — background modes and BGTask identifiers
+
+Declare the **full** `UIBackgroundModes` list and the two BGTask identifiers the SDK schedules:
+
+```xml
+<key>UIBackgroundModes</key>
+<array>
+  <string>bluetooth-central</string>
+  <string>fetch</string>
+  <string>processing</string>
+  <string>location</string>
+  <string>remote-notification</string>
+</array>
+
+<key>BGTaskSchedulerPermittedIdentifiers</key>
+<array>
+  <string>io.bearound.sdk.sync</string>
+  <string>io.bearound.sdk.processing</string>
+</array>
+```
+
+Without the `BGTaskSchedulerPermittedIdentifiers` entries, `registerBackgroundTasks()` cannot register the SDK's BGTasks and iOS will never grant them execution time.
+
+### 3. Push Notifications capability (silent-push wake vector)
+
+Enable the **Push Notifications** capability on your app target in Xcode (Signing & Capabilities → + Capability → Push Notifications). This adds the `aps-environment` entitlement.
+
+Without it, the SDK's automatic APNs token capture silently gets **no token**, and the **silent-push wake vector — the only mechanism that resurrects a fully terminated app — never works**. Everything else still compiles and runs, which is exactly why this is easy to miss.
+
+### 4. Call `configure()` on app mount
+
+Call `configure()` when your root component mounts (e.g. in a `useEffect`), **not** behind a button press. The SDK's push swizzle (automatic APNs token capture + silent-push handling) only installs once `configure()` runs in the process — if the user never taps the button after a relaunch, the app never registers for pushes in that process.
+
+```tsx
+useEffect(() => {
+  BeAround.configure({ businessToken: 'your-business-token' });
+}, []);
+```
+
+### 5. Using Firebase Messaging / disabled swizzling?
+
+If another library owns the push delegates (e.g. Firebase Messaging with method swizzling), or you opted out via `BearoundAppDelegateProxyEnabled = NO` in Info.plist, forward the APNs token and Bearound silent pushes to the SDK natively from your AppDelegate:
+
+```swift
+func application(
+  _ application: UIApplication,
+  didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+) {
+  let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+  BeAroundSDK.shared.setPushToken(token)
+}
+
+func application(
+  _ application: UIApplication,
+  didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+  fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+) {
+  // Bearound silent pushes carry a "bearound" key in the payload.
+  guard userInfo["bearound"] != nil else {
+    completionHandler(.noData)
+    return
+  }
+  BeAroundSDK.shared.performBackgroundBLERefreshAndSync(
+    bleScanDuration: 10,
+    trigger: "silent_push"
+  ) { success in
+    completionHandler(success ? .newData : .noData)
+  }
+}
+```
+
+This is a **native-level escape hatch** — by design it is not part of the JS API.
 
 ---
 
