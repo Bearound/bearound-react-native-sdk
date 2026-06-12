@@ -42,7 +42,7 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     private const val EVENT_BACKGROUND_DETECTION = "bearound:backgroundDetection"
     private const val EVENT_SCANNING = "bearound:scanning"
     private const val EVENT_ERROR = "bearound:error"
-    // v2.4 — beacon region lifecycle
+    // v2.5 — beacon region lifecycle
     private const val EVENT_BEACON_REGION = "bearound:beaconRegion"
     private const val EVENT_ACTIVE_SCAN = "bearound:activeScan"
     private const val EVENT_BLUETOOTH_STATE = "bearound:bluetoothState"
@@ -198,8 +198,8 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
   // neutral default and are documented as iOS-only in the TS layer.
 
   override fun getSdkVersion(promise: Promise) {
-    // The Android SDK exposes no public version getter (unlike iOS BeAroundSDK.version).
-    promise.resolve("")
+    // Native SDK version injected at build time (io.bearound.sdk.BuildConfig.SDK_VERSION).
+    promise.resolve(io.bearound.sdk.BuildConfig.SDK_VERSION)
   }
 
   override fun getCurrentScanPrecision(promise: Promise) {
@@ -207,13 +207,13 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
   }
 
   override fun getBleDiagnosticInfo(promise: Promise) {
-    // No Android equivalent of iOS bleDiagnosticInfo.
+    // Android 3.3.1 exposes a general diagnostics() snapshot instead (different
+    // content) — deliberately not bridged; see EVENT-PARITY.md.
     promise.resolve("")
   }
 
   override fun getPendingBatchCount(promise: Promise) {
-    // No public pending-batch getter on Android.
-    promise.resolve(0.0)
+    promise.resolve(sdk.pendingBatchCount.toDouble())
   }
 
   override fun isConfigured(promise: Promise) {
@@ -315,7 +315,7 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     // Required for NativeEventEmitter; no-op for now.
   }
 
-  // BeAroundSDKListener callbacks (v2.2.1)
+  // BeAroundSDKListener callbacks (v2.2)
   
   override fun onBeaconsUpdated(beacons: List<Beacon>) {
     val payload = Arguments.createMap()
@@ -366,7 +366,7 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
   override fun onProvideNotificationContent(beacons: List<Beacon>): NotificationContent? =
     notificationContent
 
-  // v2.4 — Beacon region lifecycle
+  // v2.5 — Beacon region lifecycle
 
   override fun onEnterBeaconRegion() {
     val payload = Arguments.createMap()

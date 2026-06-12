@@ -278,7 +278,7 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
     return CLLocationManager.authorizationStatus()
   }
 
-  // BeAroundSDKDelegate callbacks (v2.2.1)
+  // BeAroundSDKDelegate callbacks (native 3.3.1)
   
   public func didUpdateBeacons(_ beacons: [Beacon]) {
     let mapped = beacons.map { mapBeacon($0) }
@@ -357,7 +357,8 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
     DispatchQueue.main.async {
       BearoundReactSdkEventEmitter.emit("bearound:syncLifecycle", body: payload)
     }
-    // Push + persisted log handled by the SDK's SDKNotifier — no duplication.
+    // Persisted log handled by the SDK's DetectionLogStore — no duplication.
+    // The SDK posts no user-facing notifications; the host app decides.
   }
 
   // v3.0: native changed the signature from (beaconCount: Int) to (beacons: [Beacon]).
@@ -369,10 +370,10 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
     DispatchQueue.main.async {
       BearoundReactSdkEventEmitter.emit("bearound:backgroundDetection", body: payload)
     }
-    // Push + persisted log handled by SDK.
+    // Persisted log handled by the SDK.
   }
 
-  // v2.4 — Beacon region lifecycle (SDK posts the push; bridge only forwards the event)
+  // v2.5 — Beacon region lifecycle (bridge only forwards the event; host app owns any notification).
 
   public func didEnterBeaconRegion() {
     DispatchQueue.main.async {
@@ -470,7 +471,7 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
     case "high": return .high
     case "medium": return .medium
     case "low": return .low
-    default: return .medium
+    default: return .high
     }
   }
 

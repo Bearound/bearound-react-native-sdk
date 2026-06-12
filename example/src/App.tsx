@@ -244,9 +244,11 @@ export default function App() {
     });
   }, []);
 
-  // Load the NATIVE persisted log (authoritative — includes events that fired
-  // while the app was backgrounded or CLOSED, written natively by the SDK).
+  // Load the NATIVE persisted log (iOS-only — the Android SDK exposes no
+  // detection-log API and always resolves [], which would wipe the optimistic
+  // in-memory log; on Android we keep the JS log as the only source).
   const refreshLog = useCallback(async () => {
+    if (Platform.OS !== 'ios') return;
     try {
       const entries = await BeAround.getPersistedLog();
       setDetectionLog(entries as unknown as DetectionLogEntry[]);

@@ -1,7 +1,7 @@
 # 🐻 Bearound React Native SDK
 
 Official SDK to integrate **Bearound's** secure BLE beacon detection into **React Native** apps (Android and iOS).
-Aligned with Bearound native SDKs **2.4.0**.
+Aligned with Bearound native SDKs **3.3.1**.
 
 > ✅ Compatible with **New Architecture** (TurboModules) and also compatible with classic architecture.
 
@@ -111,9 +111,6 @@ In `Info.plist`:
 
 <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 <string>We need your location even in background to identify beacons.</string>
-
-<key>NSUserTrackingUsageDescription</key>
-<string>We need permission to use IDFA on iOS 14+.</string>
 ```
 
 > **Important for terminated app detection:**
@@ -151,7 +148,7 @@ export default function App() {
 
     await BeAround.configure({
       businessToken: 'your-business-token',
-      scanPrecision: BeAround.ScanPrecision.MEDIUM,
+      scanPrecision: BeAround.ScanPrecision.HIGH,
       maxQueuedPayloads: BeAround.MaxQueuedPayloads.MEDIUM,
     });
     await BeAround.startScanning();
@@ -194,7 +191,7 @@ export enum MaxQueuedPayloads {
 
 export type SdkConfig = {
   businessToken: string; // required - your business token
-  scanPrecision?: ScanPrecision; // defaults to MEDIUM
+  scanPrecision?: ScanPrecision; // defaults to HIGH (aligned with the iOS native default)
   maxQueuedPayloads?: MaxQueuedPayloads; // defaults to MEDIUM
 };
 
@@ -208,13 +205,32 @@ export type UserProperties = {
 export type BeaconProximity = 'immediate' | 'near' | 'far' | 'bt' | 'unknown';
 
 export type BeaconMetadata = {
+  // Firmware identifier. As of native SDK 3.0.0 this is an integer encoded as
+  // a string (e.g. "1"), NOT a semantic version ("2.1.0") as in 2.x.
   firmwareVersion: string;
+  // Battery level. As of native SDK 3.0.0 this is in millivolts (e.g. 3269),
+  // NOT a 0-100 percentage as in 2.x.
   batteryLevel: number;
   movements: number;
   temperature: number;
   txPower?: number;
   rssiFromBLE?: number;
   isConnectable?: boolean;
+};
+
+// iOS-only: which detector(s) saw the beacon ("two eyes" model —
+// coreLocation = Location eye; serviceUUID/name = Bluetooth eye).
+export type BeaconDiscoverySource = 'serviceUUID' | 'name' | 'coreLocation';
+
+// Android-only: aggregated RSSI statistics over a sync window.
+export type RssiStats = {
+  count: number;
+  min: number;
+  max: number;
+  avg: number;
+  stdDev: number;
+  firstSeen: number;
+  lastSeen: number;
 };
 
 export type Beacon = {
@@ -227,6 +243,12 @@ export type Beacon = {
   timestamp: number; // milliseconds since epoch
   metadata?: BeaconMetadata;
   txPower?: number;
+  alreadySynced?: boolean; // whether this beacon was already synced to the ingest API
+  syncedAt?: number; // epoch ms of the last successful sync, if any
+  discoverySources?: BeaconDiscoverySource[]; // iOS-only
+  rssiRaw?: number; // Android-only: raw (unsmoothed) RSSI of the latest sample
+  rssiSamples?: RssiStats; // Android-only
+  isStale?: boolean; // Android-only: not seen within the freshness window
 };
 
 export type SyncLifecycleEvent = {
@@ -266,6 +288,36 @@ addSyncLifecycleListener(listener: (event: SyncLifecycleEvent) => void): Emitter
 addBackgroundDetectionListener(listener: (event: BackgroundDetectionEvent) => void): EmitterSubscription;
 addScanningListener(listener: (isScanning: boolean) => void): EmitterSubscription;
 addErrorListener(listener: (error: BearoundError) => void): EmitterSubscription;
+addBeaconRegionListener(listener: (event: BeaconRegionEvent) => void): EmitterSubscription;
+addActiveScanListener(listener: (event: ActiveScanEvent) => void): EmitterSubscription;
+addBluetoothZoneListener(listener: (event: BluetoothZoneEvent) => void): EmitterSubscription; // iOS-only event
+addBluetoothScanModeListener(listener: (event: BluetoothScanModeEvent) => void): EmitterSubscription; // iOS-only event
+addBluetoothStateListener(listener: (state: BluetoothState) => void): EmitterSubscription; // both platforms
+
+// Diagnostics / state getters
+getSdkVersion(): Promise<string>; // native SDK version (real value on both platforms)
+getCurrentScanPrecision(): Promise<string>; // 'high' | 'medium' | 'low', or '' if not configured
+getBleDiagnosticInfo(): Promise<string>; // iOS-only; Android returns ''
+getPendingBatchCount(): Promise<number>; // failed sync batches queued for retry (real value on both platforms)
+isConfigured(): Promise<boolean>; // whether configure() has run
+isLocationAvailable(): Promise<boolean>; // whether device location services are enabled
+getAuthorizationStatus(): Promise<AuthorizationStatus>; // iOS: 'always' | 'whenInUse' | ...; Android: its own permission-status string
+getBluetoothState(): Promise<BluetoothState>; // current Bluetooth adapter state (both platforms)
+
+// Location authorization (iOS-only; no-op on Android — use requestForegroundPermissions there)
+requestLocationAuthorization(level?: 'always' | 'whenInUse'): Promise<void>;
+
+// Persisted detection log (iOS-only; Android resolves [] / no-op)
+// Entries are written natively on every event — including while the app is
+// backgrounded or terminated — so JS can show what happened while it wasn't running.
+getPersistedLog(): Promise<PersistedLogEntry[]>;
+clearPersistedLog(): Promise<void>;
+
+// Foreground-service scanning (Android-only; no-op on iOS)
+enableForegroundScanning(config?: ForegroundScanConfig): Promise<void>;
+disableForegroundScanning(): Promise<void>;
+isForegroundScanningEnabled(): Promise<boolean>; // iOS always resolves false
+setForegroundNotificationContent(content: NotificationContent): Promise<void>;
 
 // Permission helper (Android + iOS)
 ensurePermissions(opts?: { askBackground?: boolean }): Promise<{
@@ -300,6 +352,19 @@ requestBackgroundLocation(): Promise<boolean>;
 
 ### Events
 
+Available listeners:
+
+* `addBeaconsListener` — fires with the detected beacons on every scan window.
+* `addSyncLifecycleListener` — fires when a sync to the ingest API starts/completes.
+* `addBackgroundDetectionListener` — fires when beacons are detected while the app is in background.
+* `addScanningListener` — fires when scanning starts/stops.
+* `addErrorListener` — fires on SDK errors.
+* `addBeaconRegionListener` — fires on beacon region enter/exit transitions; outside the region only the low-power kernel filter scan is active.
+* `addActiveScanListener` — fires when active-scan gating changes (BLE ranging + duty cycle run only while inside a beacon region).
+* `addBluetoothZoneListener` — **iOS-only**: fires on Bluetooth-zone enter/exit (the "Bluetooth eye", backed by CBCentralManager, independent of CoreLocation). On Android the listener registers but never fires.
+* `addBluetoothScanModeListener` — **iOS-only**: fires when the BLE scanner duty-cycle mode changes (`idle` ↔ `active`, with `nextIdleScanAt` when idle). On Android the listener registers but never fires.
+* `addBluetoothStateListener` — fires on Bluetooth adapter state changes (`poweredOn`/`poweredOff`/`unauthorized`/...) on **both platforms** — use it to gate the Bluetooth eye independently of location.
+
 ```ts
 import {
   addBeaconsListener,
@@ -307,6 +372,7 @@ import {
   addBackgroundDetectionListener,
   addScanningListener,
   addErrorListener,
+  addBluetoothStateListener,
 } from '@bearound/react-native-sdk';
 
 const beaconsSub = addBeaconsListener((beacons) => {
@@ -334,11 +400,17 @@ const errorSub = addErrorListener((error) => {
   console.log('SDK error', error.message);
 });
 
+const bluetoothStateSub = addBluetoothStateListener((state) => {
+  console.log('Bluetooth state', state);
+});
+
 // later (e.g. on unmount)
 beaconsSub.remove();
-syncSub.remove();
+syncLifecycleSub.remove();
+backgroundDetectionSub.remove();
 scanningSub.remove();
 errorSub.remove();
+bluetoothStateSub.remove();
 ```
 
 ---

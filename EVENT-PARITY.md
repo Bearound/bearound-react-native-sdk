@@ -17,9 +17,17 @@
 | BT scan mode | didChangeBluetoothScanMode | — | bluetoothScanMode | bluetoothScanModeStream | só iOS |
 | Push scan complete | didCompletePushScan | — | — | — | só iOS-nativo |
 | App state changed | — | onAppStateChanged | — | — | só Android-nativo |
-| Notification content (pull) | — | onProvideNotificationContent | pull | pull | só Android (foreground service) |
+| Notification content (pull) | — | onProvideNotificationContent | — (`setForegroundNotificationContent`; pull resolvido no bridge nativo) | — (`setForegroundNotificationContent`; pull resolvido no bridge nativo) | só Android (foreground service) |
 | BT adapter state | — | — | bluetoothState | bluetoothStateStream | só bridges (sintetizado) |
 
 \* background-detection: a assinatura nativa difere (iOS `[Beacon]` vs Android `Int`) por design; os bridges expõem `{beaconCount}` idêntico nas duas plataformas.
 
 Os 8 eventos "comuns" têm nomes por convenção de cada plataforma (iOS `didX`, Android `onX`) e payloads equivalentes. Os demais são divergências de capacidade de plataforma (iOS tem o BLE "two-eyes" + push-scan; Android tem foreground-service/app-state) e ficam documentados aqui.
+
+## Métodos divergentes (pull API, não eventos)
+
+| Conceito | iOS | Android | RN | Flutter |
+|---|---|---|---|---|
+| Detection log | `getDetectionLogJson()` / `clearDetectionLog()` | ausente no SDK | `getPersistedLog()` / `clearPersistedLog()` (Android resolve `[]`) | idem RN (Android resolve `[]`) |
+
+- O snapshot `diagnostics()` do Android 3.3.1 deliberadamente **não** é bridged — RN/Flutter expõem getters individuais (`getSdkVersion`, `getBluetoothState`, etc.) em vez do objeto agregado.

@@ -32,7 +32,8 @@ export interface Spec extends TurboModule {
   requestLocationAuthorization(level: string): Promise<void>;
 
   // Persistent detection log written natively (survives termination / captures
-  // closed-state events). Returns a JSON string array of entries.
+  // closed-state events). Returns a JSON string array of entries
+  // (iOS-only; Android resolves '[]').
   getPersistedLog(): Promise<string>;
   clearPersistedLog(): Promise<void>;
 

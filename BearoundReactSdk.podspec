@@ -20,7 +20,7 @@ Pod::Spec.new do |s|
   # Bumping is a deliberate, guarded step — see scripts/check-native-versions.mjs.
   s.dependency "BearoundSDK", "3.3.1"
 
-  s.frameworks = "CoreBluetooth", "CoreLocation", "UIKit", "Foundation", "AdSupport"
+  s.frameworks = "CoreBluetooth", "CoreLocation", "UIKit", "Foundation"
 
   s.swift_version = '5.0'
   s.pod_target_xcconfig = {
