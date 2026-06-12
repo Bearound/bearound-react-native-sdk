@@ -232,12 +232,13 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     promise.resolve(currentBluetoothState())
   }
 
+  // Detection log é iOS-only (o Android SDK não expõe getDetectionLogJson/
+  // clearDetectionLog) — paridade documentada em EVENT-PARITY.md.
   override fun getPersistedLog(promise: Promise) {
-    promise.resolve(sdk.getDetectionLogJson())
+    promise.resolve("[]")
   }
 
   override fun clearPersistedLog(promise: Promise) {
-    sdk.clearDetectionLog()
     promise.resolve(null)
   }
 
