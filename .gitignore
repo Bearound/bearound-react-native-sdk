@@ -88,3 +88,7 @@ nitrogen/
 
 # Example Podfile.lock alterna entre dev-pod local (BEAROUND_LOCAL_PODS) e trunk — não versionar
 example/ios/Podfile.lock
+
+# build artifacts / coverage na raiz (gerados, nunca versionar)
+coverage/
+example/ios/build*/
