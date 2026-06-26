@@ -392,6 +392,17 @@ export async function configure(config: SdkConfig) {
   );
 }
 
+/**
+ * Start scanning for beacons after `configure()`.
+ *
+ * On Android there are two background-scan modes (see "Scan modes" in the README):
+ * - **Opportunistic (default):** just call `startScanning()`. Background scan via
+ *   PendingIntent/AlarmManager — no foreground service, no Play video. Latency is
+ *   unpredictable and it may not survive aggressive OEMs (Xiaomi/Huawei).
+ * - **Foreground service:** call {@link enableForegroundScanning} after this for a
+ *   continuous scan that survives app-kill. Requires the
+ *   `FOREGROUND_SERVICE_CONNECTED_DEVICE` permission + a Play demonstration video.
+ */
 export async function startScanning() {
   await Native.startScanning();
 }
@@ -560,10 +571,12 @@ export type NotificationContent = {
 };
 
 /**
- * Enable the Android foreground-service scan with a persistent notification.
+ * Enable the Android foreground-service (`connectedDevice`) scan with a persistent
+ * notification — continuous scanning that survives app-kill and aggressive OEMs.
+ * Requires the `FOREGROUND_SERVICE_CONNECTED_DEVICE` permission and, on Google Play,
+ * a demonstration video. To avoid both, use {@link startScanning} alone (opportunistic).
  *
- * **Android-only.** iOS uses region monitoring / BGTaskScheduler and has no
- * persistent-notification foreground service — this is a no-op on iOS.
+ * **Android-only.** iOS uses region monitoring / BGTaskScheduler — no-op on iOS.
  */
 export async function enableForegroundScanning(
   config: ForegroundScanConfig = {}

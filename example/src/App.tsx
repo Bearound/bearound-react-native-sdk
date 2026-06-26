@@ -435,7 +435,7 @@ export default function App() {
       if (Platform.OS === 'android') {
         await BeAround.enableForegroundScanning({
           notificationTitle: 'Bearound',
-          notificationText: 'Procurando beacons por perto',
+          notificationText: 'Reading data from nearby Bluetooth devices',
         }).catch(() => null);
       }
 

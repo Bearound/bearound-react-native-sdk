@@ -73,23 +73,32 @@ No additional Gradle configuration is needed beyond permissions. The native Andr
 
 ### Android – Manifest
 
-Add to `android/app/src/main/AndroidManifest.xml`:
+**You normally don't need to add any permissions** — the native SDK declares them all and the Android manifest merger injects them into your app automatically. The SDK uses the **`connectedDevice` foreground-service model** (Bluetooth), **not** location.
+
+> ⚠️ If you redeclare `BLUETOOTH_SCAN`, keep the `neverForLocation` flag (and add `xmlns:tools` to your `<manifest>` tag). If any declaration omits it, the flag is dropped from the merged manifest and Google treats the app as deriving location.
+
+For reference, the SDK declares:
 
 ```xml
-<!-- Bluetooth / Location / Foreground Service / Notifications -->
-<uses-permission android:name="android.permission.BLUETOOTH" />
-<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-<uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+<!-- Bluetooth -->
+<uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+<uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+    android:usesPermissionFlags="neverForLocation" tools:targetApi="s" />
+
+<!-- Location: legacy only (BLE scan on API <= 30); not requested on API 31+ -->
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="30" />
+
+<!-- Foreground service: connectedDevice (BLE) on Android 14+ -->
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-<uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-<uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+
 <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 <uses-permission android:name="android.permission.INTERNET" />
 ```
 
-> **Runtime (Android 10+ / 12+)**: You **must** request `ACCESS_FINE_LOCATION`, `ACCESS_BACKGROUND_LOCATION`, `BLUETOOTH_SCAN` and `POST_NOTIFICATIONS` at runtime when applicable. This package exposes a helper [`ensurePermissions`](#functions) to facilitate this.
+> **Runtime (Android 12+)**: request `BLUETOOTH_SCAN` and `POST_NOTIFICATIONS` at runtime. Because `BLUETOOTH_SCAN` is declared with `neverForLocation`, **no location permission is required** for scanning on API 31+. This package exposes a helper [`ensurePermissions`](#functions) to facilitate this.
 
 ### iOS – Info.plist and Background Modes
 
@@ -120,6 +129,83 @@ In `Info.plist`:
 > - `remote-notification` enables the **silent-push wake vector** — the only mechanism that resurrects a fully terminated app (see [iOS Background Integration](#ios-background-integration-required))
 > - User must grant "Always" location permission
 > - User must enable "Background App Refresh" in Settings > General > Background App Refresh
+
+---
+
+## Scan modes (Android)
+
+> On **iOS** scanning is always system-managed (region monitoring + `BGTaskScheduler`). These modes are **Android-only**.
+
+The SDK ships **two background-scan strategies** — **you pick per app**. Both already exist in the native SDK; you just choose which one to turn on.
+
+### At a glance — what you gain
+
+| | 🪶 Opportunistic *(default)* | 🛡️ Foreground service |
+|---|---|---|
+| **Best for** | casual presence, battery-first apps | real-time footfall, mission-critical presence |
+| **You gain** | zero setup · **no Play video** · lowest battery | reliable detection that **survives app-kill & aggressive OEMs** |
+| **You accept** | unpredictable latency · misses in deep background | persistent notification + Play demo video |
+
+### Mode 1 — Opportunistic (no foreground service) · *default*
+
+**What you gain:** no `FOREGROUND_SERVICE_CONNECTED_DEVICE` permission, **no Play demonstration video**, lowest battery.
+
+```ts
+import { startScanning } from '@bearound/react-native-sdk';
+
+await startScanning(); // PendingIntent/AlarmManager — no foreground service
+```
+
+The OS delivers beacons via a `PendingIntent` scan re-armed by `AlarmManager` — it keeps working with the app **killed**, but the system decides *when* (throttled).
+
+To fully drop the Play video, also remove the FGS permission the native SDK injects via manifest merge:
+
+```xml
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"
+    tools:node="remove" />
+```
+
+### Mode 2 — Foreground service (`connectedDevice`)
+
+**What you gain:** continuous, low-latency detection that **survives app-kill and aggressive OEMs** (Xiaomi/Huawei/Samsung) — the reliable path for footfall/presence.
+
+```ts
+import {
+  startScanning,
+  enableForegroundScanning,
+  setForegroundNotificationContent,
+} from '@bearound/react-native-sdk';
+
+await startScanning();
+await enableForegroundScanning({
+  notificationTitle: 'Bearound',
+  notificationText: 'Reading data from nearby Bluetooth devices',
+});
+
+// Optional: live device data in the notification
+// await setForegroundNotificationContent({ title: 'Bearound', text: 'Bluetooth devices: 3 · 22°C' });
+```
+
+> ⚠️ **Google Play:** the `connectedDevice` foreground service requires a Play Console declaration + **demonstration video**. Frame it as *reading data from external Bluetooth devices* (persistent notification + device data) — never as location or proximity, to stay consistent with `neverForLocation`.
+
+### Trade-off
+
+| | 🪶 Opportunistic | 🛡️ Foreground service |
+|---|---|---|
+| App in foreground | continuous | continuous |
+| App in background | opportunistic, throttled | continuous |
+| App killed / swiped away | relaunched by OS (PendingIntent) | process kept alive |
+| Aggressive OEM (Xiaomi/Huawei) | ❌ killed | ✅ survives |
+| Detection latency | unpredictable (s → min) | low (per scan precision) |
+| Presence accuracy | low / medium | **high** |
+| Battery | lower | higher |
+| Persistent notification | none | yes (mandatory) |
+| Extra permission | none | `FOREGROUND_SERVICE_CONNECTED_DEVICE` |
+| **Google Play video** | ❌ not required | ✅ required |
+
+### Advanced: WorkManager (client-side)
+
+The SDK doesn't bundle WorkManager. For a predictable low-frequency sweep without a foreground service, schedule your own periodic worker (minimum interval **15 min**) that calls `startScanning()` for a short window and then `stopScanning()`. Trades latency for battery and avoids the Play video — presence lags by up to the chosen period.
 
 ---
 
