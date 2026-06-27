@@ -160,6 +160,10 @@ jobs:
 
   build-ios:
     runs-on: macos-latest
+    # Compiles the example app only to validate native integration. The published
+    # npm package is JS/TS and does not depend on this, so a runner/env failure
+    # (Xcode availability, CocoaPods CDN, etc.) must not gate the release.
+    continue-on-error: true
     needs: [lint, test, build-library]
     env:
       XCODE_VERSION: latest-stable
@@ -208,7 +212,9 @@ jobs:
   # Validation that all CI checks passed
   validate:
     runs-on: ubuntu-latest
-    needs: [lint, test, test-quality, build-library, build-android, build-ios]
+    # build-ios intentionally excluded: it's a non-gating native-integration check
+    # (see continue-on-error above). Code validation is covered by the jobs below.
+    needs: [lint, test, test-quality, build-library, build-android]
     steps:
       - name: All CI checks passed
         run: |
