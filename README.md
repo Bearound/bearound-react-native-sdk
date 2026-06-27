@@ -313,7 +313,18 @@ useEffect(() => {
 
 ### 5. Using Firebase Messaging / disabled swizzling?
 
-If another library owns the push delegates (e.g. Firebase Messaging with method swizzling), or you opted out via `BearoundAppDelegateProxyEnabled = NO` in Info.plist, forward the APNs token and Bearound silent pushes to the SDK natively from your AppDelegate:
+If another library owns the push delegates (e.g. Firebase Messaging with method swizzling), or you opted out via `BearoundAppDelegateProxyEnabled = NO` in Info.plist, the SDK's automatic capture won't fire — forward the token yourself.
+
+**From JavaScript** (cross-platform): pass the token you already obtain — FCM on Android, raw APNs on iOS — to `setPushToken`:
+
+```ts
+import { setPushToken } from '@bearound/react-native-sdk';
+
+// e.g. from your Firebase Messaging token-refresh handler
+await setPushToken(token);
+```
+
+**Or natively from your AppDelegate** (iOS) — forward the APNs token and Bearound silent pushes to the SDK:
 
 ```swift
 func application(

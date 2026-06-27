@@ -218,6 +218,12 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
     }
   }
 
+  public func setPushToken(_ token: String) {
+    DispatchQueue.main.async {
+      self.sdk.setPushToken(token)
+    }
+  }
+
   public func checkPermissions() -> Bool {
     let status = currentAuthorizationStatus()
     return status == .authorizedAlways || status == .authorizedWhenInUse

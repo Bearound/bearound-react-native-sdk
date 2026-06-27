@@ -185,6 +185,15 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     }
   }
 
+  override fun setPushToken(token: String, promise: Promise) {
+    try {
+      sdk.setPushToken(token)
+      promise.resolve(null)
+    } catch (t: Throwable) {
+      promise.reject("PUSH_TOKEN_ERROR", t)
+    }
+  }
+
   override fun checkPermissions(promise: Promise) {
     promise.resolve(true)
   }

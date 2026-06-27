@@ -423,6 +423,21 @@ export async function clearUserProperties() {
   await Native.clearUserProperties();
 }
 
+/**
+ * Forwards a push token to the native SDK, which associates it with the device
+ * and sends it on the next sync (re-sent only when the token changes or after
+ * the native heartbeat window).
+ *
+ * - **Android**: pass the FCM token. The SDK also auto-collects it when Firebase
+ *   is present, so this is the explicit fallback.
+ * - **iOS**: the SDK auto-captures the APNs token via AppDelegate swizzling.
+ *   Only call this when swizzling is disabled (e.g. Firebase swizzles first) —
+ *   and prefer the raw APNs device token, which is what the backend expects.
+ */
+export async function setPushToken(token: string): Promise<void> {
+  await Native.setPushToken(token);
+}
+
 // --- Diagnostic / state accessors (parity with native public API) ---
 
 export type AuthorizationStatus =

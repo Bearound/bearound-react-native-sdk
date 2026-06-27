@@ -15,6 +15,10 @@ export interface Spec extends TurboModule {
   setUserProperties(properties: Object): Promise<void>;
   clearUserProperties(): Promise<void>;
 
+  // Push token (FCM on Android, APNs on iOS). Forwarded to the native SDK,
+  // which associates it with the stable deviceId and sends it on the next sync.
+  setPushToken(token: string): Promise<void>;
+
   checkPermissions(): Promise<boolean>;
   requestPermissions(): Promise<boolean>;
 
