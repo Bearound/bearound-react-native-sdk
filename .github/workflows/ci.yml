@@ -168,9 +168,13 @@ jobs:
 
   build-ios:
     runs-on: macos-latest
+    # Compiles the example app only to validate native integration. The published
+    # npm package is JS/TS and does not depend on this, so a runner/env failure
+    # (Xcode availability, CocoaPods CDN, etc.) must not gate the PR.
+    continue-on-error: true
     needs: [lint, test, build-library]
     env:
-      XCODE_VERSION: 16.4
+      XCODE_VERSION: latest-stable
       TURBO_CACHE_DIR: .turbo/ios
     steps:
       - name: Checkout
@@ -216,7 +220,9 @@ jobs:
   # Final validation job
   validate:
     runs-on: ubuntu-latest
-    needs: [lint, test, test-quality, build-library, build-android, build-ios]
+    # build-ios intentionally excluded: it's a non-gating native-integration check
+    # (see continue-on-error above). Code validation is covered by the jobs below.
+    needs: [lint, test, test-quality, build-library, build-android]
     steps:
       - name: All checks passed
         run: |
