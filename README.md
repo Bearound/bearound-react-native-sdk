@@ -170,23 +170,19 @@ To fully drop the Play video, also remove the FGS permission the native SDK inje
 **What you gain:** continuous, low-latency detection that **survives app-kill and aggressive OEMs** (Xiaomi/Huawei/Samsung) — the reliable path for footfall/presence.
 
 ```ts
-import {
-  startScanning,
-  enableForegroundScanning,
-  setForegroundNotificationContent,
-} from '@bearound/react-native-sdk';
+import { startScanning, enableForegroundScanning } from '@bearound/react-native-sdk';
 
 await startScanning();
-await enableForegroundScanning({
-  notificationTitle: 'Bearound',
-  notificationText: 'Reading data from nearby Bluetooth devices',
-});
+// By default the notification shows the host app's own name (localized by the
+// device) + a generic, localized subtitle ("Atualizando conteúdo" / "Updating
+// content") — nothing about Bluetooth or reading data.
+await enableForegroundScanning();
 
-// Optional: live device data in the notification
-// await setForegroundNotificationContent({ title: 'Bearound', text: 'Bluetooth devices: 3 · 22°C' });
+// Want a custom title/subtitle instead? Pass them explicitly:
+// await enableForegroundScanning({ notificationTitle: 'My App', notificationText: 'Bluetooth active' });
 ```
 
-> ⚠️ **Google Play:** the `connectedDevice` foreground service requires a Play Console declaration + **demonstration video**. Frame it as *reading data from external Bluetooth devices* (persistent notification + device data) — never as location or proximity, to stay consistent with `neverForLocation`.
+> ⚠️ **Google Play:** the `connectedDevice` foreground service requires a Play Console declaration + **demonstration video**. In the **video/declaration**, frame the feature as *reading data from external Bluetooth devices* — never as location or proximity (stays consistent with `neverForLocation`). The persistent notification itself just shows the app name, which is enough to satisfy the perceptibility requirement.
 
 ### Trade-off
 

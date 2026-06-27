@@ -432,11 +432,9 @@ export default function App() {
 
       // NOTE: push is app-level now — the SDK no longer posts notifications.
       // Android: keep the process alive in background via the foreground service.
+      // No config: the notification shows just the app name (no subtitle).
       if (Platform.OS === 'android') {
-        await BeAround.enableForegroundScanning({
-          notificationTitle: 'Bearound',
-          notificationText: 'Reading data from nearby Bluetooth devices',
-        }).catch(() => null);
+        await BeAround.enableForegroundScanning().catch(() => null);
       }
 
       // Reset geofence session counters so each scan starts clean

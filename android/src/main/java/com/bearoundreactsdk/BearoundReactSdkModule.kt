@@ -295,12 +295,26 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     promise.resolve(null)
   }
 
+  // Host app's own name (android:label), already localized by Android per device
+  // locale. No dependency, no Info.plist/gradle reading needed.
+  private fun appLabel(): String =
+    ctx.applicationInfo.loadLabel(ctx.packageManager).toString()
+
+  // Generic, neutral subtitle — no Bluetooth/"reading data" wording. Localized
+  // by the device language (no dependency).
+  private fun defaultSubtitle(): String = when (java.util.Locale.getDefault().language) {
+    "pt" -> "Atualizando conteúdo"
+    "es" -> "Actualizando contenido"
+    else -> "Updating content"
+  }
+
   private fun mapForegroundScanConfig(args: ReadableMap): ForegroundScanConfig {
     val default = ForegroundScanConfig()
     return ForegroundScanConfig(
       enabled = true,
-      notificationTitle = args.getString("notificationTitle") ?: default.notificationTitle,
-      notificationText = args.getString("notificationText") ?: default.notificationText,
+      // Default title = host app's name; default subtitle = generic & neutral.
+      notificationTitle = args.getString("notificationTitle") ?: appLabel(),
+      notificationText = args.getString("notificationText") ?: defaultSubtitle(),
       notificationChannelId = args.getString("notificationChannelId"),
       notificationChannelName = args.getString("notificationChannelName")
         ?: default.notificationChannelName
