@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Push token forwarding (was missing entirely).** Added the `setPushToken(token)` API across all layers (JS, TurboModule spec, Android, iOS). The native SDKs (3.4.0+) already accept a push token and send it on the next sync, but the React Native bridge never exposed it — so apps had no way to register their FCM/APNs token. `setPushToken` now forwards the token to the native SDK on both platforms (mirrors the Flutter 3.4.1 fix).
+- **Order-proof push token (native SDKs 3.4.1).** `setPushToken`, when scanning is already active and the token hasn't been sent yet, forces a register immediately (`beacons:[]` + token) instead of waiting for the next sync — so the token reaches the backend regardless of whether the app calls `setPushToken` before or after `startScanning`.
 
 ## [3.4.0] - 2026-06-26
 
