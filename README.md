@@ -543,6 +543,18 @@ isScanning(): Promise<boolean>;
 setUserProperties(properties: UserProperties): Promise<void>;
 clearUserProperties(): Promise<void>;
 
+// Push token — forwards the token to the native SDK, which associates it with
+// the device and sends it on the next sync (re-sent only when it changes or
+// after the native heartbeat window).
+// - Android: pass the FCM token. The native SDK also auto-collects it when
+//   Firebase is present; this call is the explicit fallback.
+// - iOS: the SDK auto-captures the APNs token via AppDelegate swizzling. Call
+//   this only when swizzling doesn't fire (e.g. Firebase Messaging swizzles
+//   first, or BearoundAppDelegateProxyEnabled = NO) — and pass the RAW APNs
+//   device token (hex), which is what the backend expects, not the FCM token.
+//   See "Using Firebase Messaging / disabled swizzling?" above.
+setPushToken(token: string): Promise<void>;
+
 // Event listeners
 addBeaconsListener(listener: (beacons: Beacon[]) => void): EmitterSubscription;
 addSyncLifecycleListener(listener: (event: SyncLifecycleEvent) => void): EmitterSubscription;
@@ -611,6 +623,36 @@ requestForegroundPermissions(): Promise<{
 requestBackgroundLocation(): Promise<boolean>;
 ```
 
+> **`PermissionResult` semantics on iOS:** the iOS bridge checks a single thing —
+> **location authorization** (`authorizedAlways` **or** `authorizedWhenInUse`).
+> `fineLocation`, `btScan`, `btConnect` and `backgroundLocation` all mirror that one
+> location boolean, and `notifications` is hardcoded `true` (never checked). In
+> particular:
+>
+> * `btScan`/`btConnect` do **not** reflect the Bluetooth permission on iOS — use
+>   [`getBluetoothState()`](#functions) instead (`'unauthorized'` means Bluetooth
+>   permission was denied).
+> * `backgroundLocation: true` does **not** mean "Always" was granted — it is `true`
+>   with only When-In-Use. Use `getAuthorizationStatus()` to distinguish `'always'`
+>   from `'whenInUse'` (terminated-app wake-up requires **Always**).
+> * On iOS, `ensurePermissions`/`requestForegroundPermissions` trigger the system
+>   location prompt (requesting Always) only while the status is `notDetermined`;
+>   once denied they resolve `false` without prompting.
+>
+> On Android each field reflects the real status of its permission
+> (`ACCESS_FINE_LOCATION`/`ACCESS_COARSE_LOCATION`, `BLUETOOTH_SCAN`,
+> `BLUETOOTH_CONNECT`, `POST_NOTIFICATIONS`, `ACCESS_BACKGROUND_LOCATION`), but note
+> the SDK manifest only declares the location permissions up to API 30 and does not
+> declare `ACCESS_BACKGROUND_LOCATION` — so on Android 12+ `fineLocation` and
+> `backgroundLocation` stay `false` unless your app declares them itself. Gate
+> scanning as shown in [Quick Start](#quick-start), not on "all fields true".
+
+> **`getBluetoothState()` on iOS — side effect:** the first call lazily creates the
+> `CBCentralManager`, which triggers the system **Bluetooth permission prompt** if
+> not yet determined. It is also what arms `addBluetoothStateListener` on iOS — the
+> listener only starts emitting after the first `getBluetoothState()` call in the
+> process (on Android it emits on adapter changes without any prior call).
+
 ### Events
 
 Available listeners:
@@ -624,7 +666,7 @@ Available listeners:
 * `addActiveScanListener` — fires when active-scan gating changes (BLE ranging + duty cycle run only while inside a beacon region).
 * `addBluetoothZoneListener` — **iOS-only**: fires on Bluetooth-zone enter/exit (the "Bluetooth eye", backed by CBCentralManager, independent of CoreLocation). On Android the listener registers but never fires.
 * `addBluetoothScanModeListener` — **iOS-only**: fires when the BLE scanner duty-cycle mode changes (`idle` ↔ `active`, with `nextIdleScanAt` when idle). On Android the listener registers but never fires.
-* `addBluetoothStateListener` — fires on Bluetooth adapter state changes (`poweredOn`/`poweredOff`/`unauthorized`/...) on **both platforms** — use it to gate the Bluetooth eye independently of location.
+* `addBluetoothStateListener` — fires on Bluetooth adapter state changes (`poweredOn`/`poweredOff`/`unauthorized`/...) on **both platforms** — use it to gate the Bluetooth eye independently of location. **iOS:** it only starts emitting after the first `getBluetoothState()` call in the process (which creates the underlying `CBCentralManager` and may show the Bluetooth permission prompt); call it once on mount if you rely on this listener.
 
 ```ts
 import {
