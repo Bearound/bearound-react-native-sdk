@@ -233,7 +233,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [validate]
     permissions:
-      contents: read
+      contents: write
       id-token: write
     steps:
       - name: Checkout
@@ -248,6 +248,20 @@ jobs:
           node-version: '22'
           cache: 'yarn'
           registry-url: 'https://registry.npmjs.org'
+
+      # Guard: the pushed tag (vX.Y.Z) must match package.json version, so an
+      # npm publish can never ship under a version the git tag doesn't claim.
+      - name: Verify tag matches package.json version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          echo "Tag version:    $TAG"
+          echo "package.json:   $PKG"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::Tag v$TAG does not match package.json version $PKG. Bump package.json (and the CHANGELOG) before tagging."
+            exit 1
+          fi
+          echo "✅ Tag matches package.json ($PKG)"
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -266,3 +280,15 @@ jobs:
         run: |
           echo "Publishing package..."
           npm publish --access public --provenance
+
+      # Create a GitHub Release for the tag so the changelog is discoverable and
+      # the npm publish has a matching release artifact.
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
