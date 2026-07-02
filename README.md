@@ -1,7 +1,7 @@
 # 🐻 Bearound React Native SDK
 
 Official SDK to integrate **Bearound's** secure BLE beacon detection into **React Native** apps (Android and iOS).
-Aligned with Bearound native SDKs **3.3.1**.
+Aligned with Bearound native SDKs **3.4.2** (exact pins live in `android/build.gradle` and `BearoundReactSdk.podspec`, kept in lockstep by `scripts/check-native-versions.mjs`).
 
 > ✅ Compatible with **New Architecture** (TurboModules) and also compatible with classic architecture.
 
@@ -14,6 +14,7 @@ Aligned with Bearound native SDKs **3.3.1**.
 * [Permission Configuration](#permission-configuration)
   * [Android – Manifest](#android--manifest)
   * [iOS – Info.plist and Background Modes](#ios--infoplist-and-background-modes)
+* [Scan modes (Android)](#scan-modes-android)
 * [iOS Background Integration (required)](#ios-background-integration-required)
 * [Quick Start](#quick-start)
 * [API](#api)
@@ -22,14 +23,17 @@ Aligned with Bearound native SDKs **3.3.1**.
   * [Events](#events)
 * [Best Practices](#best-practices)
 * [Troubleshooting](#troubleshooting)
+* [Migrating from 2.x](#migrating-from-2x)
 * [License](#license)
+
+> Cross-platform behavior of every event and getter (including iOS-only / Android-only gaps) is documented in [EVENT-PARITY.md](./EVENT-PARITY.md).
 
 ---
 
 ## Requirements
 
 * **React Native** ≥ 0.73
-* **Android**: minSdk **21+** (BLE), Android 12+ requires runtime BLE permissions
+* **Android**: minSdk **24+** (the library builds with `minSdkVersion 24`); Android 12+ requires the `BLUETOOTH_SCAN` runtime permission ("Nearby devices")
 * **iOS**: iOS **13+** (recommended 15+), Bluetooth and Location enabled
 
 > **Important:** The SDK **does not** work on iOS simulator for BLE (use physical device).
@@ -57,7 +61,7 @@ cd ios
 pod install
 ```
 
-> The package already includes the native iOS framework as **vendored xcframework** in the Podspec. If your `Podfile` uses `use_frameworks!`, prefer **static**:
+> The Podspec declares a **CocoaPods dependency** on the native `BearoundSDK` pod (exact version pin — see `BearoundReactSdk.podspec`), resolved automatically by `pod install`. If your `Podfile` uses `use_frameworks!`, prefer **static**:
 >
 > ```ruby
 > use_frameworks! :linkage => :static
