@@ -364,36 +364,55 @@ This is a **native-level escape hatch** — by design it is not part of the JS A
 
 ## Quick Start
 
+Two rules the snippet below follows — both come from how the SDK actually works:
+
+1. **`configure()` runs on mount** (in a `useEffect`), **not** behind a button. The SDK's push swizzle (automatic APNs token capture + silent-push handling) only installs once `configure()` runs in the process — see [§4 of iOS Background Integration](#4-call-configure-on-app-mount).
+2. **The Android permission gate depends on the OS version.** On Android 12+ the **only** permission that unlocks scanning is `BLUETOOTH_SCAN` ("Nearby devices") — location does **not** unlock BLE scan there (the SDK declares `neverForLocation`). On Android ≤ 11 it's the opposite: location is what unlocks scanning. Do **not** gate on `btConnect`/`backgroundLocation` — the SDK doesn't need them to scan, and on 12+ they can never all be granted (the location permissions are declared with `maxSdkVersion="30"`).
+
 ```tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Alert, Button, View, Platform } from 'react-native';
 import * as BeAround from '@bearound/react-native-sdk';
 import { ensurePermissions } from '@bearound/react-native-sdk';
 
 export default function App() {
-  const start = async () => {
-    // Request permissions (Android + iOS)
-    const status = await ensurePermissions({ askBackground: true });
-    const ok =
-      Platform.OS === 'android'
-        ? status.fineLocation &&
-          status.btScan &&
-          status.btConnect &&
-          status.notifications &&
-          status.backgroundLocation
-        : status.fineLocation;
-
-    if (!ok) {
-      Alert.alert('Permissions', 'Grant required permissions to start.');
-      return;
-    }
-
-    await BeAround.configure({
+  useEffect(() => {
+    // On mount — installs the push swizzle in every process, including
+    // background relaunches where the user never taps anything.
+    BeAround.configure({
       businessToken: 'your-business-token',
       scanPrecision: BeAround.ScanPrecision.HIGH,
       maxQueuedPayloads: BeAround.MaxQueuedPayloads.MEDIUM,
     });
+  }, []);
+
+  const start = async () => {
+    // askBackground: false — background location is NOT needed for scanning.
+    // Only pass true if your app declares ACCESS_BACKGROUND_LOCATION itself
+    // (the SDK doesn't); otherwise the request is auto-denied and the helper
+    // bounces the user to Settings.
+    const status = await ensurePermissions({ askBackground: false });
+
+    const ok =
+      Platform.OS === 'android'
+        ? Number(Platform.Version) >= 31
+          ? status.btScan // Android 12+: BLUETOOTH_SCAN is the only scan gate
+          : status.fineLocation // Android ≤ 11: location unlocks BLE scan
+        : true; // iOS: either eye works (Location OR Bluetooth) — don't hard-block
+
+    if (!ok) {
+      Alert.alert(
+        'Permissions',
+        Number(Platform.Version) >= 31
+          ? 'Allow "Nearby devices" to detect beacons.'
+          : 'Allow Location to detect beacons.'
+      );
+      return;
+    }
+
     await BeAround.startScanning();
+    // Android 13+: if you also call enableForegroundScanning(), check
+    // status.notifications so the persistent notification is visible.
     Alert.alert('Bearound', 'SDK started successfully');
   };
 
