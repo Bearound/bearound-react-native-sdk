@@ -9,21 +9,19 @@
  *   PermissionsAndroid API. Permissions must be explicitly requested and managed.
  * - **iOS**: Permission requests are handled via native helper methods.
  *
- * **Required Permissions:**
- * - Location (fine/coarse): Required for Bluetooth beacon scanning
- * - Bluetooth scan/connect: Required on Android 12+ for BLE operations
- * - Notifications: Used for background monitoring indicators
- * - Background location: Enables beacon detection when app is backgrounded
+ * **What actually gates the scan (Android):**
+ * - **Android 12+ (API 31+):** `BLUETOOTH_SCAN` (declared `neverForLocation`).
+ *   Location does NOT unlock the BLE scan on these releases.
+ * - **Android ≤ 11 (API ≤ 30):** fine/coarse location gates the BLE scan.
+ * - `POST_NOTIFICATIONS` (Android 13+): optional, for foreground-service /
+ *   monitoring indicators — not required to scan.
+ * - `ACCESS_BACKGROUND_LOCATION`: NOT a scan requirement; requested only via the
+ *   explicit {@link requestBackgroundLocation} opt-in.
  *
  * @author Bearound Team
  */
 
-import {
-  PermissionsAndroid,
-  Platform,
-  Linking,
-  type Permission,
-} from 'react-native';
+import { PermissionsAndroid, Platform, type Permission } from 'react-native';
 
 import Native from './NativeBearoundReactSdk';
 /**
@@ -144,21 +142,25 @@ export async function checkPermissions(): Promise<PermissionResult> {
  * - **Android**: Shows system permission dialogs and requests permissions interactively
  * - **iOS**: Requests location permission via native helper
  *
- * **Permissions Requested (Android only):**
- * - Fine location (with fallback to coarse location)
- * - Bluetooth scan (Android 12+)
- * - Bluetooth connect (Android 12+)
- * - Post notifications (Android 13+)
+ * **Permissions Requested (Android only), gated by API level:**
+ * - **Android 12+ (API 31+):** `BLUETOOTH_SCAN` (+ `BLUETOOTH_CONNECT`) and,
+ *   on 13+, the optional `POST_NOTIFICATIONS`. Location is **not** requested —
+ *   the SDK declares `BLUETOOTH_SCAN` with `neverForLocation`, so location does
+ *   not unlock the BLE scan and asking for it only risks a Play review flag.
+ * - **Android < 12 (API ≤ 30):** fine location (with coarse fallback), which is
+ *   what gates the BLE scan on those releases.
  *
- * The function presents user-friendly dialogs in Portuguese with explanations
- * for why each permission is needed.
+ * Background location is **never** requested here — it is not a scan requirement
+ * and, undeclared, resolves to `NEVER_ASK_AGAIN`. Request it explicitly via
+ * {@link requestBackgroundLocation} only if the host app truly needs it.
  *
  * @returns Promise<PermissionResult> Updated permission status after requests
  *
  * @example
  * ```typescript
  * const result = await requestForegroundPermissions();
- * if (result.fineLocation && result.btScan) {
+ * // Android 12+: gate on btScan. Android ≤ 11: gate on fineLocation.
+ * if (result.btScan || result.fineLocation) {
  *   // Ready to start scanning for beacons
  * }
  * ```
@@ -191,56 +193,44 @@ export async function requestForegroundPermissions(): Promise<PermissionResult> 
     return res === PermissionsAndroid.RESULTS.GRANTED;
   };
 
-  let fineGranted = await req(
+  if (SDK_INT >= 31) {
+    // Android 12+: the scan is unlocked by BLUETOOTH_SCAN (neverForLocation),
+    // not by location. Request only Bluetooth (+ optional notifications).
+    await req(
+      PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+      'Permissão de Bluetooth',
+      'Precisamos de acesso ao Bluetooth para escanear beacons.'
+    );
+    await req(
+      PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+      'Permissão de Conexão Bluetooth',
+      'Necessário para interagir com dispositivos BLE.'
+    );
+    if (SDK_INT >= 33) {
+      await req(
+        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+        'Permissão de Notificações',
+        'Usamos notificações para indicar o monitoramento em andamento.'
+      );
+    }
+    return checkPermissions();
+  }
+
+  // Android ≤ 11: fine location (with coarse fallback) gates the BLE scan.
+  const fineGranted = await req(
     PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
     'Permissão de Localização',
     'Precisamos de localização para escanear beacons via Bluetooth.'
   );
-
-  let coarseGranted = false;
   if (!fineGranted) {
-    coarseGranted = await req(
+    await req(
       PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
       'Permissão de Localização Aproximada',
       'Se preferir, conceda localização aproximada para permitir o escaneamento.'
     );
   }
 
-  const btScan =
-    SDK_INT >= 31
-      ? await req(
-          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-          'Permissão de Bluetooth',
-          'Precisamos de acesso ao Bluetooth para escanear beacons.'
-        )
-      : true;
-
-  const btConnect =
-    SDK_INT >= 31
-      ? await req(
-          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-          'Permissão de Conexão Bluetooth',
-          'Necessário para interagir com dispositivos BLE.'
-        )
-      : true;
-
-  const notifications =
-    SDK_INT >= 33
-      ? await req(
-          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
-          'Permissão de Notificações',
-          'Usamos notificações para indicar o monitoramento em andamento.'
-        )
-      : true;
-
-  const current = await checkPermissions();
-  return {
-    ...current,
-    fineLocation: current.fineLocation || fineGranted || coarseGranted,
-    btScan: current.btScan || btScan,
-    btConnect: current.btConnect || btConnect,
-    notifications: current.notifications || notifications,
-  };
+  return checkPermissions();
 }
 
 /**
@@ -253,21 +243,24 @@ export async function requestForegroundPermissions(): Promise<PermissionResult> 
  * **Android Behavior:**
  * - Requires foreground location permission first (Android 10)
  * - On Android 12+, background location can be requested without foreground fine location
- * - If user selects "Never ask again", automatically opens app settings
  * - Only available on Android 10+ (API 29+)
  *
- * **Important:** Background location is essential for detecting beacons when the app
- * is backgrounded or closed, enabling geofencing and proximity features.
+ * **Not a scan requirement.** The Bearound BLE scan does not need background
+ * location; on 12+ it is gated by `BLUETOOTH_SCAN` (`neverForLocation`). Only
+ * call this if the host app has its own reason to hold background location, and
+ * make sure `ACCESS_BACKGROUND_LOCATION` is declared in the app manifest —
+ * otherwise the request resolves to `NEVER_ASK_AGAIN`.
+ *
+ * This never opens app Settings on your behalf; if the return value indicates
+ * a permanent denial the host app decides whether to route the user there.
  *
  * @returns Promise<boolean> true if background location permission is granted
  *
  * @example
  * ```typescript
  * const hasBackground = await requestBackgroundLocation();
- * if (hasBackground) {
- *   // Can detect beacons in background
- * } else {
- *   // Limited to foreground detection only
+ * if (!hasBackground) {
+ *   // Denied — the host app decides whether to open Settings (Linking.openSettings()).
  * }
  * ```
  */
@@ -294,10 +287,8 @@ export async function requestBackgroundLocation(): Promise<boolean> {
     }
   );
 
-  if (res === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-    await Linking.openSettings();
-  }
-
+  // Intentionally does NOT open Settings on NEVER_ASK_AGAIN — opening Settings
+  // is a host-app decision. The caller inspects the boolean and acts.
   return res === PermissionsAndroid.RESULTS.GRANTED;
 }
 
@@ -309,27 +300,34 @@ export async function requestBackgroundLocation(): Promise<boolean> {
  * - **iOS**: Requests location permission via native helper
  *
  * This is the recommended function to call during app initialization to ensure
- * the Bearound SDK has all required permissions.
+ * the Bearound SDK has the permissions it needs to scan.
  *
  * **Flow:**
- * 1. Requests all foreground permissions (location, Bluetooth, notifications)
- * 2. Optionally requests background location permission
- * 3. Returns final permission status
+ * 1. Requests the foreground scan permissions for the running API level
+ *    (Android 12+: Bluetooth + optional notifications; ≤ 11: location).
+ * 2. Returns final permission status.
+ *
+ * Background location is **not** requested by default — it is not a scan
+ * requirement and, undeclared, resolves to `NEVER_ASK_AGAIN`. Opt in with
+ * `{ askBackground: true }` only if the host app has declared
+ * `ACCESS_BACKGROUND_LOCATION` and truly needs it. This function never opens
+ * app Settings on your behalf.
  *
  * @param opts - Configuration options
- * @param opts.askBackground - Whether to request background location permission (default: true)
+ * @param opts.askBackground - Whether to also request background location
+ *   (Android-only opt-in; default: `false`)
  * @returns Promise<PermissionResult> Final status of all permissions
  *
  * @example
  * ```typescript
- * // Request all permissions including background
+ * // Basic flow — foreground scan permissions only (recommended)
  * const permissions = await ensurePermissions();
  *
- * // Skip background location request
- * const permissions = await ensurePermissions({ askBackground: false });
+ * // Explicit opt-in for background location (must be declared in the manifest)
+ * const permissions = await ensurePermissions({ askBackground: true });
  * ```
  */
-export async function ensurePermissions(opts = { askBackground: true }) {
+export async function ensurePermissions(opts = { askBackground: false }) {
   await requestForegroundPermissions();
   if (opts.askBackground && isAndroid) {
     await requestBackgroundLocation();

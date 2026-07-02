@@ -77,6 +77,12 @@ describe('Permission Management', () => {
     // Reset default mock behavior
     mockPermissionsAndroid.check.mockResolvedValue(true);
     mockPermissionsAndroid.request.mockResolvedValue('granted');
+    // Native iOS getters back to defaults (implementations leak across tests
+    // that override them, since clearAllMocks/mockClear only clear call data).
+    mockNativeModule.checkPermissions.mockResolvedValue(true);
+    mockNativeModule.requestPermissions.mockResolvedValue(true);
+    mockNativeModule.checkNotificationPermission.mockResolvedValue(true);
+    mockNativeModule.getAuthorizationStatus.mockResolvedValue('always');
   });
 
   describe('checkPermissions()', () => {
@@ -278,6 +284,10 @@ describe('Permission Management', () => {
 
       it('should return false fields when native returns false', async () => {
         mockNativeModule.checkPermissions.mockResolvedValue(false);
+        // Notifications and background location are read from their own native
+        // checks now, not fabricated from the location boolean.
+        mockNativeModule.checkNotificationPermission.mockResolvedValue(false);
+        mockNativeModule.getAuthorizationStatus.mockResolvedValue('denied');
         const { checkPermissions } = require('../permissions');
 
         const result = await checkPermissions();
@@ -286,16 +296,34 @@ describe('Permission Management', () => {
           fineLocation: false,
           btScan: false,
           btConnect: false,
-          notifications: true,
+          notifications: false,
           backgroundLocation: false,
         });
+      });
+
+      it('should report notifications and backgroundLocation from real native checks', async () => {
+        mockNativeModule.checkPermissions.mockResolvedValue(true);
+        // Location authorized (whenInUse) but notifications denied, and only
+        // When-In-Use → backgroundLocation must be false.
+        mockNativeModule.checkNotificationPermission.mockResolvedValue(false);
+        mockNativeModule.getAuthorizationStatus.mockResolvedValue('whenInUse');
+        const { checkPermissions } = require('../permissions');
+
+        const result = await checkPermissions();
+
+        expect(result.notifications).toBe(false);
+        expect(result.backgroundLocation).toBe(false);
+
+        mockNativeModule.getAuthorizationStatus.mockResolvedValue('always');
+        const result2 = await checkPermissions();
+        expect(result2.backgroundLocation).toBe(true);
       });
     });
   });
 
   describe('requestForegroundPermissions()', () => {
     describe('Android', () => {
-      it('should request fine location permission on Android', async () => {
+      it('should request BLUETOOTH_SCAN and NOT location on Android 12+', async () => {
         jest.resetModules();
         jest.doMock('react-native', () => ({
           get Platform() {
@@ -326,10 +354,26 @@ describe('Permission Management', () => {
         const { requestForegroundPermissions } = require('../permissions');
         await requestForegroundPermissions();
 
-        expect(mockPermissionsAndroid.request).toHaveBeenCalled();
+        const requested = mockPermissionsAndroid.request.mock.calls.map(
+          (c: unknown[]) => c[0]
+        );
+        // On 12+ the scan is unlocked by BLUETOOTH_SCAN (neverForLocation).
+        expect(requested).toContain('android.permission.BLUETOOTH_SCAN');
+        expect(requested).toContain('android.permission.BLUETOOTH_CONNECT');
+        // Location must NOT be requested — asking for it only risks a Play flag.
+        expect(requested).not.toContain(
+          'android.permission.ACCESS_FINE_LOCATION'
+        );
+        expect(requested).not.toContain(
+          'android.permission.ACCESS_COARSE_LOCATION'
+        );
+        // Background location is never requested by the foreground flow.
+        expect(requested).not.toContain(
+          'android.permission.ACCESS_BACKGROUND_LOCATION'
+        );
       });
 
-      it('should request coarse location if fine is denied', async () => {
+      it('should request POST_NOTIFICATIONS on Android 13+', async () => {
         jest.resetModules();
         jest.doMock('react-native', () => ({
           get Platform() {
@@ -338,7 +382,44 @@ describe('Permission Management', () => {
                 return 'android';
               },
               get Version() {
-                return 31;
+                return 33;
+              },
+            };
+          },
+          NativeModules: { BearoundReactSdk: {} },
+          NativeEventEmitter: jest.fn(() => ({
+            addListener: jest.fn(() => ({ remove: jest.fn() })),
+          })),
+          PermissionsAndroid: mockPermissionsAndroid,
+          Linking: mockLinking,
+          TurboModuleRegistry: {
+            getEnforcing: jest.fn(() => mockNativeModule),
+          },
+        }));
+        jest.doMock('../NativeBearoundReactSdk', () => ({
+          __esModule: true,
+          default: mockNativeModule,
+        }));
+
+        const { requestForegroundPermissions } = require('../permissions');
+        await requestForegroundPermissions();
+
+        const requested = mockPermissionsAndroid.request.mock.calls.map(
+          (c: unknown[]) => c[0]
+        );
+        expect(requested).toContain('android.permission.POST_NOTIFICATIONS');
+      });
+
+      it('should request location with coarse fallback on Android < 12', async () => {
+        jest.resetModules();
+        jest.doMock('react-native', () => ({
+          get Platform() {
+            return {
+              get OS() {
+                return 'android';
+              },
+              get Version() {
+                return 30;
               },
             };
           },
@@ -368,9 +449,15 @@ describe('Permission Management', () => {
         const { requestForegroundPermissions } = require('../permissions');
         await requestForegroundPermissions();
 
-        // Should have made multiple requests: fine, coarse, bt_scan, bt_connect
-        // (notifications only on API 33+)
-        expect(mockPermissionsAndroid.request).toHaveBeenCalledTimes(4);
+        const requested = mockPermissionsAndroid.request.mock.calls.map(
+          (c: unknown[]) => c[0]
+        );
+        // ≤ 11: fine (denied) then coarse fallback; no Bluetooth runtime perms.
+        expect(requested).toContain('android.permission.ACCESS_FINE_LOCATION');
+        expect(requested).toContain(
+          'android.permission.ACCESS_COARSE_LOCATION'
+        );
+        expect(requested).not.toContain('android.permission.BLUETOOTH_SCAN');
       });
 
       it('should return permission result', async () => {
@@ -602,14 +689,16 @@ describe('Permission Management', () => {
         expect(result).toBe(false);
       });
 
-      it('should open settings when NEVER_ASK_AGAIN', async () => {
+      it('should NOT open settings on NEVER_ASK_AGAIN (host-app decision)', async () => {
         mockPermissionsAndroid.check.mockResolvedValue(true);
         mockPermissionsAndroid.request.mockResolvedValue('never_ask_again');
         const { requestBackgroundLocation } = require('../permissions');
 
-        await requestBackgroundLocation();
+        const result = await requestBackgroundLocation();
 
-        expect(mockLinking.openSettings).toHaveBeenCalled();
+        // Opening Settings is the host app's decision; the SDK just reports denial.
+        expect(mockLinking.openSettings).not.toHaveBeenCalled();
+        expect(result).toBe(false);
       });
 
       it('should return false if foreground location not granted on Android 29-30', async () => {
@@ -736,7 +825,7 @@ describe('Permission Management', () => {
         expect(mockPermissionsAndroid.request).toHaveBeenCalled();
       });
 
-      it('should request background location by default', async () => {
+      it('should NOT request background location by default', async () => {
         jest.resetModules();
         jest.doMock('react-native', () => ({
           get Platform() {
@@ -769,7 +858,48 @@ describe('Permission Management', () => {
         const { ensurePermissions } = require('../permissions');
         await ensurePermissions();
 
-        // Should have requested background location
+        // Background location is not a scan requirement — never requested by default.
+        const calls = mockPermissionsAndroid.request.mock.calls.map(
+          (c: unknown[]) => c[0]
+        );
+        expect(calls).not.toContain(
+          'android.permission.ACCESS_BACKGROUND_LOCATION'
+        );
+      });
+
+      it('should request background location only on explicit opt-in', async () => {
+        jest.resetModules();
+        jest.doMock('react-native', () => ({
+          get Platform() {
+            return {
+              get OS() {
+                return 'android';
+              },
+              get Version() {
+                return 31;
+              },
+            };
+          },
+          NativeModules: { BearoundReactSdk: {} },
+          NativeEventEmitter: jest.fn(() => ({
+            addListener: jest.fn(() => ({ remove: jest.fn() })),
+          })),
+          PermissionsAndroid: mockPermissionsAndroid,
+          Linking: mockLinking,
+          TurboModuleRegistry: {
+            getEnforcing: jest.fn(() => mockNativeModule),
+          },
+        }));
+        jest.doMock('../NativeBearoundReactSdk', () => ({
+          __esModule: true,
+          default: mockNativeModule,
+        }));
+        mockPermissionsAndroid.check.mockResolvedValue(true);
+        mockPermissionsAndroid.request.mockResolvedValue('granted');
+
+        const { ensurePermissions } = require('../permissions');
+        await ensurePermissions({ askBackground: true });
+
         const calls = mockPermissionsAndroid.request.mock.calls.map(
           (c: unknown[]) => c[0]
         );
