@@ -80,13 +80,23 @@ const has = async (p?: Permission) =>
  */
 export async function checkPermissions(): Promise<PermissionResult> {
   if (!isAndroid) {
-    const granted = await Native.checkPermissions();
+    // iOS: fineLocation/btScan/btConnect mirror the single location boolean the
+    // native bridge exposes (authorizedAlways OR authorizedWhenInUse). For the
+    // real Bluetooth permission use getBluetoothState() ('unauthorized' = denied).
+    const [granted, notifications, authStatus] = await Promise.all([
+      Native.checkPermissions(),
+      // Real UNUserNotificationCenter check (authorized/provisional/ephemeral).
+      Native.checkNotificationPermission(),
+      Native.getAuthorizationStatus(),
+    ]);
     return {
       fineLocation: granted,
       btScan: granted,
       btConnect: granted,
-      notifications: true,
-      backgroundLocation: granted,
+      notifications,
+      // Only authorizedAlways counts — When-In-Use does not allow the
+      // terminated-app wake-up that "background location" implies.
+      backgroundLocation: authStatus === 'always',
     };
   }
 
@@ -155,13 +165,19 @@ export async function checkPermissions(): Promise<PermissionResult> {
  */
 export async function requestForegroundPermissions(): Promise<PermissionResult> {
   if (!isAndroid) {
+    // iOS: requests location authorization (Always) while notDetermined; the
+    // remaining fields are read back honestly (see checkPermissions).
     const granted = await Native.requestPermissions();
+    const [notifications, authStatus] = await Promise.all([
+      Native.checkNotificationPermission(),
+      Native.getAuthorizationStatus(),
+    ]);
     return {
       fineLocation: granted,
       btScan: granted,
       btConnect: granted,
-      notifications: true,
-      backgroundLocation: granted,
+      notifications,
+      backgroundLocation: authStatus === 'always',
     };
   }
 

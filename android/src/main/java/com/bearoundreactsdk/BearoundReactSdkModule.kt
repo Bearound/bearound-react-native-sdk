@@ -11,6 +11,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
@@ -200,6 +201,13 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
 
   override fun requestPermissions(promise: Promise) {
     promise.resolve(true)
+  }
+
+  // Real notification status (channel/permission), used by the JS PermissionResult
+  // on iOS; on Android permissions.ts checks POST_NOTIFICATIONS directly, but the
+  // method answers honestly here too.
+  override fun checkNotificationPermission(promise: Promise) {
+    promise.resolve(NotificationManagerCompat.from(ctx).areNotificationsEnabled())
   }
 
   // Diagnostic / state getters (parity with native public API).

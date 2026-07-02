@@ -86,6 +86,14 @@ maxQueuedPayloads:(double)maxQueuedPayloads
   }];
 }
 
+- (void)checkNotificationPermission:(RCTPromiseResolveBlock)resolve
+                             reject:(RCTPromiseRejectBlock)reject
+{
+  [[RNBearoundBridge shared] checkNotificationPermission:^(BOOL granted) {
+    resolve(@(granted));
+  }];
+}
+
 - (void)getSdkVersion:(RCTPromiseResolveBlock)resolve
                reject:(RCTPromiseRejectBlock)reject
 {

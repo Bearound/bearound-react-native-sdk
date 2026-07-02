@@ -1,6 +1,7 @@
 import Foundation
 import CoreLocation
 import CoreBluetooth
+import UserNotifications
 import BearoundSDK
 
 @objcMembers
@@ -227,6 +228,18 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
   public func checkPermissions() -> Bool {
     let status = currentAuthorizationStatus()
     return status == .authorizedAlways || status == .authorizedWhenInUse
+  }
+
+  // Real notification-permission check (UNUserNotificationCenter). Backs the
+  // `notifications` field of the JS PermissionResult — previously hardcoded true.
+  public func checkNotificationPermission(_ completion: @escaping (Bool) -> Void) {
+    UNUserNotificationCenter.current().getNotificationSettings { settings in
+      let granted =
+        settings.authorizationStatus == .authorized
+        || settings.authorizationStatus == .provisional
+        || settings.authorizationStatus == .ephemeral
+      completion(granted)
+    }
   }
 
   public func requestPermissions(_ completion: @escaping (Bool) -> Void) {

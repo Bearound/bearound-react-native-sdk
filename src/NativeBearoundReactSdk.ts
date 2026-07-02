@@ -22,6 +22,11 @@ export interface Spec extends TurboModule {
   checkPermissions(): Promise<boolean>;
   requestPermissions(): Promise<boolean>;
 
+  // Real notification-permission status. iOS: UNUserNotificationCenter
+  // getNotificationSettings (authorized/provisional/ephemeral). Android:
+  // NotificationManagerCompat.areNotificationsEnabled().
+  checkNotificationPermission(): Promise<boolean>;
+
   // Diagnostic / state getters (parity with native public API).
   // Platform-divergent values resolve to a neutral default on the platform
   // that lacks the underlying native API (see index.tsx docs).
