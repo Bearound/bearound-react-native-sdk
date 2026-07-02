@@ -52,6 +52,14 @@ export interface Spec extends TurboModule {
   isForegroundScanningEnabled(): Promise<boolean>;
   setForegroundNotificationContent(content: Object): Promise<void>;
 
+  // Background reliability (Android-only; the OEM/Doze kill mitigation from
+  // native SDK 3.4.5). iOS has no user-facing equivalent — the "open" methods
+  // resolve false and isIgnoringBatteryOptimizations resolves true.
+  isIgnoringBatteryOptimizations(): Promise<boolean>;
+  openBatteryOptimizationSettings(): Promise<boolean>;
+  isAutostartManageable(): Promise<boolean>;
+  openManufacturerAutostartSettings(): Promise<boolean>;
+
   addListener(eventName: string): void;
   removeListeners(count: number): void;
 }

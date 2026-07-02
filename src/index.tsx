@@ -622,6 +622,52 @@ export async function setForegroundNotificationContent(
   await Native.setForegroundNotificationContent(content as object);
 }
 
+// --- Background reliability (Android-only) ---
+
+/**
+ * Whether the app is exempt from Android battery optimizations (Doze). When
+ * `false`, aggressive power management can kill background/opportunistic
+ * scanning — the #1 cause of "stops detecting after a while" on Android.
+ *
+ * **Android-only.** iOS has no user-facing equivalent and always resolves
+ * `true` (nothing to exempt).
+ */
+export async function isIgnoringBatteryOptimizations(): Promise<boolean> {
+  return Native.isIgnoringBatteryOptimizations();
+}
+
+/**
+ * Open the system battery-optimization screen so the user can exempt the app
+ * (recommended when {@link isIgnoringBatteryOptimizations} returns `false`).
+ * Resolves `true` if a settings screen was launched.
+ *
+ * **Android-only** — iOS always resolves `false`.
+ */
+export async function openBatteryOptimizationSettings(): Promise<boolean> {
+  return Native.openBatteryOptimizationSettings();
+}
+
+/**
+ * Whether this device is from an OEM with a known autostart / protected-apps
+ * screen (Xiaomi/Huawei/Oppo/Vivo/...), where the app must be whitelisted to
+ * keep scanning after being swiped away or on reboot.
+ *
+ * **Android-only** — iOS always resolves `false`.
+ */
+export async function isAutostartManageable(): Promise<boolean> {
+  return Native.isAutostartManageable();
+}
+
+/**
+ * Open the manufacturer's autostart / protected-apps screen when one exists
+ * (see {@link isAutostartManageable}). Resolves `true` if a screen was launched.
+ *
+ * **Android-only** — iOS always resolves `false`.
+ */
+export async function openManufacturerAutostartSettings(): Promise<boolean> {
+  return Native.openManufacturerAutostartSettings();
+}
+
 export function addBeaconsListener(
   listener: (beacons: Beacon[]) => void
 ): EmitterSubscription {

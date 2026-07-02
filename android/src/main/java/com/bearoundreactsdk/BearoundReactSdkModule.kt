@@ -312,6 +312,25 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     promise.resolve(null)
   }
 
+  // Background reliability (Android-only) — the OEM/Doze kill mitigation from the
+  // native SDK 3.4.5. Delegates straight to the native helpers; iOS is a no-op.
+
+  override fun isIgnoringBatteryOptimizations(promise: Promise) {
+    promise.resolve(sdk.isIgnoringBatteryOptimizations())
+  }
+
+  override fun openBatteryOptimizationSettings(promise: Promise) {
+    promise.resolve(sdk.openBatteryOptimizationSettings())
+  }
+
+  override fun isAutostartManageable(promise: Promise) {
+    promise.resolve(sdk.isAutostartManageable())
+  }
+
+  override fun openManufacturerAutostartSettings(promise: Promise) {
+    promise.resolve(sdk.openManufacturerAutostartSettings())
+  }
+
   // Host app's own name (android:label), already localized by Android per device
   // locale. No dependency, no Info.plist/gradle reading needed.
   private fun appLabel(): String =

@@ -170,6 +170,27 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
 
   public func setForegroundNotificationContent(_ content: NSDictionary) {}
 
+  // Background reliability (Android-only; no-op on iOS). iOS has no user-facing
+  // battery-optimization / autostart exemption like Android's Doze / OEM killers.
+  // Report "already ignoring optimizations" so hosts don't prompt, and false for
+  // the Android-only open-settings / autostart methods.
+
+  public func isIgnoringBatteryOptimizations() -> Bool {
+    return true
+  }
+
+  public func openBatteryOptimizationSettings() -> Bool {
+    return false
+  }
+
+  public func isAutostartManageable() -> Bool {
+    return false
+  }
+
+  public func openManufacturerAutostartSettings() -> Bool {
+    return false
+  }
+
   public func startScanning() {
     DispatchQueue.main.async {
       self.sdk.delegate = self

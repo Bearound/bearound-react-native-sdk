@@ -192,4 +192,28 @@ maxQueuedPayloads:(double)maxQueuedPayloads
   resolve(nil);
 }
 
+- (void)isIgnoringBatteryOptimizations:(RCTPromiseResolveBlock)resolve
+                                reject:(RCTPromiseRejectBlock)reject
+{
+  resolve(@([[RNBearoundBridge shared] isIgnoringBatteryOptimizations]));
+}
+
+- (void)openBatteryOptimizationSettings:(RCTPromiseResolveBlock)resolve
+                                 reject:(RCTPromiseRejectBlock)reject
+{
+  resolve(@([[RNBearoundBridge shared] openBatteryOptimizationSettings]));
+}
+
+- (void)isAutostartManageable:(RCTPromiseResolveBlock)resolve
+                       reject:(RCTPromiseRejectBlock)reject
+{
+  resolve(@([[RNBearoundBridge shared] isAutostartManageable]));
+}
+
+- (void)openManufacturerAutostartSettings:(RCTPromiseResolveBlock)resolve
+                                   reject:(RCTPromiseRejectBlock)reject
+{
+  resolve(@([[RNBearoundBridge shared] openManufacturerAutostartSettings]));
+}
+
 @end
