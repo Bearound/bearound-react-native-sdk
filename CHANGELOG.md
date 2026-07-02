@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.5] - 2026-07-02
+
+### Fixed
+
+- **Android: FGS `connectedDevice` crash-loop (via native SDK 3.4.5).** Bumped the Android native SDK `3.4.2 → 3.4.5`, which fixes the foreground-service `connectedDevice` `SecurityException` crash-loop on Android 14+ when the user denies "Nearby devices". The RN wrapper exposes `enableForegroundScanning`, so it inherited this crash until now. iOS `BearoundSDK` bumped `3.4.2 → 3.4.5` in lockstep.
+- **Permission flow no longer sabotages itself on Android 12+.** `requestForegroundPermissions()` now gates by API level: on Android 12+ it requests `BLUETOOTH_SCAN` (+ `BLUETOOTH_CONNECT`, and `POST_NOTIFICATIONS` on 13+) and **does not** request location — the scan is unlocked by `BLUETOOTH_SCAN` (`neverForLocation`), so asking for location was pointless and risked a Play review flag. On Android ≤ 11 it still requests fine location (coarse fallback).
+- **`ensurePermissions()` no longer requests background location by default** and **never opens app Settings automatically.** Background location is not a scan requirement and, undeclared, resolves to `NEVER_ASK_AGAIN`; request it only via the explicit `{ askBackground: true }` opt-in. `requestBackgroundLocation()` returns the denial state instead of calling `Linking.openSettings()` — routing to Settings is now the host app's decision.
+- **iOS `PermissionResult` reports real values.** `notifications` now comes from a real `UNUserNotificationCenter` check (was hardcoded `true`) and `backgroundLocation` is `true` only for `authorizedAlways` (When-In-Use no longer reported as background-capable). Android answers `checkNotificationPermission` via `NotificationManagerCompat`.
+
+### Added
+
+- **Background reliability helpers (Android-only; native SDK 3.4.5), the Xiaomi/Huawei kill mitigation:** `isIgnoringBatteryOptimizations()`, `openBatteryOptimizationSettings()`, `isAutostartManageable()`, `openManufacturerAutostartSettings()`. iOS has no user-facing equivalent — `isIgnoringBatteryOptimizations()` resolves `true` and the others resolve `false`.
+
 ## [3.4.2] - 2026-06-27
 
 ### Fixed
