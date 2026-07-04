@@ -55,6 +55,20 @@ const SDK_STACK_MARKERS = [
 /** The telemetry module's own basename — excluded so reporter errors never recurse. */
 const TELEMETRY_MODULE_MARKER = 'errorReporter';
 
+/**
+ * Runtime frames that surface an error but never ORIGINATE it — skipped when
+ * locating the first application frame (React Native internals, React, and
+ * native/Hermes frames).
+ */
+const RUNTIME_STACK_MARKERS = [
+  'node_modules/react-native/',
+  'node_modules/@react-native/',
+  'node_modules/react/',
+  'node_modules/react-dom/',
+  '[native code]',
+  'InternalBytecode',
+];
+
 type ErrorHandlerCallback = (error: unknown, isFatal?: boolean) => void;
 
 interface ErrorUtilsShape {
@@ -182,27 +196,40 @@ export function report(error: unknown, context: string): void {
 // --- filtering ------------------------------------------------------------
 
 /**
- * True when the stack references THIS package and does NOT come solely from the
- * telemetry module itself. Non-string / empty stacks are never reported — without a
- * stack we cannot attribute the error to our library, and over-reporting host errors
- * violates the golden rules.
+ * True ONLY when the error ORIGINATED in this package — never a host-app error.
+ *
+ * Ownership is the FIRST application frame (skipping the RN/React/native runtime
+ * and the telemetry module). A host error that merely passes THROUGH one of our
+ * callbacks has the host frame on top and ours below — the old "any SDK frame in
+ * the stack" test captured those (a leak of the host app's errors); this origin
+ * test does not. Without a stack we cannot attribute the error, so we never report.
  */
 export function isFromSdk(stack: string): boolean {
   if (!stack) {
     return false;
   }
-  const hasSdkFrame = SDK_STACK_MARKERS.some((marker) =>
-    stack.includes(marker)
-  );
-  if (!hasSdkFrame) {
-    return false;
+  for (const raw of stack.split('\n')) {
+    const line = raw.trim();
+    // Only real stack frames (a source location) — not the "Error: message" header.
+    const isFrame =
+      /\.[cm]?[jt]sx?\b/.test(line) ||
+      line.includes('[native code]') ||
+      line.includes('InternalBytecode');
+    if (!isFrame) {
+      continue;
+    }
+    // Runtime frames surface the error but never originate it.
+    if (RUNTIME_STACK_MARKERS.some((m) => line.includes(m))) {
+      continue;
+    }
+    // Our own telemetry module never counts as the origin (avoids recursion).
+    if (line.includes(TELEMETRY_MODULE_MARKER)) {
+      continue;
+    }
+    // The first application frame decides ownership.
+    return SDK_STACK_MARKERS.some((m) => line.includes(m));
   }
-  // Exclude errors whose ONLY SDK frames are the telemetry module — they would recurse.
-  const withoutTelemetry = stack
-    .split('\n')
-    .filter((line) => !line.includes(TELEMETRY_MODULE_MARKER))
-    .join('\n');
-  return SDK_STACK_MARKERS.some((marker) => withoutTelemetry.includes(marker));
+  return false;
 }
 
 // --- dedupe + rate-limit --------------------------------------------------

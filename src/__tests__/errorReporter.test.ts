@@ -64,6 +64,22 @@ const hostError = (message = 'host boom'): Error => {
   return err;
 };
 
+/**
+ * The critical leak case: a HOST error thrown inside one of our callbacks — the
+ * host frame is on top (the culprit), our frame is only below it because we
+ * invoked the callback. Must NEVER be reported.
+ */
+const hostViaSdkCallbackError = (message = 'host cb boom'): Error => {
+  const err = new Error(message);
+  err.stack = [
+    `Error: ${message}`,
+    '    at onBeacons (app/src/listener.tsx:12:5)',
+    '    at emit (@bearound/react-native-sdk/src/index.tsx:200:5)',
+    '    at Object.<anonymous> (app/App.tsx:42:3)',
+  ].join('\n');
+  return err;
+};
+
 describe('errorReporter', () => {
   let sent: Array<{ body: string; token: string | null }>;
 
@@ -98,6 +114,16 @@ describe('errorReporter', () => {
       await flush();
 
       expect(sent).toHaveLength(0);
+    });
+
+    it('ignores a HOST error thrown inside an SDK callback', async () => {
+      // Origin (top application frame) is the host — our frame is only below it
+      // because we invoked the callback. Must never be captured.
+      report(hostViaSdkCallbackError(), 'uncaught');
+      await flush();
+
+      expect(sent).toHaveLength(0);
+      expect(isFromSdk(hostViaSdkCallbackError().stack!)).toBe(false);
     });
 
     it('ignores an error with no stack at all', async () => {
