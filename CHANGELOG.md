@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **JS-layer SDK error telemetry.** `configure()` now installs a lightweight, isolated error reporter for the React Native / JS layer (parity with the native Android/iOS reporters, which already capture their own crashes). It captures **only** uncaught JS exceptions and unhandled promise rejections whose stack references `@bearound/react-native-sdk`, and posts them fire-and-forget to `https://ingest.bearound.io/sdk-errors` (5 s timeout, rate-limited to 20/hour, de-duplicated for 5 min, stack capped at 8000 chars). It **never throws, never breaks the host app, and never hijacks your error handling** — the global `ErrorUtils` handler is chained and always delegates to the previously-installed handler, and host-app errors are never reported. Opt out with the new `setErrorReportingEnabled(enabled: boolean)` (default: enabled). No new runtime dependencies.
+
 ## [3.4.5] - 2026-07-02
 
 ### Fixed

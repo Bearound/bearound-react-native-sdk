@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 
 import Native from './NativeBearoundReactSdk';
+import * as ErrorReporter from './errorReporter';
 
 export enum ScanPrecision {
   HIGH = 'high',
@@ -390,6 +391,24 @@ export async function configure(config: SdkConfig) {
     scanPrecision,
     maxQueuedPayloads
   );
+
+  // Install the JS-layer error reporter (idempotent). The embedded native SDKs
+  // already capture their own crashes; this covers only the React Native / JS
+  // layer. Never throws — a telemetry failure must not break configure().
+  ErrorReporter.install(businessToken.trim());
+}
+
+/**
+ * Enable or disable JS-layer SDK error telemetry at runtime. Default: **enabled**.
+ *
+ * When enabled, uncaught JS exceptions and unhandled promise rejections that
+ * originate in this package are reported (fire-and-forget, rate-limited, deduped)
+ * to Bearound's ingest endpoint. This only covers the React Native / JS layer —
+ * native crashes are handled by the embedded native SDKs' own reporters. Errors
+ * from the host app are never reported. Opting out disables all JS-layer reporting.
+ */
+export function setErrorReportingEnabled(enabled: boolean): void {
+  ErrorReporter.setEnabled(enabled);
 }
 
 /**

@@ -555,6 +555,9 @@ clearUserProperties(): Promise<void>;
 //   See "Using Firebase Messaging / disabled swizzling?" above.
 setPushToken(token: string): Promise<void>;
 
+// Error telemetry opt-out (default: enabled). See "SDK error telemetry" below.
+setErrorReportingEnabled(enabled: boolean): void;
+
 // Event listeners
 addBeaconsListener(listener: (beacons: Beacon[]) => void): EmitterSubscription;
 addSyncLifecycleListener(listener: (event: SyncLifecycleEvent) => void): EmitterSubscription;
@@ -652,6 +655,46 @@ requestBackgroundLocation(): Promise<boolean>;
 > not yet determined. It is also what arms `addBluetoothStateListener` on iOS — the
 > listener only starts emitting after the first `getBluetoothState()` call in the
 > process (on Android it emits on adapter changes without any prior call).
+
+### SDK error telemetry
+
+The SDK ships lightweight, self-contained crash telemetry so we can spot and fix
+SDK-side regressions in the field. It's installed automatically by `configure()`
+and covers **three layers**:
+
+- **Native (Android/iOS):** the embedded native SDKs capture their own crashes via
+  their built-in error reporters.
+- **React Native / JS:** this package additionally captures uncaught JS exceptions
+  and unhandled promise rejections **that originate in the SDK's own JS layer**.
+
+**Golden rules — it never gets in your way:**
+
+- **Only the SDK's own errors are reported.** An error is sent only when its stack
+  trace references `@bearound/react-native-sdk`. Errors from your app code are
+  ignored, and the telemetry module never reports its own failures.
+- **It never throws and never hijacks your handlers.** The global error handler is
+  *chained*: the SDK stores your previous `ErrorUtils` handler and always delegates
+  back to it, so your own crash reporter (Sentry, Crashlytics, etc.) keeps working
+  unchanged.
+- **Fire-and-forget and self-limiting.** Reports are posted best-effort to
+  `https://ingest.bearound.io/sdk-errors` with a 5 s timeout, rate-limited to 20/hour
+  and de-duplicated for 5 minutes. Nothing blocks your app.
+
+Each report includes the error (type, message, stack, context), a device snapshot
+(OS/version, permission state), and the SDK version/platform. If a `businessToken`
+is set, it's sent as the `Authorization` header.
+
+**Opting out:**
+
+```ts
+import { setErrorReportingEnabled } from '@bearound/react-native-sdk';
+
+// Disable JS-layer SDK error reporting (default: enabled).
+setErrorReportingEnabled(false);
+```
+
+> Opting out disables the **JS-layer** reporting exposed by this package. Native
+> crash telemetry follows the embedded native SDKs' own behavior.
 
 ### Events
 
