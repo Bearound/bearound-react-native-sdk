@@ -87,17 +87,29 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     super.invalidate()
   }
   
+  // NEVER-CRASH-THE-HOST: getInstance() runs on the main Looper — an exception inside
+  // the posted runnable would surface as an UNCAUGHT main-thread crash of the host app
+  // (outside every method-level try/catch) and leave the busy-wait below spinning
+  // forever. Capture any failure, stop the wait, and rethrow on the CALLER thread —
+  // there it becomes a promise rejection the host can handle, never a crash.
   private val sdk: BeAroundSDK by lazy {
     if (Looper.myLooper() == Looper.getMainLooper()) {
       BeAroundSDK.getInstance(ctx.applicationContext)
     } else {
       var instance: BeAroundSDK? = null
+      var failure: Throwable? = null
+      val done = java.util.concurrent.CountDownLatch(1)
       mainHandler.post {
-        instance = BeAroundSDK.getInstance(ctx.applicationContext)
+        try {
+          instance = BeAroundSDK.getInstance(ctx.applicationContext)
+        } catch (t: Throwable) {
+          failure = t
+        } finally {
+          done.countDown()
+        }
       }
-      while (instance == null) {
-        Thread.sleep(10)
-      }
+      done.await()
+      failure?.let { throw RuntimeException("BeAroundSDK.getInstance failed", it) }
       instance!!
     }
   }
@@ -163,8 +175,19 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     }
   }
 
+  // NEVER-CRASH-THE-HOST: every bridged method must resolve or reject — a Throwable
+  // escaping a TurboModule method surfaces in RN's native-module exception handler
+  // and can crash the host. Getters below share this guard (mutators already had one).
+  private inline fun guarded(promise: Promise, code: String, block: () -> Unit) {
+    try {
+      block()
+    } catch (t: Throwable) {
+      promise.reject(code, t)
+    }
+  }
+
   override fun isScanning(promise: Promise) {
-    promise.resolve(sdk.isScanning)
+    guarded(promise, "IS_SCANNING_ERROR") { promise.resolve(sdk.isScanning) }
   }
 
   override fun setUserProperties(properties: ReadableMap, promise: Promise) {
@@ -207,7 +230,9 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
   // on iOS; on Android permissions.ts checks POST_NOTIFICATIONS directly, but the
   // method answers honestly here too.
   override fun checkNotificationPermission(promise: Promise) {
-    promise.resolve(NotificationManagerCompat.from(ctx).areNotificationsEnabled())
+    guarded(promise, "NOTIFICATION_PERMISSION_ERROR") {
+      promise.resolve(NotificationManagerCompat.from(ctx).areNotificationsEnabled())
+    }
   }
 
   // Diagnostic / state getters (parity with native public API).
@@ -216,11 +241,11 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
 
   override fun getSdkVersion(promise: Promise) {
     // Native SDK version injected at build time (io.bearound.sdk.BuildConfig.SDK_VERSION).
-    promise.resolve(io.bearound.sdk.BuildConfig.SDK_VERSION)
+    guarded(promise, "SDK_VERSION_ERROR") { promise.resolve(io.bearound.sdk.BuildConfig.SDK_VERSION) }
   }
 
   override fun getCurrentScanPrecision(promise: Promise) {
-    promise.resolve(sdk.currentScanPrecision?.name?.lowercase() ?: "")
+    guarded(promise, "SCAN_PRECISION_ERROR") { promise.resolve(sdk.currentScanPrecision?.name?.lowercase() ?: "") }
   }
 
   override fun getBleDiagnosticInfo(promise: Promise) {
@@ -230,23 +255,23 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
   }
 
   override fun getPendingBatchCount(promise: Promise) {
-    promise.resolve(sdk.pendingBatchCount.toDouble())
+    guarded(promise, "PENDING_BATCH_ERROR") { promise.resolve(sdk.pendingBatchCount.toDouble()) }
   }
 
   override fun isConfigured(promise: Promise) {
-    promise.resolve(sdk.isConfigured)
+    guarded(promise, "IS_CONFIGURED_ERROR") { promise.resolve(sdk.isConfigured) }
   }
 
   override fun isLocationAvailable(promise: Promise) {
-    promise.resolve(sdk.isLocationAvailable())
+    guarded(promise, "LOCATION_AVAILABLE_ERROR") { promise.resolve(sdk.isLocationAvailable()) }
   }
 
   override fun getAuthorizationStatus(promise: Promise) {
-    promise.resolve(sdk.getLocationPermissionStatus())
+    guarded(promise, "AUTH_STATUS_ERROR") { promise.resolve(sdk.getLocationPermissionStatus()) }
   }
 
   override fun getBluetoothState(promise: Promise) {
-    promise.resolve(currentBluetoothState())
+    guarded(promise, "BLUETOOTH_STATE_ERROR") { promise.resolve(currentBluetoothState()) }
   }
 
   // Detection log é iOS-only (o Android SDK não expõe getDetectionLogJson/
@@ -301,34 +326,36 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
   }
 
   override fun isForegroundScanningEnabled(promise: Promise) {
-    promise.resolve(sdk.isForegroundScanningEnabled)
+    guarded(promise, "FOREGROUND_SCAN_ERROR") { promise.resolve(sdk.isForegroundScanningEnabled) }
   }
 
   override fun setForegroundNotificationContent(content: ReadableMap, promise: Promise) {
-    val title = content.getString("title")
-    val text = content.getString("text")
-    notificationContent =
-      if (title != null && text != null) NotificationContent(title, text) else null
-    promise.resolve(null)
+    guarded(promise, "NOTIFICATION_CONTENT_ERROR") {
+      val title = content.getString("title")
+      val text = content.getString("text")
+      notificationContent =
+        if (title != null && text != null) NotificationContent(title, text) else null
+      promise.resolve(null)
+    }
   }
 
   // Background reliability (Android-only) — the OEM/Doze kill mitigation from the
   // native SDK 3.4.5. Delegates straight to the native helpers; iOS is a no-op.
 
   override fun isIgnoringBatteryOptimizations(promise: Promise) {
-    promise.resolve(sdk.isIgnoringBatteryOptimizations())
+    guarded(promise, "BATTERY_OPT_ERROR") { promise.resolve(sdk.isIgnoringBatteryOptimizations()) }
   }
 
   override fun openBatteryOptimizationSettings(promise: Promise) {
-    promise.resolve(sdk.openBatteryOptimizationSettings())
+    guarded(promise, "BATTERY_OPT_ERROR") { promise.resolve(sdk.openBatteryOptimizationSettings()) }
   }
 
   override fun isAutostartManageable(promise: Promise) {
-    promise.resolve(sdk.isAutostartManageable())
+    guarded(promise, "AUTOSTART_ERROR") { promise.resolve(sdk.isAutostartManageable()) }
   }
 
   override fun openManufacturerAutostartSettings(promise: Promise) {
-    promise.resolve(sdk.openManufacturerAutostartSettings())
+    guarded(promise, "AUTOSTART_ERROR") { promise.resolve(sdk.openManufacturerAutostartSettings()) }
   }
 
   // Host app's own name (android:label), already localized by Android per device
