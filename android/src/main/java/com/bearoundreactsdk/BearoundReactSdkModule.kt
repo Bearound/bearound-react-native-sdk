@@ -547,10 +547,24 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     return map
   }
 
+  // NEVER-CRASH-THE-HOST: beacon callbacks arrive from the native SDK's background
+  // scanning even while the React instance is tearing down (reload/dev-menu/exit).
+  // getJSModule/emit during that window throws a RuntimeException on the UI queue —
+  // an uncaught host crash. Events are best-effort: drop silently when the bridge
+  // is gone.
   private fun sendEvent(name: String, payload: Any) {
-    ctx.runOnUiQueueThread {
-      ctx.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-        .emit(name, payload)
+    try {
+      ctx.runOnUiQueueThread {
+        try {
+          if (!ctx.hasActiveReactInstance()) return@runOnUiQueueThread
+          ctx.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            .emit(name, payload)
+        } catch (_: Throwable) {
+          // React instance gone mid-flight — drop the event, never crash the host.
+        }
+      }
+    } catch (_: Throwable) {
+      // Queue unavailable during teardown — drop the event.
     }
   }
 
