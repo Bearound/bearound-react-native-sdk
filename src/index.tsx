@@ -386,16 +386,18 @@ export async function configure(config: SdkConfig) {
     throw new Error('Business token is required');
   }
 
+  // Install the JS-layer error reporter BEFORE the native configure — the
+  // session where the native call itself fails is exactly the one that needs
+  // telemetry (installing after would leave that failure path blind; same
+  // ordering as the Flutter wrapper). The embedded native SDKs already capture
+  // their own crashes; this covers only the RN/JS layer. Idempotent, never throws.
+  ErrorReporter.install(businessToken.trim());
+
   await Native.configure(
     businessToken.trim(),
     scanPrecision,
     maxQueuedPayloads
   );
-
-  // Install the JS-layer error reporter (idempotent). The embedded native SDKs
-  // already capture their own crashes; this covers only the React Native / JS
-  // layer. Never throws — a telemetry failure must not break configure().
-  ErrorReporter.install(businessToken.trim());
 }
 
 /**

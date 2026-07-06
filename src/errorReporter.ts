@@ -363,20 +363,22 @@ export async function buildPayload(
       context,
     },
     device: {
-      deviceId: '',
-      model: '',
-      manufacturer: '',
+      // 'unknown' (never '') — the ingest used to 400 on an empty deviceId,
+      // silently dropping every JS-layer report. Matches the Flutter literal.
+      deviceId: 'unknown',
+      model: 'unknown',
+      manufacturer: 'unknown',
       os: safeOs(),
       osVersion: safeOsVersion(),
-      locale: '',
-      appState: '',
+      locale: 'unknown',
+      appState: null,
       permissions,
       systemState: {},
     },
     sdk: {
       version: getSdkVersion(),
       platform: PLATFORM,
-      appId: '',
+      appId: 'unknown',
     },
     occurredAt: new Date().toISOString(),
   };

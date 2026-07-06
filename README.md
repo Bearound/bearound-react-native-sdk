@@ -669,9 +669,12 @@ and covers **three layers**:
 
 **Golden rules — it never gets in your way:**
 
-- **Only the SDK's own errors are reported.** An error is sent only when its stack
-  trace references `@bearound/react-native-sdk`. Errors from your app code are
-  ignored, and the telemetry module never reports its own failures.
+- **Only the SDK's own errors are reported.** An error is sent only when its
+  **first application stack frame** (skipping the RN runtime) is inside
+  `@bearound/react-native-sdk` — i.e. the error *originated* in the SDK. Errors
+  from your app code are ignored — including errors thrown inside your own
+  callbacks that merely pass through the SDK — and the telemetry module never
+  reports its own failures.
 - **It never throws and never hijacks your handlers.** The global error handler is
   *chained*: the SDK stores your previous `ErrorUtils` handler and always delegates
   back to it, so your own crash reporter (Sentry, Crashlytics, etc.) keeps working
