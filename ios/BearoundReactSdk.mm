@@ -86,6 +86,14 @@ maxQueuedPayloads:(double)maxQueuedPayloads
   }];
 }
 
+- (void)checkNotificationPermission:(RCTPromiseResolveBlock)resolve
+                             reject:(RCTPromiseRejectBlock)reject
+{
+  [[RNBearoundBridge shared] checkNotificationPermission:^(BOOL granted) {
+    resolve(@(granted));
+  }];
+}
+
 - (void)getSdkVersion:(RCTPromiseResolveBlock)resolve
                reject:(RCTPromiseRejectBlock)reject
 {
@@ -182,6 +190,30 @@ maxQueuedPayloads:(double)maxQueuedPayloads
 {
   [[RNBearoundBridge shared] setForegroundNotificationContent:content ?: @{}];
   resolve(nil);
+}
+
+- (void)isIgnoringBatteryOptimizations:(RCTPromiseResolveBlock)resolve
+                                reject:(RCTPromiseRejectBlock)reject
+{
+  resolve(@([[RNBearoundBridge shared] isIgnoringBatteryOptimizations]));
+}
+
+- (void)openBatteryOptimizationSettings:(RCTPromiseResolveBlock)resolve
+                                 reject:(RCTPromiseRejectBlock)reject
+{
+  resolve(@([[RNBearoundBridge shared] openBatteryOptimizationSettings]));
+}
+
+- (void)isAutostartManageable:(RCTPromiseResolveBlock)resolve
+                       reject:(RCTPromiseRejectBlock)reject
+{
+  resolve(@([[RNBearoundBridge shared] isAutostartManageable]));
+}
+
+- (void)openManufacturerAutostartSettings:(RCTPromiseResolveBlock)resolve
+                                   reject:(RCTPromiseRejectBlock)reject
+{
+  resolve(@([[RNBearoundBridge shared] openManufacturerAutostartSettings]));
 }
 
 @end

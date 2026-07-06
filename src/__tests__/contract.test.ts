@@ -334,6 +334,25 @@ describe('Foreground scanning (Android-only)', () => {
   });
 });
 
+describe('Background reliability (Android-only)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    resetMocks();
+  });
+
+  it.each([
+    ['isIgnoringBatteryOptimizations', true],
+    ['openBatteryOptimizationSettings', true],
+    ['isAutostartManageable', false],
+    ['openManufacturerAutostartSettings', false],
+  ] as const)('%s delegates to the native module', async (fn, expected) => {
+    const mod = require('../index');
+    expect(typeof mod[fn]).toBe('function');
+    await expect(mod[fn]()).resolves.toBe(expected);
+    expect(mockNativeModule[fn]).toHaveBeenCalled();
+  });
+});
+
 describe('Persisted detection log parsing (iOS-only)', () => {
   beforeEach(() => {
     jest.clearAllMocks();

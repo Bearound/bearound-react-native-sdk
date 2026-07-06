@@ -1,6 +1,7 @@
 import Foundation
 import CoreLocation
 import CoreBluetooth
+import UserNotifications
 import BearoundSDK
 
 @objcMembers
@@ -169,6 +170,27 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
 
   public func setForegroundNotificationContent(_ content: NSDictionary) {}
 
+  // Background reliability (Android-only; no-op on iOS). iOS has no user-facing
+  // battery-optimization / autostart exemption like Android's Doze / OEM killers.
+  // Report "already ignoring optimizations" so hosts don't prompt, and false for
+  // the Android-only open-settings / autostart methods.
+
+  public func isIgnoringBatteryOptimizations() -> Bool {
+    return true
+  }
+
+  public func openBatteryOptimizationSettings() -> Bool {
+    return false
+  }
+
+  public func isAutostartManageable() -> Bool {
+    return false
+  }
+
+  public func openManufacturerAutostartSettings() -> Bool {
+    return false
+  }
+
   public func startScanning() {
     DispatchQueue.main.async {
       self.sdk.delegate = self
@@ -227,6 +249,18 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
   public func checkPermissions() -> Bool {
     let status = currentAuthorizationStatus()
     return status == .authorizedAlways || status == .authorizedWhenInUse
+  }
+
+  // Real notification-permission check (UNUserNotificationCenter). Backs the
+  // `notifications` field of the JS PermissionResult — previously hardcoded true.
+  public func checkNotificationPermission(_ completion: @escaping (Bool) -> Void) {
+    UNUserNotificationCenter.current().getNotificationSettings { settings in
+      let granted =
+        settings.authorizationStatus == .authorized
+        || settings.authorizationStatus == .provisional
+        || settings.authorizationStatus == .ephemeral
+      completion(granted)
+    }
   }
 
   public func requestPermissions(_ completion: @escaping (Bool) -> Void) {

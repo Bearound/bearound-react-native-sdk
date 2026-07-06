@@ -6,6 +6,7 @@ import {
 } from 'react-native';
 
 import Native from './NativeBearoundReactSdk';
+import * as ErrorReporter from './errorReporter';
 
 export enum ScanPrecision {
   HIGH = 'high',
@@ -385,11 +386,31 @@ export async function configure(config: SdkConfig) {
     throw new Error('Business token is required');
   }
 
+  // Install the JS-layer error reporter BEFORE the native configure — the
+  // session where the native call itself fails is exactly the one that needs
+  // telemetry (installing after would leave that failure path blind; same
+  // ordering as the Flutter wrapper). The embedded native SDKs already capture
+  // their own crashes; this covers only the RN/JS layer. Idempotent, never throws.
+  ErrorReporter.install(businessToken.trim());
+
   await Native.configure(
     businessToken.trim(),
     scanPrecision,
     maxQueuedPayloads
   );
+}
+
+/**
+ * Enable or disable JS-layer SDK error telemetry at runtime. Default: **enabled**.
+ *
+ * When enabled, uncaught JS exceptions and unhandled promise rejections that
+ * originate in this package are reported (fire-and-forget, rate-limited, deduped)
+ * to Bearound's ingest endpoint. This only covers the React Native / JS layer —
+ * native crashes are handled by the embedded native SDKs' own reporters. Errors
+ * from the host app are never reported. Opting out disables all JS-layer reporting.
+ */
+export function setErrorReportingEnabled(enabled: boolean): void {
+  ErrorReporter.setEnabled(enabled);
 }
 
 /**
@@ -620,6 +641,52 @@ export async function setForegroundNotificationContent(
   content: NotificationContent
 ): Promise<void> {
   await Native.setForegroundNotificationContent(content as object);
+}
+
+// --- Background reliability (Android-only) ---
+
+/**
+ * Whether the app is exempt from Android battery optimizations (Doze). When
+ * `false`, aggressive power management can kill background/opportunistic
+ * scanning — the #1 cause of "stops detecting after a while" on Android.
+ *
+ * **Android-only.** iOS has no user-facing equivalent and always resolves
+ * `true` (nothing to exempt).
+ */
+export async function isIgnoringBatteryOptimizations(): Promise<boolean> {
+  return Native.isIgnoringBatteryOptimizations();
+}
+
+/**
+ * Open the system battery-optimization screen so the user can exempt the app
+ * (recommended when {@link isIgnoringBatteryOptimizations} returns `false`).
+ * Resolves `true` if a settings screen was launched.
+ *
+ * **Android-only** — iOS always resolves `false`.
+ */
+export async function openBatteryOptimizationSettings(): Promise<boolean> {
+  return Native.openBatteryOptimizationSettings();
+}
+
+/**
+ * Whether this device is from an OEM with a known autostart / protected-apps
+ * screen (Xiaomi/Huawei/Oppo/Vivo/...), where the app must be whitelisted to
+ * keep scanning after being swiped away or on reboot.
+ *
+ * **Android-only** — iOS always resolves `false`.
+ */
+export async function isAutostartManageable(): Promise<boolean> {
+  return Native.isAutostartManageable();
+}
+
+/**
+ * Open the manufacturer's autostart / protected-apps screen when one exists
+ * (see {@link isAutostartManageable}). Resolves `true` if a screen was launched.
+ *
+ * **Android-only** — iOS always resolves `false`.
+ */
+export async function openManufacturerAutostartSettings(): Promise<boolean> {
+  return Native.openManufacturerAutostartSettings();
 }
 
 export function addBeaconsListener(

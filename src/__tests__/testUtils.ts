@@ -21,6 +21,7 @@ export const mockNativeModule = {
   clearUserProperties: jest.fn(() => Promise.resolve()),
   checkPermissions: jest.fn(() => Promise.resolve(true)),
   requestPermissions: jest.fn(() => Promise.resolve(true)),
+  checkNotificationPermission: jest.fn(() => Promise.resolve(true)),
   getSdkVersion: jest.fn(() => Promise.resolve('3.0.0')),
   getCurrentScanPrecision: jest.fn(() => Promise.resolve('medium')),
   getBleDiagnosticInfo: jest.fn(() => Promise.resolve('')),
@@ -36,6 +37,10 @@ export const mockNativeModule = {
   disableForegroundScanning: jest.fn(() => Promise.resolve()),
   isForegroundScanningEnabled: jest.fn(() => Promise.resolve(false)),
   setForegroundNotificationContent: jest.fn(() => Promise.resolve()),
+  isIgnoringBatteryOptimizations: jest.fn(() => Promise.resolve(true)),
+  openBatteryOptimizationSettings: jest.fn(() => Promise.resolve(true)),
+  isAutostartManageable: jest.fn(() => Promise.resolve(false)),
+  openManufacturerAutostartSettings: jest.fn(() => Promise.resolve(false)),
   addListener: jest.fn(),
   removeListeners: jest.fn(),
 };

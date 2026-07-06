@@ -22,6 +22,11 @@ export interface Spec extends TurboModule {
   checkPermissions(): Promise<boolean>;
   requestPermissions(): Promise<boolean>;
 
+  // Real notification-permission status. iOS: UNUserNotificationCenter
+  // getNotificationSettings (authorized/provisional/ephemeral). Android:
+  // NotificationManagerCompat.areNotificationsEnabled().
+  checkNotificationPermission(): Promise<boolean>;
+
   // Diagnostic / state getters (parity with native public API).
   // Platform-divergent values resolve to a neutral default on the platform
   // that lacks the underlying native API (see index.tsx docs).
@@ -46,6 +51,14 @@ export interface Spec extends TurboModule {
   disableForegroundScanning(): Promise<void>;
   isForegroundScanningEnabled(): Promise<boolean>;
   setForegroundNotificationContent(content: Object): Promise<void>;
+
+  // Background reliability (Android-only; the OEM/Doze kill mitigation from
+  // native SDK 3.4.5). iOS has no user-facing equivalent — the "open" methods
+  // resolve false and isIgnoringBatteryOptimizations resolves true.
+  isIgnoringBatteryOptimizations(): Promise<boolean>;
+  openBatteryOptimizationSettings(): Promise<boolean>;
+  isAutostartManageable(): Promise<boolean>;
+  openManufacturerAutostartSettings(): Promise<boolean>;
 
   addListener(eventName: string): void;
   removeListeners(count: number): void;

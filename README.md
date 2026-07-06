@@ -1,7 +1,7 @@
 # 🐻 Bearound React Native SDK
 
 Official SDK to integrate **Bearound's** secure BLE beacon detection into **React Native** apps (Android and iOS).
-Aligned with Bearound native SDKs **3.3.1**.
+Aligned with Bearound native SDKs **3.4.2** (exact pins live in `android/build.gradle` and `BearoundReactSdk.podspec`, kept in lockstep by `scripts/check-native-versions.mjs`).
 
 > ✅ Compatible with **New Architecture** (TurboModules) and also compatible with classic architecture.
 
@@ -14,6 +14,7 @@ Aligned with Bearound native SDKs **3.3.1**.
 * [Permission Configuration](#permission-configuration)
   * [Android – Manifest](#android--manifest)
   * [iOS – Info.plist and Background Modes](#ios--infoplist-and-background-modes)
+* [Scan modes (Android)](#scan-modes-android)
 * [iOS Background Integration (required)](#ios-background-integration-required)
 * [Quick Start](#quick-start)
 * [API](#api)
@@ -22,14 +23,17 @@ Aligned with Bearound native SDKs **3.3.1**.
   * [Events](#events)
 * [Best Practices](#best-practices)
 * [Troubleshooting](#troubleshooting)
+* [Migrating from 2.x](#migrating-from-2x)
 * [License](#license)
+
+> Cross-platform behavior of every event and getter (including iOS-only / Android-only gaps) is documented in [EVENT-PARITY.md](./EVENT-PARITY.md).
 
 ---
 
 ## Requirements
 
 * **React Native** ≥ 0.73
-* **Android**: minSdk **21+** (BLE), Android 12+ requires runtime BLE permissions
+* **Android**: minSdk **24+** (the library builds with `minSdkVersion 24`); Android 12+ requires the `BLUETOOTH_SCAN` runtime permission ("Nearby devices")
 * **iOS**: iOS **13+** (recommended 15+), Bluetooth and Location enabled
 
 > **Important:** The SDK **does not** work on iOS simulator for BLE (use physical device).
@@ -57,7 +61,7 @@ cd ios
 pod install
 ```
 
-> The package already includes the native iOS framework as **vendored xcframework** in the Podspec. If your `Podfile` uses `use_frameworks!`, prefer **static**:
+> The Podspec declares a **CocoaPods dependency** on the native `BearoundSDK` pod (exact version pin — see `BearoundReactSdk.podspec`), resolved automatically by `pod install`. If your `Podfile` uses `use_frameworks!`, prefer **static**:
 >
 > ```ruby
 > use_frameworks! :linkage => :static
@@ -360,36 +364,55 @@ This is a **native-level escape hatch** — by design it is not part of the JS A
 
 ## Quick Start
 
+Two rules the snippet below follows — both come from how the SDK actually works:
+
+1. **`configure()` runs on mount** (in a `useEffect`), **not** behind a button. The SDK's push swizzle (automatic APNs token capture + silent-push handling) only installs once `configure()` runs in the process — see [§4 of iOS Background Integration](#4-call-configure-on-app-mount).
+2. **The Android permission gate depends on the OS version.** On Android 12+ the **only** permission that unlocks scanning is `BLUETOOTH_SCAN` ("Nearby devices") — location does **not** unlock BLE scan there (the SDK declares `neverForLocation`). On Android ≤ 11 it's the opposite: location is what unlocks scanning. Do **not** gate on `btConnect`/`backgroundLocation` — the SDK doesn't need them to scan, and on 12+ they can never all be granted (the location permissions are declared with `maxSdkVersion="30"`).
+
 ```tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Alert, Button, View, Platform } from 'react-native';
 import * as BeAround from '@bearound/react-native-sdk';
 import { ensurePermissions } from '@bearound/react-native-sdk';
 
 export default function App() {
-  const start = async () => {
-    // Request permissions (Android + iOS)
-    const status = await ensurePermissions({ askBackground: true });
-    const ok =
-      Platform.OS === 'android'
-        ? status.fineLocation &&
-          status.btScan &&
-          status.btConnect &&
-          status.notifications &&
-          status.backgroundLocation
-        : status.fineLocation;
-
-    if (!ok) {
-      Alert.alert('Permissions', 'Grant required permissions to start.');
-      return;
-    }
-
-    await BeAround.configure({
+  useEffect(() => {
+    // On mount — installs the push swizzle in every process, including
+    // background relaunches where the user never taps anything.
+    BeAround.configure({
       businessToken: 'your-business-token',
       scanPrecision: BeAround.ScanPrecision.HIGH,
       maxQueuedPayloads: BeAround.MaxQueuedPayloads.MEDIUM,
     });
+  }, []);
+
+  const start = async () => {
+    // askBackground: false — background location is NOT needed for scanning.
+    // Only pass true if your app declares ACCESS_BACKGROUND_LOCATION itself
+    // (the SDK doesn't); otherwise the request is auto-denied and the helper
+    // bounces the user to Settings.
+    const status = await ensurePermissions({ askBackground: false });
+
+    const ok =
+      Platform.OS === 'android'
+        ? Number(Platform.Version) >= 31
+          ? status.btScan // Android 12+: BLUETOOTH_SCAN is the only scan gate
+          : status.fineLocation // Android ≤ 11: location unlocks BLE scan
+        : true; // iOS: either eye works (Location OR Bluetooth) — don't hard-block
+
+    if (!ok) {
+      Alert.alert(
+        'Permissions',
+        Number(Platform.Version) >= 31
+          ? 'Allow "Nearby devices" to detect beacons.'
+          : 'Allow Location to detect beacons.'
+      );
+      return;
+    }
+
     await BeAround.startScanning();
+    // Android 13+: if you also call enableForegroundScanning(), check
+    // status.notifications so the persistent notification is visible.
     Alert.alert('Bearound', 'SDK started successfully');
   };
 
@@ -520,6 +543,21 @@ isScanning(): Promise<boolean>;
 setUserProperties(properties: UserProperties): Promise<void>;
 clearUserProperties(): Promise<void>;
 
+// Push token — forwards the token to the native SDK, which associates it with
+// the device and sends it on the next sync (re-sent only when it changes or
+// after the native heartbeat window).
+// - Android: pass the FCM token. The native SDK also auto-collects it when
+//   Firebase is present; this call is the explicit fallback.
+// - iOS: the SDK auto-captures the APNs token via AppDelegate swizzling. Call
+//   this only when swizzling doesn't fire (e.g. Firebase Messaging swizzles
+//   first, or BearoundAppDelegateProxyEnabled = NO) — and pass the RAW APNs
+//   device token (hex), which is what the backend expects, not the FCM token.
+//   See "Using Firebase Messaging / disabled swizzling?" above.
+setPushToken(token: string): Promise<void>;
+
+// Error telemetry opt-out (default: enabled). See "SDK error telemetry" below.
+setErrorReportingEnabled(enabled: boolean): void;
+
 // Event listeners
 addBeaconsListener(listener: (beacons: Beacon[]) => void): EmitterSubscription;
 addSyncLifecycleListener(listener: (event: SyncLifecycleEvent) => void): EmitterSubscription;
@@ -588,6 +626,79 @@ requestForegroundPermissions(): Promise<{
 requestBackgroundLocation(): Promise<boolean>;
 ```
 
+> **`PermissionResult` semantics on iOS:** the iOS bridge checks a single thing —
+> **location authorization** (`authorizedAlways` **or** `authorizedWhenInUse`).
+> `fineLocation`, `btScan`, `btConnect` and `backgroundLocation` all mirror that one
+> location boolean, and `notifications` is hardcoded `true` (never checked). In
+> particular:
+>
+> * `btScan`/`btConnect` do **not** reflect the Bluetooth permission on iOS — use
+>   [`getBluetoothState()`](#functions) instead (`'unauthorized'` means Bluetooth
+>   permission was denied).
+> * `backgroundLocation: true` does **not** mean "Always" was granted — it is `true`
+>   with only When-In-Use. Use `getAuthorizationStatus()` to distinguish `'always'`
+>   from `'whenInUse'` (terminated-app wake-up requires **Always**).
+> * On iOS, `ensurePermissions`/`requestForegroundPermissions` trigger the system
+>   location prompt (requesting Always) only while the status is `notDetermined`;
+>   once denied they resolve `false` without prompting.
+>
+> On Android each field reflects the real status of its permission
+> (`ACCESS_FINE_LOCATION`/`ACCESS_COARSE_LOCATION`, `BLUETOOTH_SCAN`,
+> `BLUETOOTH_CONNECT`, `POST_NOTIFICATIONS`, `ACCESS_BACKGROUND_LOCATION`), but note
+> the SDK manifest only declares the location permissions up to API 30 and does not
+> declare `ACCESS_BACKGROUND_LOCATION` — so on Android 12+ `fineLocation` and
+> `backgroundLocation` stay `false` unless your app declares them itself. Gate
+> scanning as shown in [Quick Start](#quick-start), not on "all fields true".
+
+> **`getBluetoothState()` on iOS — side effect:** the first call lazily creates the
+> `CBCentralManager`, which triggers the system **Bluetooth permission prompt** if
+> not yet determined. It is also what arms `addBluetoothStateListener` on iOS — the
+> listener only starts emitting after the first `getBluetoothState()` call in the
+> process (on Android it emits on adapter changes without any prior call).
+
+### SDK error telemetry
+
+The SDK ships lightweight, self-contained crash telemetry so we can spot and fix
+SDK-side regressions in the field. It's installed automatically by `configure()`
+and covers **three layers**:
+
+- **Native (Android/iOS):** the embedded native SDKs capture their own crashes via
+  their built-in error reporters.
+- **React Native / JS:** this package additionally captures uncaught JS exceptions
+  and unhandled promise rejections **that originate in the SDK's own JS layer**.
+
+**Golden rules — it never gets in your way:**
+
+- **Only the SDK's own errors are reported.** An error is sent only when its
+  **first application stack frame** (skipping the RN runtime) is inside
+  `@bearound/react-native-sdk` — i.e. the error *originated* in the SDK. Errors
+  from your app code are ignored — including errors thrown inside your own
+  callbacks that merely pass through the SDK — and the telemetry module never
+  reports its own failures.
+- **It never throws and never hijacks your handlers.** The global error handler is
+  *chained*: the SDK stores your previous `ErrorUtils` handler and always delegates
+  back to it, so your own crash reporter (Sentry, Crashlytics, etc.) keeps working
+  unchanged.
+- **Fire-and-forget and self-limiting.** Reports are posted best-effort to
+  `https://ingest.bearound.io/sdk-errors` with a 5 s timeout, rate-limited to 20/hour
+  and de-duplicated for 5 minutes. Nothing blocks your app.
+
+Each report includes the error (type, message, stack, context), a device snapshot
+(OS/version, permission state), and the SDK version/platform. If a `businessToken`
+is set, it's sent as the `Authorization` header.
+
+**Opting out:**
+
+```ts
+import { setErrorReportingEnabled } from '@bearound/react-native-sdk';
+
+// Disable JS-layer SDK error reporting (default: enabled).
+setErrorReportingEnabled(false);
+```
+
+> Opting out disables the **JS-layer** reporting exposed by this package. Native
+> crash telemetry follows the embedded native SDKs' own behavior.
+
 ### Events
 
 Available listeners:
@@ -601,7 +712,7 @@ Available listeners:
 * `addActiveScanListener` — fires when active-scan gating changes (BLE ranging + duty cycle run only while inside a beacon region).
 * `addBluetoothZoneListener` — **iOS-only**: fires on Bluetooth-zone enter/exit (the "Bluetooth eye", backed by CBCentralManager, independent of CoreLocation). On Android the listener registers but never fires.
 * `addBluetoothScanModeListener` — **iOS-only**: fires when the BLE scanner duty-cycle mode changes (`idle` ↔ `active`, with `nextIdleScanAt` when idle). On Android the listener registers but never fires.
-* `addBluetoothStateListener` — fires on Bluetooth adapter state changes (`poweredOn`/`poweredOff`/`unauthorized`/...) on **both platforms** — use it to gate the Bluetooth eye independently of location.
+* `addBluetoothStateListener` — fires on Bluetooth adapter state changes (`poweredOn`/`poweredOff`/`unauthorized`/...) on **both platforms** — use it to gate the Bluetooth eye independently of location. **iOS:** it only starts emitting after the first `getBluetoothState()` call in the process (which creates the underlying `CBCentralManager` and may show the Bluetooth permission prompt); call it once on mount if you rely on this listener.
 
 ```ts
 import {
@@ -666,12 +777,40 @@ bluetoothStateSub.remove();
 
 ## Troubleshooting
 
-**SDK doesn't start or detect beacons**
+**No beacons detected (any platform)**
 
-* Check **Location**/**Bluetooth** permissions (and Background on Android 10+).
-* Test with a **physical beacon** (or app like nRF Connect).
-* **iOS**: Use `ensurePermissions()` before calling `startScanning()` and keep Info.plist configured.
-* **Android**: Use `ensurePermissions()` before calling `startScanning()`.
+* Test with a **real Bearound beacon**. The SDK scans for Bearound's proprietary BLE advertisement (service data `0xBEAD`) — a **generic iBeacon, or a phone simulating one with nRF Connect, is NOT detected** by design.
+* Call `configure()` before `startScanning()` — `startScanning()` without a prior `configure()` resolves without error but detects nothing. Check with `isConfigured()`.
+* Verify the business token. An invalid token fails **silently** in the current version: beacons still appear locally, but every sync fails — watch `addSyncLifecycleListener` for `completed` events with `success: false`.
+* Check Bluetooth: `getBluetoothState()` should resolve `'poweredOn'` (`'unauthorized'` on iOS means the Bluetooth permission was denied).
+
+**Android 12+ (API 31+): permissions**
+
+* `BLUETOOTH_SCAN` ("Nearby devices") is the **only** permission that unlocks scanning. It is declared with `neverForLocation`, so **granting Location does NOT unlock the BLE scan** — a device with Location granted but Nearby devices denied detects nothing.
+* `POST_NOTIFICATIONS` (Android 13+) is only needed for the persistent notification of `enableForegroundScanning()` to be visible.
+* `BLUETOOTH_CONNECT` and background location are **not** required for scanning.
+
+**Android ≤ 11 (API ≤ 30): permissions**
+
+* Fine (or coarse) **location** is what unlocks BLE scan results (Android platform requirement on these versions). The legacy `BLUETOOTH`/`BLUETOOTH_ADMIN` permissions arrive via manifest merge.
+
+**Android: detection stops in background or after swipe-away**
+
+* The default (opportunistic) mode is throttled by the OS and killed outright by aggressive OEMs (Xiaomi/Huawei/Samsung and others). For reliable background detection, use `enableForegroundScanning()` ([Mode 2](#mode-2--foreground-service-connecteddevice)) and ask the user to exempt the app from battery optimization / enable autostart in the OEM settings.
+* Remember the Play cost of Mode 2: the `connectedDevice` foreground service requires a Play Console declaration **and a demonstration video** during review — see [Scan modes](#scan-modes-android).
+
+**Android: scan throttled after rapid start/stop**
+
+* Android silently throttles apps that start/stop BLE scans too frequently (more than ~5 starts in 30 s). Avoid `startScanning()`/`stopScanning()` loops; prefer a stable lifecycle.
+
+**iOS: nothing detected in background / app never wakes**
+
+* **Physical device only** — BLE does not work on the iOS simulator.
+* Grant **Always** location: waking a terminated app on beacon entry relies on CoreLocation region monitoring, and Always is required. Check with `getAuthorizationStatus()` (must be `'always'`, not `'whenInUse'`).
+* Enable **Background App Refresh** (Settings → General → Background App Refresh, and per-app): without it the SDK's BGTasks (sync/processing) never get execution time.
+* The **silent-push wake vector** — the only mechanism that resurrects a fully terminated app — needs the Push Notifications capability and a delivered APNs token; see [iOS Background Integration](#ios-background-integration-required). If you use Firebase Messaging, forward the raw APNs token yourself via `setPushToken` (the swizzle won't fire).
+* Force-quit (swipe up in the app switcher) suspends the Bluetooth eye until the app is relaunched — by region entry (CoreLocation) or silent push.
+* Complete the AppDelegate + Info.plist wiring (background modes, BGTask identifiers) — see [iOS Background Integration](#ios-background-integration-required).
 
 **iOS: compilation error involving headers/Codegen**
 
@@ -679,18 +818,17 @@ bluetoothStateSub.remove();
 * Clean Derived Data in Xcode and recompile.
 * If using `use_frameworks!`, prefer `:linkage => :static`.
 
-**Android: crash on restart**
+---
 
-* Avoid calling `startScanning()` repeatedly without `stopScanning()`. Some BLE scanners don't allow frequent restarts.
+## Migrating from 2.x
 
-**Android permissions (API 31+)**
+Version 3.x of this package tracks the native SDKs across their 3.0.0 major. If you are coming from `@bearound/react-native-sdk` 2.x:
 
-* Ensure `BLUETOOTH_SCAN` and `BLUETOOTH_CONNECT` at runtime. Use `ensurePermissions`.
-
-**Missing background location permission**
-
-* **Android 10+**: Background location requires separate permission request after foreground location.
-* **Android 12+**: Background location can be requested independently of fine location.
+* **`locationCapture` API removed** — native 3.x dropped beacon-triggered GPS capture. Remove `addLocationCaptureListener` and the `CapturedLocation`/`LocationCapture*` types; there is no replacement (the SDK no longer captures GPS coordinates).
+* **`BeaconMetadata` semantics changed**: `batteryLevel` is now **millivolts** (e.g. `3269`), not a 0–100 percentage; `firmwareVersion` is now an integer encoded as a string (e.g. `"1"`), not a semver (`"2.1.0"`). Update any UI/analytics that parsed these.
+* **Default `scanPrecision` is now `HIGH`** (was `MEDIUM`). Pass `scanPrecision: ScanPrecision.MEDIUM` explicitly to keep the 2.x duty cycle.
+* Coming from **≤ 2.1.0**: `enableBluetoothScanning`/`enablePeriodicScanning` config flags were removed (always-on) and `addSyncStatusListener` was replaced by `addSyncLifecycleListener`.
+* Everything else is additive — two-eyes listeners, persisted log, foreground-service APIs, diagnostics getters, `setPushToken` (3.4.1+). Full details per release in [CHANGELOG.md](./CHANGELOG.md); cross-platform behavior in [EVENT-PARITY.md](./EVENT-PARITY.md).
 
 ---
 
