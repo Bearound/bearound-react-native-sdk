@@ -23,7 +23,7 @@ const podMatch = podspec.match(/s\.dependency\s+["']BearoundSDK["']\s*,\s*["'][~
 const iosMajor = podMatch ? majorOf(podMatch[1]) : NaN;
 
 const gradle = read('android/build.gradle');
-const gradleMatch = gradle.match(/bearound-android-sdk:([\d.]+)/);
+const gradleMatch = gradle.match(/bearound-android-sdk:v?([\d.]+)/);
 const androidMajor = gradleMatch ? majorOf(gradleMatch[1]) : NaN;
 
 const rows = [
