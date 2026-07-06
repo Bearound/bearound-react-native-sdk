@@ -78,5 +78,5 @@ dependencies {
   // Exact pin, kept in lockstep with the iOS podspec dep (same native release).
   // 3.4.5 fixes the FGS connectedDevice crash-loop and adds the battery-opt/OEM
   // autostart reliability helpers exposed by the RN bridge.
-  implementation 'com.github.Bearound:bearound-android-sdk:3.4.5'
+  implementation 'com.github.Bearound:bearound-android-sdk:v3.4.5'
 }
