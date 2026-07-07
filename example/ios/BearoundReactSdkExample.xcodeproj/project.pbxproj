@@ -262,6 +262,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 2F225FWN5Q;
 				ENABLE_BITCODE = NO;
+				CODE_SIGN_ENTITLEMENTS = BearoundReactSdkExample/BearoundReactSdkExample.entitlements;
 				INFOPLIST_FILE = BearoundReactSdkExample/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -290,6 +291,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 2F225FWN5Q;
+				CODE_SIGN_ENTITLEMENTS = BearoundReactSdkExample/BearoundReactSdkExample.entitlements;
 				INFOPLIST_FILE = BearoundReactSdkExample/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (

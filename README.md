@@ -811,6 +811,7 @@ bluetoothStateSub.remove();
 * The **silent-push wake vector** — the only mechanism that resurrects a fully terminated app — needs the Push Notifications capability and a delivered APNs token; see [iOS Background Integration](#ios-background-integration-required). If you use Firebase Messaging, forward the raw APNs token yourself via `setPushToken` (the swizzle won't fire).
 * Force-quit (swipe up in the app switcher) suspends the Bluetooth eye until the app is relaunched — by region entry (CoreLocation) or silent push.
 * Complete the AppDelegate + Info.plist wiring (background modes, BGTask identifiers) — see [iOS Background Integration](#ios-background-integration-required).
+* **Foreground detects but background is completely dead?** Verify your app target's `Info.plist` actually contains all five `UIBackgroundModes` as a proper `<array>`. A truncated or malformed `Info.plist` (missing keys, or a partial file) still **builds and runs in the foreground**, but iOS silently drops the background modes — so scanning works while the app is open and stops the instant it's backgrounded. Confirm with `plutil -p ios/YourApp/Info.plist` (you must see `bluetooth-central`, `location`, `fetch`, `processing`, `remote-notification`) and `plutil -lint` (must print `OK`).
 
 **iOS: compilation error involving headers/Codegen**
 
