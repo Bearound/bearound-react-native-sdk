@@ -192,6 +192,25 @@ maxQueuedPayloads:(double)maxQueuedPayloads
   resolve(nil);
 }
 
+// Forwards the device push token (raw APNs on iOS) to the native SDK, which
+// associates it with the deviceId and sends it on the next sync. Declared in
+// the codegen spec and implemented by RNBearoundBridge, but the TurboModule
+// bridge method was missing — calling it on iOS raised an unrecognized-selector
+// crash, breaking the manual-APNs-token path (needed when Firebase intercepts
+// the swizzle). See RNBearoundBridge.setPushToken.
+- (void)setPushToken:(NSString *)token
+             resolve:(RCTPromiseResolveBlock)resolve
+              reject:(RCTPromiseRejectBlock)reject
+{
+  NSString *value = token ?: @"";
+  if (value.length == 0) {
+    reject(@"INVALID_ARGUMENT", @"token is required", nil);
+    return;
+  }
+  [[RNBearoundBridge shared] setPushToken:value];
+  resolve(nil);
+}
+
 - (void)isIgnoringBatteryOptimizations:(RCTPromiseResolveBlock)resolve
                                 reject:(RCTPromiseRejectBlock)reject
 {
