@@ -46,6 +46,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
       }
     }
 
+    // Register for remote (silent) push — the ONLY vector that wakes a
+    // user-force-quit app on iOS. This triggers APNs registration; the raw
+    // token arrives in didRegisterForRemoteNotificationsWithDeviceToken below.
+    // Requires the app target to have the Push Notifications capability
+    // (the signed `aps-environment` entitlement) — no SDK can add it for you.
+    application.registerForRemoteNotifications()
+
     // If iOS relaunched us due to a region/bluetooth event, surface it immediately
     // (the SDK auto-restores scanning from storage; we don't reconfigure here so
     // the user's saved scan precision is preserved).
@@ -85,6 +92,28 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     BeAroundSDK.shared.performBackgroundFetch { success in
       completionHandler(success ? .newData : .noData)
     }
+  }
+
+  // Raw APNs token → SDK. The backend pushes via APNs (not FCM), so we forward
+  // the RAW device token. The SDK also auto-captures it via swizzle, but
+  // forwarding explicitly is the robust path (the swizzle is intercepted when
+  // Firebase is present). Idempotent — setting the same token twice is a no-op.
+  func application(
+    _ application: UIApplication,
+    didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+  ) {
+    let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+    NSLog("[BearoundReactSdkExample] APNs token registered (%d bytes)", deviceToken.count)
+    BeAroundSDK.shared.setPushToken(token)
+  }
+
+  func application(
+    _ application: UIApplication,
+    didFailToRegisterForRemoteNotificationsWithError error: Error
+  ) {
+    // Common cause: the Push Notifications capability / aps-environment
+    // entitlement is missing from the app target (nothing the SDK can fix).
+    NSLog("[BearoundReactSdkExample] APNs registration failed: %@", error.localizedDescription)
   }
 
   // Silent push (cold-launch race): the SDK's push swizzle only installs once
