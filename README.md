@@ -11,6 +11,7 @@ Aligned with Bearound native SDKs **3.4.2** (exact pins live in `android/build.g
 
 * [Requirements](#requirements)
 * [Installation](#installation)
+* [Set up with an AI agent](#set-up-with-an-ai-agent)
 * [Permission Configuration](#permission-configuration)
   * [Android – Manifest](#android--manifest)
   * [iOS – Info.plist and Background Modes](#ios--infoplist-and-background-modes)
@@ -70,6 +71,62 @@ pod install
 ### Android
 
 No additional Gradle configuration is needed beyond permissions. The native Android SDK is resolved as a module dependency.
+
+---
+
+## Set up with an AI agent
+
+The iOS/Android background wiring is intricate — but this README is written to be **agent-readable**: every step is explicit, copy-pasteable, and tied to the proven-working example. So instead of doing it by hand, you can hand the whole thing to an **AI coding agent** (Claude Code, Cursor, Copilot, …) and have it do the integration for you.
+
+**Point your agent at this README** — the local copy at `node_modules/@bearound/react-native-sdk/README.md` or the [GitHub page](https://github.com/Bearound/bearound-react-native-sdk) — and paste this prompt:
+
+```text
+Integrate @bearound/react-native-sdk into this React Native app. First READ the
+SDK's README end to end — especially "iOS Background Integration (required)",
+"Permission Configuration", and "Quick Start" — then do ALL of the following,
+matching the README's proven-working example EXACTLY:
+
+1. Install: `npm i @bearound/react-native-sdk`, then `cd ios && pod install`.
+
+2. iOS AppDelegate (§1): wire the COMPLETE AppDelegate from README §1 into this
+   app's AppDelegate — EVERY method, none optional: the SDK delegate,
+   registerBackgroundTasks, the UNUserNotificationCenter delegate +
+   requestAuthorization, application.registerForRemoteNotifications(),
+   launchOptions handling, performFetch,
+   didRegisterForRemoteNotificationsWithDeviceToken -> setPushToken,
+   didFailToRegister, the `bearound` silent-push handler,
+   handleEventsForBackgroundURLSession, and willPresent. Use THIS app's own
+   registered module name in startReactNative (do NOT leave the placeholder).
+   If the app still ships the Objective-C AppDelegate.mm, port the same calls there.
+
+3. iOS Info.plist: add the five UIBackgroundModes, the two
+   BGTaskSchedulerPermittedIdentifiers (io.bearound.sdk.sync,
+   io.bearound.sdk.processing), and the four NS…UsageDescription strings — write
+   a user-facing rationale that matches what THIS app actually does (no internal
+   jargon). Then run `plutil -lint` and confirm it prints OK.
+
+4. JS (§4 / Quick Start): call configure({ businessToken: <ASK ME FOR IT> }) on
+   root-component mount (useEffect), then startScanning(); on Android also call
+   enableForegroundScanning() after startScanning().
+
+5. Verify (§6): run the plutil checks and give me the 3-state field-test checklist
+   (foreground / background / terminated).
+
+Guardrails — follow strictly:
+- NEVER rely on the push swizzle alone; forward the RAW APNs token explicitly.
+- The SDK must NEVER crash the host app.
+- Ask me for my businessToken; do not invent one.
+- STOP and hand me click-by-click steps for anything only a human can do (below).
+  Do not attempt those yourself.
+```
+
+**The agent will pause for these human-only steps** — they need your Apple/Google accounts and a physical device, so no SDK or agent can do them:
+
+- **Xcode → Push Notifications capability** on your app target, signed with **your** push-enabled App ID / provisioning profile. Set `aps-environment` to `development` for Debug and `production` for Release — see [§3](#3-push-notifications-capability-silent-push-wake-vector).
+- **On device:** grant **Always** location and turn on **Background App Refresh**.
+- **Google Play:** the `connectedDevice` foreground-service declaration + demonstration video required at review — see [Scan modes](#scan-modes-android).
+
+Prefer to wire it by hand? Everything the prompt references is spelled out in the sections below.
 
 ---
 
