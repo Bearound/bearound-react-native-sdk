@@ -119,14 +119,19 @@ In `Info.plist`:
 </array>
 
 <key>NSBluetoothAlwaysUsageDescription</key>
-<string>We use Bluetooth to detect nearby beacons.</string>
+<string>This app uses Bluetooth to detect nearby locations and provide relevant features.</string>
+
+<key>NSBluetoothPeripheralUsageDescription</key>
+<string>This app uses Bluetooth to detect nearby locations and provide relevant features.</string>
 
 <key>NSLocationWhenInUseUsageDescription</key>
-<string>We need your location to identify nearby beacons.</string>
+<string>This app uses your location to detect nearby locations and provide relevant features.</string>
 
 <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-<string>We need your location even in background to identify beacons.</string>
+<string>Allow "Always" so this app can detect nearby locations in the background.</string>
 ```
+
+_These four `NS…UsageDescription` strings appear in **your** users' iOS permission dialogs — keep them generic and benefit-oriented (avoid internal jargon like "beacon") and tailor them to what your app actually does; Apple reviews the rationale, so it must match your real use._
 
 > **Important for terminated app detection:**
 > - Waking the app on beacon detection is done by **CoreLocation region monitoring** (the `location` background mode + "Always" permission) — `fetch` does **not** wake the app for beacons; it only grants periodic background windows the SDK uses to sync queued data
@@ -213,18 +218,33 @@ The SDK doesn't bundle WorkManager. For a predictable low-frequency sweep withou
 
 This section is the **consumer contract** for background and terminated-state operation. Without this wiring the SDK still works in foreground, but it **silently degrades** in background: terminated-state uploads never finalize, BGTasks never run, and the app is never woken once iOS kills it.
 
-The snippets below mirror the example app (`example/ios/BearoundReactSdkExample/AppDelegate.swift` and `Info.plist`) — copy them as-is.
+The snippets below are the example app **verbatim**: §1 is the **complete** `AppDelegate` and §2 + the usage-description strings in [Permission Configuration → iOS](#ios--infoplist-and-background-modes) together form the **complete** `Info.plist`. Copy them as-is (changing only the module name, marked in §1).
+
+> **Template note:** §1 is the **Swift** `AppDelegate` (the React Native ≥ 0.77 default — `RCTReactNativeFactory` / `ReactNativeDelegate`). If your app still ships the older Objective-C `AppDelegate.mm` (common on RN 0.73–0.76), wire the **same** calls there instead, or migrate the target to the Swift template first (add a bridging header if needed).
 
 ### 1. AppDelegate wiring
 
-In `didFinishLaunchingWithOptions`, touch `BeAroundSDK.shared` **synchronously** and register the background tasks. Accessing `BeAroundSDK.shared` runs its init while the BLE state-restoration window is still open and sets up relaunch auto-resume — deferring it to the async JS `configure()` path is too late and races the relaunch event.
+This is the **complete** `AppDelegate` from the proven-working example (`example/ios/BearoundReactSdkExample/AppDelegate.swift`) — **copy it as-is** (changing only the module name, marked below). Every method here is load-bearing for background/terminated detection; nothing is optional or Firebase-specific. Two rules make it work:
+
+- **Touch `BeAroundSDK.shared` synchronously** in `didFinishLaunchingWithOptions`, before the React Native bootstrap and before you `return`. Accessing it runs the SDK init, which auto-restores the saved config and **re-arms region monitoring** while the BLE state-restoration window is still open; the region-enter callback then fires asynchronously. The SDK delegate is a runtime object (not persisted), so it must be re-set **now** — deferring it to the async JS `configure()` path is too late and races the relaunch region event.
+- **The class conforms to `UNUserNotificationCenterDelegate`** and imports `UserNotifications`, so foreground banners, APNs registration, and the silent-push handler are wired **unconditionally** — not hidden behind a Firebase check. These push methods cover the **user-force-quit** resurrection vector — the one case CoreLocation region monitoring cannot wake: `registerForRemoteNotifications()` obtains the APNs token, `didRegisterForRemoteNotificationsWithDeviceToken` forwards it, and `didReceiveRemoteNotification` handles the cold-launch silent push that arrives *before* the JS swizzle installs. (Background/terminated wake on beacon **entry** is driven separately by CoreLocation region monitoring — see §2.)
 
 ```swift
+import UIKit
+import React
+import React_RCTAppDelegate
+import ReactAppDependencyProvider
 import BearoundSDK
 import BearoundReactSdk
+import UserNotifications
 
 @main
-class AppDelegate: UIResponder, UIApplicationDelegate {
+class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+  var window: UIWindow?
+
+  var reactNativeDelegate: ReactNativeDelegate?
+  var reactNativeFactory: RCTReactNativeFactory?
+
   func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
@@ -243,7 +263,54 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     // Register background tasks BEFORE app finishes launching
     BeAroundSDK.shared.registerBackgroundTasks()
 
-    // ... your React Native bootstrap (factory.startReactNative...) ...
+    // Become the notification delegate so banners show while the app is in the
+    // foreground (iOS suppresses them by default without willPresent → .banner).
+    UNUserNotificationCenter.current().delegate = self
+
+    // Request notification permissions for background alerts
+    UNUserNotificationCenter.current().requestAuthorization(
+      options: [.alert, .sound, .badge]
+    ) { granted, error in
+      if granted {
+        NSLog("[Bearound] Notification permission granted")
+      } else if let error = error {
+        NSLog("[Bearound] Notification permission error: %@", error.localizedDescription)
+      }
+    }
+
+    // Register for remote (silent) push — the ONLY vector that wakes a
+    // user-force-quit app on iOS. This triggers APNs registration; the raw
+    // token arrives in didRegisterForRemoteNotificationsWithDeviceToken below.
+    // Requires the app target to have the Push Notifications capability
+    // (the signed `aps-environment` entitlement) — no SDK can add it for you.
+    application.registerForRemoteNotifications()
+
+    // If iOS relaunched us due to a region/bluetooth event, surface it immediately
+    // (the SDK auto-restores scanning from storage; we don't reconfigure here so
+    // the user's saved scan precision is preserved).
+    if launchOptions?[.location] != nil {
+      NSLog("[Bearound] App launched due to LOCATION event (beacon region entry)")
+      postRelaunchNotification()
+    }
+    if launchOptions?[.bluetoothCentrals] != nil {
+      NSLog("[Bearound] App launched due to BLUETOOTH event (state restoration)")
+      postRelaunchNotification()
+    }
+
+    let delegate = ReactNativeDelegate()
+    let factory = RCTReactNativeFactory(delegate: delegate)
+    delegate.dependencyProvider = RCTAppDependencyProvider()
+
+    reactNativeDelegate = delegate
+    reactNativeFactory = factory
+
+    window = UIWindow(frame: UIScreen.main.bounds)
+
+    factory.startReactNative(
+      withModuleName: "YourAppName", // 👈 replace with YOUR registered module name (AppRegistry.registerComponent / app.json "name")
+      in: window,
+      launchOptions: launchOptions
+    )
 
     return true
   }
@@ -253,7 +320,52 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     _ application: UIApplication,
     performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
   ) {
+    NSLog("[Bearound] Background fetch triggered")
     BeAroundSDK.shared.performBackgroundFetch { success in
+      completionHandler(success ? .newData : .noData)
+    }
+  }
+
+  // Raw APNs token → SDK. The backend pushes via APNs (not FCM), so we forward
+  // the RAW device token. The SDK also auto-captures it via swizzle, but
+  // forwarding explicitly is the robust path (the swizzle is intercepted when
+  // Firebase is present). Idempotent — setting the same token twice is a no-op.
+  func application(
+    _ application: UIApplication,
+    didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+  ) {
+    let token = deviceToken.map { String(format: "%02x", $0) }.joined()
+    NSLog("[Bearound] APNs token registered (%d bytes)", deviceToken.count)
+    BeAroundSDK.shared.setPushToken(token)
+  }
+
+  func application(
+    _ application: UIApplication,
+    didFailToRegisterForRemoteNotificationsWithError error: Error
+  ) {
+    // Common cause: the Push Notifications capability / aps-environment
+    // entitlement is missing from the app target (nothing the SDK can fix).
+    NSLog("[Bearound] APNs registration failed: %@", error.localizedDescription)
+  }
+
+  // Silent push (cold-launch race): the SDK's push swizzle only installs once
+  // configure() runs — in RN that's after JS boots. iOS delivers the
+  // launch-triggering push before that, so handle it here. After configure(),
+  // the SDK's swizzle consumes bearound pushes itself (no double-handling).
+  func application(
+    _ application: UIApplication,
+    didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+    fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+  ) {
+    guard userInfo["bearound"] != nil else {
+      completionHandler(.noData)
+      return
+    }
+    NSLog("[Bearound] Silent push received (bearound) — triggering BLE refresh + sync")
+    BeAroundSDK.shared.performBackgroundBLERefreshAndSync(
+      bleScanDuration: 10,
+      trigger: "silent_push"
+    ) { success in
       completionHandler(success ? .newData : .noData)
     }
   }
@@ -268,13 +380,53 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     handleEventsForBackgroundURLSession identifier: String,
     completionHandler: @escaping () -> Void
   ) {
+    NSLog("[Bearound] handleEventsForBackgroundURLSession: %@", identifier)
     BeAroundSDK.shared.handleBackgroundURLSessionEvents(
       identifier: identifier,
       completionHandler: completionHandler
     )
   }
+
+  // Present banners + sound while the app is in the FOREGROUND. Without this,
+  // iOS silently drops notifications added while the app is active.
+  func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification,
+    withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+  ) {
+    completionHandler([.banner, .list, .sound, .badge])
+  }
+
+  private func postRelaunchNotification() {
+    let content = UNMutableNotificationContent()
+    content.title = "App reactivated"
+    content.body = "Bearound detected a beacon region in the background"
+    content.sound = .default
+    let request = UNNotificationRequest(
+      identifier: "bearound-relaunch-\(UUID().uuidString)",
+      content: content,
+      trigger: nil
+    )
+    UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
+  }
+}
+
+class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
+  override func sourceURL(for bridge: RCTBridge) -> URL? {
+    self.bundleURL()
+  }
+
+  override func bundleURL() -> URL? {
+#if DEBUG
+    RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: "index")
+#else
+    Bundle.main.url(forResource: "main", withExtension: "jsbundle")
+#endif
+  }
 }
 ```
+
+> The three APNs methods above (`registerForRemoteNotifications`, `didRegisterForRemoteNotificationsWithDeviceToken`, `didReceiveRemoteNotification`) do nothing without the **Push Notifications capability** (§3): if the signed `aps-environment` entitlement is missing, `didFailToRegisterForRemoteNotificationsWithError` fires and no token ever arrives.
 
 ### 2. Info.plist — background modes and BGTask identifiers
 
@@ -299,11 +451,17 @@ Declare the **full** `UIBackgroundModes` list and the two BGTask identifiers the
 
 Without the `BGTaskSchedulerPermittedIdentifiers` entries, `registerBackgroundTasks()` cannot register the SDK's BGTasks and iOS will never grant them execution time.
 
+> These background-mode keys are only **half** of the Info.plist. Also add the four Bluetooth/Location **usage-description** strings — `NSBluetoothAlwaysUsageDescription`, `NSBluetoothPeripheralUsageDescription`, `NSLocationWhenInUseUsageDescription`, `NSLocationAlwaysAndWhenInUseUsageDescription` — from [Permission Configuration → iOS](#ios--infoplist-and-background-modes). Copy **only those `NS…UsageDescription` strings** from that section (its `UIBackgroundModes` block is the same one shown here — don't declare it twice). Without the usage strings, iOS silently denies Bluetooth/Location at runtime even with the background modes set.
+
 ### 3. Push Notifications capability (silent-push wake vector)
 
 Enable the **Push Notifications** capability on your app target in Xcode (Signing & Capabilities → + Capability → Push Notifications). This adds the `aps-environment` entitlement.
 
+> **`development` vs `production` — the value matters.** `aps-environment` selects the APNs environment: `development` = **sandbox** (debug builds installed from Xcode / `devicectl`), `production` = **production** APNs. **TestFlight and App Store builds use the production environment**, so a distribution build needs `aps-environment` = `production` — a build shipped with `development` registers its token on the wrong server and the silent-push wake **silently fails in production only**. The robust setup drives the value **per build configuration** (`development` in Debug, `production` in Release) via a build-setting variable (`aps-environment = $(APS_ENVIRONMENT)`) or a separate Release entitlements file. The bundled example uses `development` because it is only ever run as a development build.
+
 Without it, the SDK's automatic APNs token capture silently gets **no token**, and the **silent-push wake vector — the only mechanism that resurrects a fully terminated app — never works**. Everything else still compiles and runs, which is exactly why this is easy to miss.
+
+The capability **by itself yields no token** — something must trigger APNs registration. That trigger is the `application.registerForRemoteNotifications()` call wired in §1; without it, enabling the capability produces no APNs token and the silent-push wake vector stays dead.
 
 ### 4. Call `configure()` on app mount
 
@@ -317,57 +475,54 @@ useEffect(() => {
 
 ### 5. Using Firebase Messaging / disabled swizzling?
 
-If another library owns the push delegates (e.g. Firebase Messaging with method swizzling), or you opted out via `BearoundAppDelegateProxyEnabled = NO` in Info.plist, the SDK's automatic capture won't fire — forward the token yourself.
+§1 already forwards the APNs token and handles the silent push directly on your `AppDelegate` — that explicit wiring is the **robust default, not an escape hatch**. The SDK *also* auto-captures the APNs token and consumes `bearound` silent pushes via `AppDelegate` swizzling as a fallback, but the swizzle is **intercepted whenever Firebase (or any other push library) swizzles first**. Relying on the swizzle alone is exactly how an app ends up with a **NULL push token in the backend** and no terminated-state wake (a real production failure we have seen). So keep the §1 wiring regardless of whether you use Firebase.
 
-**From JavaScript** (cross-platform): pass the token you already obtain — FCM on Android, raw APNs on iOS — to `setPushToken`:
+Two cases:
+
+- **You own the `AppDelegate` (the §1 setup):** you're done. The raw APNs token is forwarded via `BeAroundSDK.shared.setPushToken(...)` in `didRegisterForRemoteNotificationsWithDeviceToken`, and the cold-launch silent push is handled in `didReceiveRemoteNotification`. Nothing else to do.
+- **Firebase (or another library) owns the push delegates — or you opted out with `BearoundAppDelegateProxyEnabled = NO` in `Info.plist`:** the SDK's swizzle won't fire and your native `didRegister…` may never run. Forward the token from JS instead. On iOS, forward the **raw APNs token** (`messaging().getAPNSToken()`) — **not** the FCM token:
 
 ```ts
 import { setPushToken } from '@bearound/react-native-sdk';
 
-// e.g. from your Firebase Messaging token-refresh handler
+// e.g. from your Firebase Messaging token-refresh handler.
+// On iOS forward the RAW APNs token, not the FCM token.
 await setPushToken(token);
 ```
 
-**Or natively from your AppDelegate** (iOS) — forward the APNs token and Bearound silent pushes to the SDK:
+`setPushToken` is idempotent, so forwarding the same token from both the native delegate and JS is safe.
 
-```swift
-func application(
-  _ application: UIApplication,
-  didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
-) {
-  let token = deviceToken.map { String(format: "%02x", $0) }.joined()
-  BeAroundSDK.shared.setPushToken(token)
-}
+### 6. Verify it works
 
-func application(
-  _ application: UIApplication,
-  didReceiveRemoteNotification userInfo: [AnyHashable: Any],
-  fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
-) {
-  // Bearound silent pushes carry a "bearound" key in the payload.
-  guard userInfo["bearound"] != nil else {
-    completionHandler(.noData)
-    return
-  }
-  BeAroundSDK.shared.performBackgroundBLERefreshAndSync(
-    bleScanDuration: 10,
-    trigger: "silent_push"
-  ) { success in
-    completionHandler(success ? .newData : .noData)
-  }
-}
-```
+Foreground detection working is **not** proof that background/terminated detection is wired — every gap above fails **silently** while the app is open. Run these checks before you ship.
 
-This is a **native-level escape hatch** — by design it is not part of the JS API.
+**Static config**
+
+* `plutil -lint ios/YourApp/Info.plist` prints `OK`.
+* `plutil -p ios/YourApp/Info.plist` shows **all five** background modes (`fetch`, `location`, `processing`, `bluetooth-central`, `remote-notification`) **and** both `BGTaskSchedulerPermittedIdentifiers` (`io.bearound.sdk.sync`, `io.bearound.sdk.processing`).
+* Your app target's `.entitlements` contains `aps-environment`, and `CODE_SIGN_ENTITLEMENTS` points to it in **both** the Debug **and** Release build configurations — a Debug-only wiring builds fine but ships a Release/TestFlight build with no push entitlement.
+
+**Runtime**
+
+* `getAuthorizationStatus()` resolves `'always'` (not `'whenInUse'`) — Always location is what delivers region events in background/terminated state.
+* Background App Refresh is **on** (Settings → General → Background App Refresh, plus the per-app toggle).
+* On launch, the Xcode console prints `APNs token registered (… bytes)` — proof that `registerForRemoteNotifications()` → `setPushToken` fired. If you instead see `APNs registration failed`, the Push Notifications capability / `aps-environment` entitlement is missing (§3).
+
+**End-to-end (the real test)**
+
+* **Foreground:** walk near a real Bearound beacon — beacons appear in the list and a banner shows (proves `willPresent`).
+* **Background:** background the app, walk into range — the "App reactivated" local notification fires.
+* **Terminated:** force-quit the app (swipe up in the app switcher), then either walk into a beacon region **or** have the backend send the `bearound` silent push. Expect the "App reactivated" notification and, on next foreground, `getPersistedLog()` entries written while the app wasn't running, with `getPendingBatchCount()` draining to `0` (proves the background URLSession upload finalized via `handleEventsForBackgroundURLSession`).
 
 ---
 
 ## Quick Start
 
-Two rules the snippet below follows — both come from how the SDK actually works:
+Three rules the snippet below follows — all come from how the SDK actually works:
 
 1. **`configure()` runs on mount** (in a `useEffect`), **not** behind a button. The SDK's push swizzle (automatic APNs token capture + silent-push handling) only installs once `configure()` runs in the process — see [§4 of iOS Background Integration](#4-call-configure-on-app-mount).
 2. **The Android permission gate depends on the OS version.** On Android 12+ the **only** permission that unlocks scanning is `BLUETOOTH_SCAN` ("Nearby devices") — location does **not** unlock BLE scan there (the SDK declares `neverForLocation`). On Android ≤ 11 it's the opposite: location is what unlocks scanning. Do **not** gate on `btConnect`/`backgroundLocation` — the SDK doesn't need them to scan, and on 12+ they can never all be granted (the location permissions are declared with `maxSdkVersion="30"`).
+3. **Android background needs the foreground service.** For reliable background detection, call `enableForegroundScanning()` after `startScanning()` — it's what the proven-working example does. The opportunistic default is throttled by the OS and killed outright by aggressive OEMs (Xiaomi/Huawei/Samsung). It shows a persistent notification and needs a Play Console declaration + demo video — see [Scan modes](#scan-modes-android).
 
 ```tsx
 import React, { useEffect } from 'react';
@@ -411,8 +566,12 @@ export default function App() {
     }
 
     await BeAround.startScanning();
-    // Android 13+: if you also call enableForegroundScanning(), check
-    // status.notifications so the persistent notification is visible.
+    if (Platform.OS === 'android') {
+      // Reliable background detection on Android — the opportunistic default is
+      // throttled by the OS and killed by aggressive OEMs. Android 13+: also
+      // check status.notifications so the persistent notification is visible.
+      await BeAround.enableForegroundScanning().catch(() => null);
+    }
     Alert.alert('Bearound', 'SDK started successfully');
   };
 
@@ -548,11 +707,13 @@ clearUserProperties(): Promise<void>;
 // after the native heartbeat window).
 // - Android: pass the FCM token. The native SDK also auto-collects it when
 //   Firebase is present; this call is the explicit fallback.
-// - iOS: the SDK auto-captures the APNs token via AppDelegate swizzling. Call
-//   this only when swizzling doesn't fire (e.g. Firebase Messaging swizzles
-//   first, or BearoundAppDelegateProxyEnabled = NO) — and pass the RAW APNs
-//   device token (hex), which is what the backend expects, not the FCM token.
-//   See "Using Firebase Messaging / disabled swizzling?" above.
+// - iOS: forward the RAW APNs device token (hex), NOT the FCM token. The
+//   example AppDelegate (§1) already forwards it from
+//   didRegisterForRemoteNotificationsWithDeviceToken — that native wiring is the
+//   robust default. Use THIS JS call when Firebase (or another library) owns the
+//   push delegates so your native didRegister never runs, or when
+//   BearoundAppDelegateProxyEnabled = NO. See "Using Firebase Messaging /
+//   disabled swizzling?" above.
 setPushToken(token: string): Promise<void>;
 
 // Error telemetry opt-out (default: enabled). See "SDK error telemetry" below.
@@ -769,7 +930,7 @@ bluetoothStateSub.remove();
 * **Platform-specific permissions**: Use permission helpers on Android/iOS before starting scans.
 * Request permissions with user context (use `ensurePermissions`).
 * **Android**: The foreground service uses your app's icon; ensure an appropriate icon.
-* **iOS**: Always test on physical device; enable Background Modes in target.
+* **iOS**: Always test on a physical device; enable **all five** Background Modes (`fetch`, `location`, `processing`, `bluetooth-central`, `remote-notification`) **and** the **Push Notifications** capability on the target — see [iOS Background Integration](#ios-background-integration-required).
 * Avoid repeatedly starting/stopping in sequence; prefer a clear lifecycle.
 * **Simplified architecture**: Beacon detection and processing happens natively.
 
@@ -811,6 +972,7 @@ bluetoothStateSub.remove();
 * The **silent-push wake vector** — the only mechanism that resurrects a fully terminated app — needs the Push Notifications capability and a delivered APNs token; see [iOS Background Integration](#ios-background-integration-required). If you use Firebase Messaging, forward the raw APNs token yourself via `setPushToken` (the swizzle won't fire).
 * Force-quit (swipe up in the app switcher) suspends the Bluetooth eye until the app is relaunched — by region entry (CoreLocation) or silent push.
 * Complete the AppDelegate + Info.plist wiring (background modes, BGTask identifiers) — see [iOS Background Integration](#ios-background-integration-required).
+* **Foreground detects but background is completely dead?** Verify your app target's `Info.plist` actually contains all five `UIBackgroundModes` as a proper `<array>`. A truncated or malformed `Info.plist` (missing keys, or a partial file) still **builds and runs in the foreground**, but iOS silently drops the background modes — so scanning works while the app is open and stops the instant it's backgrounded. Confirm with `plutil -p ios/YourApp/Info.plist` (you must see `bluetooth-central`, `location`, `fetch`, `processing`, `remote-notification`) and `plutil -lint` (must print `OK`).
 
 **iOS: compilation error involving headers/Codegen**
 
