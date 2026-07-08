@@ -54,13 +54,13 @@
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
   <key>NSBluetoothAlwaysUsageDescription</key>
-  <string>Usamos Bluetooth para detectar beacons nas proximidades.</string>
+  <string>Usamos Bluetooth para detectar lugares próximos e oferecer recursos relevantes.</string>
   <key>NSBluetoothPeripheralUsageDescription</key>
-  <string>Usamos Bluetooth para detectar beacons nas proximidades.</string>
+  <string>Usamos Bluetooth para detectar lugares próximos e oferecer recursos relevantes.</string>
   <key>NSLocationWhenInUseUsageDescription</key>
-  <string>Precisamos de localização para estimar proximidade aos beacons.</string>
+  <string>Usamos sua localização para detectar lugares próximos e oferecer recursos relevantes.</string>
   <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-  <string>Permita "Sempre" para detectar beacons em segundo plano.</string>
+  <string>Permita "Sempre" para detectar lugares próximos em segundo plano.</string>
   <key>UIBackgroundModes</key>
   <array>
     <string>fetch</string>

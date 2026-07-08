@@ -119,17 +119,19 @@ In `Info.plist`:
 </array>
 
 <key>NSBluetoothAlwaysUsageDescription</key>
-<string>We use Bluetooth to detect nearby beacons.</string>
+<string>This app uses Bluetooth to detect nearby locations and provide relevant features.</string>
 
 <key>NSBluetoothPeripheralUsageDescription</key>
-<string>We use Bluetooth to detect nearby beacons.</string>
+<string>This app uses Bluetooth to detect nearby locations and provide relevant features.</string>
 
 <key>NSLocationWhenInUseUsageDescription</key>
-<string>We need your location to identify nearby beacons.</string>
+<string>This app uses your location to detect nearby locations and provide relevant features.</string>
 
 <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-<string>We need your location even in background to identify beacons.</string>
+<string>Allow "Always" so this app can detect nearby locations in the background.</string>
 ```
+
+_These four `NS…UsageDescription` strings appear in **your** users' iOS permission dialogs — keep them generic and benefit-oriented (avoid internal jargon like "beacon") and tailor them to what your app actually does; Apple reviews the rationale, so it must match your real use._
 
 > **Important for terminated app detection:**
 > - Waking the app on beacon detection is done by **CoreLocation region monitoring** (the `location` background mode + "Always" permission) — `fetch` does **not** wake the app for beacons; it only grants periodic background windows the SDK uses to sync queued data
