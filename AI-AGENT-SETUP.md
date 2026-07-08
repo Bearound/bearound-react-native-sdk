@@ -1,12 +1,9 @@
 # Bearound React Native — AI agent setup prompt
 
-Copy everything in the code block below and paste it into your AI coding agent
-(Claude Code, Cursor, Copilot, …) with this app's repo open. The agent reads the
-[SDK README](./README.md) and wires the full iOS/Android background integration.
-
-On GitHub, hover the block and click the **copy icon** in its top-right corner to
-copy it in one click. Or point a web-capable agent straight at this file's raw URL:
-`https://raw.githubusercontent.com/Bearound/bearound-react-native-sdk/main/AI-AGENT-SETUP.md`
+Hover the block below and click the **copy icon** in its top-right corner to copy
+the prompt, then paste it into your AI coding agent (Claude Code, Cursor, Copilot, …)
+with your app's repo open. The agent reads the [SDK README](./README.md) and wires
+the full iOS/Android background integration.
 
 ```text
 Integrate @bearound/react-native-sdk into this React Native app. First READ the
@@ -49,3 +46,6 @@ Guardrails — follow strictly:
   permission grants (Always location + Background App Refresh), and the Google
   Play foreground-service declaration. Do not attempt those yourself.
 ```
+
+Web-capable agents can fetch this prompt directly from its raw URL:
+`https://raw.githubusercontent.com/Bearound/bearound-react-native-sdk/main/AI-AGENT-SETUP.md`

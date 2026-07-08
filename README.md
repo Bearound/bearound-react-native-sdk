@@ -76,51 +76,11 @@ No additional Gradle configuration is needed beyond permissions. The native Andr
 
 ## Set up with an AI agent
 
-The iOS/Android background wiring is intricate — but this README is written to be **agent-readable**: every step is explicit, copy-pasteable, and tied to the proven-working example. So instead of doing it by hand, you can hand the whole thing to an **AI coding agent** (Claude Code, Cursor, Copilot, …) and have it do the integration for you.
+Instead of wiring the intricate iOS/Android background setup by hand, hand it to an **AI coding agent** (Claude Code, Cursor, Copilot, …). This README is written to be **agent-readable** — the agent reads it and does the whole integration. There's one ready-made prompt to give it:
 
-**Point your agent at this README** — the local copy at `node_modules/@bearound/react-native-sdk/README.md` or the [GitHub page](https://github.com/Bearound/bearound-react-native-sdk) — and paste this prompt:
+[![Agent setup prompt](https://img.shields.io/badge/Agent_setup_prompt-open_%26_copy-2563eb?style=for-the-badge)](./AI-AGENT-SETUP.md)
 
-```text
-Integrate @bearound/react-native-sdk into this React Native app. First READ the
-SDK's README end to end — especially "iOS Background Integration (required)",
-"Permission Configuration", and "Quick Start" — then do ALL of the following,
-matching the README's proven-working example EXACTLY:
-
-1. Install: `npm i @bearound/react-native-sdk`, then `cd ios && pod install`.
-
-2. iOS AppDelegate (§1): wire the COMPLETE AppDelegate from README §1 into this
-   app's AppDelegate — EVERY method, none optional: the SDK delegate,
-   registerBackgroundTasks, the UNUserNotificationCenter delegate +
-   requestAuthorization, application.registerForRemoteNotifications(),
-   launchOptions handling, performFetch,
-   didRegisterForRemoteNotificationsWithDeviceToken -> setPushToken,
-   didFailToRegister, the `bearound` silent-push handler,
-   handleEventsForBackgroundURLSession, and willPresent. Use THIS app's own
-   registered module name in startReactNative (do NOT leave the placeholder).
-   If the app still ships the Objective-C AppDelegate.mm, port the same calls there.
-
-3. iOS Info.plist: add the five UIBackgroundModes, the two
-   BGTaskSchedulerPermittedIdentifiers (io.bearound.sdk.sync,
-   io.bearound.sdk.processing), and the four NS…UsageDescription strings — write
-   a user-facing rationale that matches what THIS app actually does (no internal
-   jargon). Then run `plutil -lint` and confirm it prints OK.
-
-4. JS (§4 / Quick Start): call configure({ businessToken: <ASK ME FOR IT> }) on
-   root-component mount (useEffect), then startScanning(); on Android also call
-   enableForegroundScanning() after startScanning().
-
-5. Verify (§6): run the plutil checks and give me the 3-state field-test checklist
-   (foreground / background / terminated).
-
-Guardrails — follow strictly:
-- NEVER rely on the push swizzle alone; forward the RAW APNs token explicitly.
-- The SDK must NEVER crash the host app.
-- Ask me for my businessToken; do not invent one.
-- STOP and hand me click-by-click steps for anything only a human can do (below).
-  Do not attempt those yourself.
-```
-
-> **Grab it in one click.** On GitHub, hover the block above and click the **copy icon** in its top-right corner. Prefer a link? Open [`AI-AGENT-SETUP.md`](./AI-AGENT-SETUP.md) — the same prompt on its own page — or point a web-capable agent straight at its [raw URL](https://raw.githubusercontent.com/Bearound/bearound-react-native-sdk/main/AI-AGENT-SETUP.md).
+Open [`AI-AGENT-SETUP.md`](./AI-AGENT-SETUP.md) and click the **copy icon** on its code block — GitHub shows one on every code block, and it drops the prompt on your clipboard. Then paste it into your agent with your app's repo open. Web-capable agents can fetch its [raw URL](https://raw.githubusercontent.com/Bearound/bearound-react-native-sdk/main/AI-AGENT-SETUP.md) directly.
 
 **The agent will pause for these human-only steps** — they need your Apple/Google accounts and a physical device, so no SDK or agent can do them:
 
