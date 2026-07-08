@@ -120,6 +120,8 @@ Guardrails — follow strictly:
   Do not attempt those yourself.
 ```
 
+> **Grab it in one click.** On GitHub, hover the block above and click the **copy icon** in its top-right corner. Prefer a link? Open [`AI-AGENT-SETUP.md`](./AI-AGENT-SETUP.md) — the same prompt on its own page — or point a web-capable agent straight at its [raw URL](https://raw.githubusercontent.com/Bearound/bearound-react-native-sdk/main/AI-AGENT-SETUP.md).
+
 **The agent will pause for these human-only steps** — they need your Apple/Google accounts and a physical device, so no SDK or agent can do them:
 
 - **Xcode → Push Notifications capability** on your app target, signed with **your** push-enabled App ID / provisioning profile. Set `aps-environment` to `development` for Debug and `production` for Release — see [§3](#3-push-notifications-capability-silent-push-wake-vector).
