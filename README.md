@@ -455,6 +455,8 @@ Without the `BGTaskSchedulerPermittedIdentifiers` entries, `registerBackgroundTa
 
 Enable the **Push Notifications** capability on your app target in Xcode (Signing & Capabilities → + Capability → Push Notifications). This adds the `aps-environment` entitlement.
 
+> **`development` vs `production` — the value matters.** `aps-environment` selects the APNs environment: `development` = **sandbox** (debug builds installed from Xcode / `devicectl`), `production` = **production** APNs. **TestFlight and App Store builds use the production environment**, so a distribution build needs `aps-environment` = `production` — a build shipped with `development` registers its token on the wrong server and the silent-push wake **silently fails in production only**. The robust setup drives the value **per build configuration** (`development` in Debug, `production` in Release) via a build-setting variable (`aps-environment = $(APS_ENVIRONMENT)`) or a separate Release entitlements file. The bundled example uses `development` because it is only ever run as a development build.
+
 Without it, the SDK's automatic APNs token capture silently gets **no token**, and the **silent-push wake vector — the only mechanism that resurrects a fully terminated app — never works**. Everything else still compiles and runs, which is exactly why this is easy to miss.
 
 The capability **by itself yields no token** — something must trigger APNs registration. That trigger is the `application.registerForRemoteNotifications()` call wired in §1; without it, enabling the capability produces no APNs token and the silent-push wake vector stays dead.
