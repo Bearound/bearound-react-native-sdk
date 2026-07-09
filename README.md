@@ -1,9 +1,14 @@
 # 🐻 Bearound React Native SDK
 
 Official SDK to integrate **Bearound's** secure BLE beacon detection into **React Native** apps (Android and iOS).
-Aligned with Bearound native SDKs **3.4.2** (exact pins live in `android/build.gradle` and `BearoundReactSdk.podspec`, kept in lockstep by `scripts/check-native-versions.mjs`).
+Aligned with Bearound native SDKs **3.4.5** (exact pins live in `android/build.gradle` and `BearoundReactSdk.podspec`, kept in lockstep by `scripts/check-native-versions.mjs`).
 
 > ✅ Compatible with **New Architecture** (TurboModules) and also compatible with classic architecture.
+
+> [!TIP]
+> **⚡ Set it up with an AI agent.** Don't wire the iOS/Android background integration by hand — hand [one prompt](./AI-AGENT-SETUP.md) to your AI coding agent (Claude Code, Cursor, Copilot) and let it pilot the whole install, pausing only for the few human-only steps. → [Set up with an AI agent](#set-up-with-an-ai-agent)
+
+[![Agent setup prompt](https://img.shields.io/badge/Agent_setup_prompt-open_%26_copy-2563eb?style=for-the-badge)](./AI-AGENT-SETUP.md)
 
 ---
 
@@ -11,6 +16,7 @@ Aligned with Bearound native SDKs **3.4.2** (exact pins live in `android/build.g
 
 * [Requirements](#requirements)
 * [Installation](#installation)
+* [Set up with an AI agent](#set-up-with-an-ai-agent)
 * [Permission Configuration](#permission-configuration)
   * [Android – Manifest](#android--manifest)
   * [iOS – Info.plist and Background Modes](#ios--infoplist-and-background-modes)
@@ -70,6 +76,24 @@ pod install
 ### Android
 
 No additional Gradle configuration is needed beyond permissions. The native Android SDK is resolved as a module dependency.
+
+---
+
+## Set up with an AI agent
+
+Instead of wiring the intricate iOS/Android background setup by hand, hand it to an **AI coding agent** (Claude Code, Cursor, Copilot, …). This README is written to be **agent-readable** — the agent reads it and does the whole integration. There's one ready-made prompt to give it:
+
+[![Agent setup prompt](https://img.shields.io/badge/Agent_setup_prompt-open_%26_copy-2563eb?style=for-the-badge)](./AI-AGENT-SETUP.md)
+
+Open [`AI-AGENT-SETUP.md`](./AI-AGENT-SETUP.md) and click the **copy icon** on its code block — GitHub shows one on every code block, and it drops the prompt on your clipboard. Then paste it into your agent with your app's repo open. Web-capable agents can fetch its [raw URL](https://raw.githubusercontent.com/Bearound/bearound-react-native-sdk/main/AI-AGENT-SETUP.md) directly.
+
+**The agent will pause for these human-only steps** — they need your Apple/Google accounts and a physical device, so no SDK or agent can do them:
+
+- **Xcode → Push Notifications capability** on your app target, signed with **your** push-enabled App ID / provisioning profile. Set `aps-environment` to `development` for Debug and `production` for Release — see [§3](#3-push-notifications-capability-silent-push-wake-vector).
+- **On device:** grant **Always** location and turn on **Background App Refresh**.
+- **Google Play:** the `connectedDevice` foreground-service declaration + demonstration video required at review — see [Scan modes](#scan-modes-android).
+
+Prefer to wire it by hand? Everything the prompt references is spelled out in the sections below.
 
 ---
 
@@ -220,7 +244,7 @@ This section is the **consumer contract** for background and terminated-state op
 
 The snippets below are the example app **verbatim**: §1 is the **complete** `AppDelegate` and §2 + the usage-description strings in [Permission Configuration → iOS](#ios--infoplist-and-background-modes) together form the **complete** `Info.plist`. Copy them as-is (changing only the module name, marked in §1).
 
-> **Template note:** §1 is the **Swift** `AppDelegate` (the React Native ≥ 0.77 default — `RCTReactNativeFactory` / `ReactNativeDelegate`). If your app still ships the older Objective-C `AppDelegate.mm` (common on RN 0.73–0.76), wire the **same** calls there instead, or migrate the target to the Swift template first (add a bridging header if needed).
+> **Template note:** §1 is the **Swift** `AppDelegate` (the React Native ≥ 0.77 default — `RCTReactNativeFactory` / `ReactNativeDelegate`). `BeAroundSDK` is a **pure-Swift** API (not `@objc`), so it **cannot be called from an Objective-C `AppDelegate.mm`**. If your app still ships `AppDelegate.mm` (common on RN 0.73–0.76), you must **migrate the target to a Swift `AppDelegate`** and wire the calls there — on RN 0.73–0.76 that's a Swift `AppDelegate` subclassing `RCTAppDelegate`; on ≥ 0.77 it's the `RCTReactNativeFactory` template above. A bridging header (Objective-C → Swift) does not help here.
 
 ### 1. AppDelegate wiring
 
