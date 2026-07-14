@@ -211,6 +211,19 @@ maxQueuedPayloads:(double)maxQueuedPayloads
   resolve(nil);
 }
 
+// Forwards an FCM data-message payload to the native SDK to trigger the
+// silent-push background wake-up (restart scan + sync). Resolves YES when the
+// SDK handled it. Android-only in practice; on iOS the AppDelegate handles the
+// silent push and RNBearoundBridge resolves NO for non-bearound payloads.
+- (void)handleRemoteMessage:(NSDictionary *)data
+                    resolve:(RCTPromiseResolveBlock)resolve
+                     reject:(RCTPromiseRejectBlock)reject
+{
+  NSDictionary *payload = data ?: @{};
+  BOOL handled = [[RNBearoundBridge shared] handleRemoteMessage:payload];
+  resolve(@(handled));
+}
+
 - (void)isIgnoringBatteryOptimizations:(RCTPromiseResolveBlock)resolve
                                 reject:(RCTPromiseRejectBlock)reject
 {

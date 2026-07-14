@@ -236,6 +236,25 @@ await enableForegroundScanning();
 
 The SDK doesn't bundle WorkManager. For a predictable low-frequency sweep without a foreground service, schedule your own periodic worker (minimum interval **15 min**) that calls `startScanning()` for a short window and then `stopScanning()`. Trades latency for battery and avoids the Play video — presence lags by up to the chosen period.
 
+### Silent-push wake-up (Android)
+
+A **silent FCM data message** can wake a killed or backgrounded app to restart the scan and sync immediately — the Android counterpart to the iOS silent-push wake vector. Forward the message to the SDK from your Firebase background handler:
+
+```ts
+// index.js — registered at module scope, before AppRegistry.registerComponent.
+import messaging from '@react-native-firebase/messaging';
+import { handleRemoteMessage } from '@bearound/react-native-sdk';
+
+// Runs in a headless JS task when a data message arrives with the app in
+// background or killed. Forward the payload; the SDK restarts the scan + syncs
+// when it recognizes a Bearound wake and resolves `true`.
+messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+  await handleRemoteMessage(remoteMessage.data);
+});
+```
+
+Requires `@react-native-firebase/messaging` and a **data** message (not notification-only, which the OS delivers to the tray without waking JS). **iOS needs none of this** — the silent push is handled by the AppDelegate wiring in [iOS Background Integration](#ios-background-integration-required); calling `handleRemoteMessage` there simply resolves `false` for any non-Bearound payload.
+
 ---
 
 ## iOS Background Integration (required)
@@ -739,6 +758,13 @@ clearUserProperties(): Promise<void>;
 //   BearoundAppDelegateProxyEnabled = NO. See "Using Firebase Messaging /
 //   disabled swizzling?" above.
 setPushToken(token: string): Promise<void>;
+
+// Silent-push wake-up (Android). Forward an FCM data-message payload
+// (remoteMessage.data) from your Firebase setBackgroundMessageHandler to restart
+// the scan + sync; resolves true when the SDK recognizes a Bearound wake. On iOS
+// the AppDelegate handles the silent push and this resolves false for
+// non-Bearound payloads. See "Silent-push wake-up (Android)" under Scan modes.
+handleRemoteMessage(data: { [key: string]: string }): Promise<boolean>;
 
 // Error telemetry opt-out (default: enabled). See "SDK error telemetry" below.
 setErrorReportingEnabled(enabled: boolean): void;

@@ -246,6 +246,21 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
     }
   }
 
+  // Silent-push wake-up. On iOS the AppDelegate already handles the `bearound`
+  // silent push directly, so this exists mainly for cross-platform parity with
+  // Android: it triggers the same background BLE refresh + sync when the payload
+  // is a Bearound wake, and ignores anything else.
+  public func handleRemoteMessage(_ data: [String: Any]) -> Bool {
+    guard data["bearound"] != nil else { return false }
+    DispatchQueue.main.async {
+      self.sdk.performBackgroundBLERefreshAndSync(
+        bleScanDuration: 10,
+        trigger: "silent_push"
+      ) { _ in }
+    }
+    return true
+  }
+
   public func checkPermissions() -> Bool {
     let status = currentAuthorizationStatus()
     return status == .authorizedAlways || status == .authorizedWhenInUse

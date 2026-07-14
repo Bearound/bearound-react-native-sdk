@@ -459,6 +459,23 @@ export async function setPushToken(token: string): Promise<void> {
   await Native.setPushToken(token);
 }
 
+/**
+ * Forwards an FCM **data message** payload to the native SDK to trigger the
+ * silent-push background wake-up (restart scan + sync). Resolves `true` when the
+ * SDK recognized and handled the message.
+ *
+ * **Android-only.** Call it from your `@react-native-firebase/messaging`
+ * `setBackgroundMessageHandler` with `remoteMessage.data` (it runs in a headless
+ * JS task). On iOS the silent push is handled by the AppDelegate wiring (see
+ * "iOS Background Integration" in the README) — there this resolves `false` for
+ * any non-Bearound payload.
+ */
+export async function handleRemoteMessage(data: {
+  [key: string]: string;
+}): Promise<boolean> {
+  return Native.handleRemoteMessage(data);
+}
+
 // --- Diagnostic / state accessors (parity with native public API) ---
 
 export type AuthorizationStatus =

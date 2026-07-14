@@ -71,7 +71,22 @@ is more specific, it wins.
    ensurePermissions — without it, iOS is foreground-only and Android 12+ detects
    NOTHING.
 
-5. Verify: run `plutil -lint` / `plutil -p` (all five modes + both BGTask ids), and in
+5. Silent-push wake-up on Android (OPTIONAL — do this ONLY if the backend wakes the
+   device by push; skip it otherwise). If the app uses `@react-native-firebase/messaging`,
+   register at module scope (before `AppRegistry.registerComponent`)
+   `messaging().setBackgroundMessageHandler(async (msg) => { await handleRemoteMessage(msg.data); })`
+   and import `handleRemoteMessage` from `@bearound/react-native-sdk` — it resolves `true`
+   for a Bearound wake (payload marked `bearound`) and `false` for third-party pushes, so
+   forward EVERY data message and pass the non-Bearound ones through to your own handling.
+   iOS needs none of this here — the step-2 AppDelegate already covers it via the same
+   silent-push path. If the app does NOT use @react-native-firebase but DOES bundle native
+   Firebase (google-services plugin configured), instead register
+   `io.bearound.sdk.push.BearoundMessagingService` in the app's AndroidManifest.xml — the
+   class ships inside the native Android SDK the wrapper embeds. With no Firebase in the
+   app at all there is nothing to wire: FCM does the delivering, so push wake-up is
+   inapplicable.
+
+6. Verify: run `plutil -lint` / `plutil -p` (all five modes + both BGTask ids), and in
    code confirm the JS actually wires ensurePermissions() /
    requestLocationAuthorization('always') and gates startScanning() on the grant. Then
    BUILD iOS and confirm it COMPILES —
