@@ -76,7 +76,7 @@ def kotlin_version = getExtOrDefault("kotlinVersion")
 dependencies {
   implementation "com.facebook.react:react-android"
   // Exact pin, kept in lockstep with the iOS podspec dep (same native release).
-  // 3.4.5 fixes the FGS connectedDevice crash-loop and adds the battery-opt/OEM
-  // autostart reliability helpers exposed by the RN bridge.
-  implementation 'com.github.Bearound:bearound-android-sdk:v3.4.5'
+  // 3.4.6 fixes BLE scan; carries forward the 3.4.5 FGS connectedDevice crash-loop
+  // fix and the battery-opt/OEM autostart reliability helpers exposed by the RN bridge.
+  implementation 'com.github.Bearound:bearound-android-sdk:v3.4.6'
 }

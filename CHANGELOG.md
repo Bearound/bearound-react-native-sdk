@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.4.6] - 2026-07-14
+
+### Fixed
+
+- chore(release): embruca nativo iOS 3.4.6 + Android v3.4.6 (fix de scan BLE)
+
 ## [3.4.5] - 2026-07-04
 
 ### Fixed
