@@ -19,6 +19,12 @@ export interface Spec extends TurboModule {
   // which associates it with the stable deviceId and sends it on the next sync.
   setPushToken(token: string): Promise<void>;
 
+  // Silent-push wake-up. Forwards an FCM data-message payload to the native SDK,
+  // which restarts the scan and syncs when it recognizes a Bearound wake. Returns
+  // true when handled. Android-only in practice; on iOS the AppDelegate handles
+  // the silent push and this resolves false for non-Bearound payloads.
+  handleRemoteMessage(data: Object): Promise<boolean>;
+
   checkPermissions(): Promise<boolean>;
   requestPermissions(): Promise<boolean>;
 

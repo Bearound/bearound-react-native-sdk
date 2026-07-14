@@ -218,6 +218,23 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     }
   }
 
+  // Silent-push wake-up: forward an FCM data-message payload to the native SDK,
+  // which restarts the scan + syncs when it recognizes a Bearound wake.
+  // Resolves the SDK's handled flag. Same `sdk` instance as setPushToken.
+  override fun handleRemoteMessage(data: ReadableMap, promise: Promise) {
+    try {
+      val map = HashMap<String, String>()
+      val iterator = data.keySetIterator()
+      while (iterator.hasNextKey()) {
+        val key = iterator.nextKey()
+        map[key] = data.getString(key) ?: ""
+      }
+      promise.resolve(sdk.handleRemoteMessage(map))
+    } catch (t: Throwable) {
+      promise.reject("HANDLE_REMOTE_MESSAGE_ERROR", t)
+    }
+  }
+
   override fun checkPermissions(promise: Promise) {
     promise.resolve(true)
   }
