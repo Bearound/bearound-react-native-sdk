@@ -79,5 +79,5 @@ dependencies {
   // v3.5.0 adds the silent-push wake-up (handleRemoteMessage + BearoundMessagingService)
   // and the never-crash-the-host hardening, on top of the 3.4.x line (FGS crash fixes,
   // battery-opt/OEM autostart reliability helpers exposed by the RN bridge).
-  implementation 'com.github.Bearound:bearound-android-sdk:v3.5.0'
+  implementation 'com.github.Bearound:bearound-android-sdk:v3.5.1'
 }
