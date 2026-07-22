@@ -45,12 +45,22 @@ if ([pkgMajor, iosMajor, androidMajor].some((m) => Number.isNaN(m))) {
   process.exit(1);
 }
 
-// 1) iOS and Android must point to the SAME native release (both pinned exact).
-if (iosVersion !== androidVersion) {
+const lineOf = (version) => {
+  const m = String(version).match(/(\d+)\.(\d+)/);
+  return m ? `${m[1]}.${m[2]}` : null;
+};
+
+// 1) iOS and Android must sit on the SAME native MINOR line (MAJOR.MINOR); the patch
+//    digit may differ. Platform-specific patches ship independently (e.g. Android-only
+//    scan-reliability fixes in 3.5.1/3.5.2), and the previous exact-pin rule forced an
+//    EMPTY alignment release of the other platform for every such patch — twice in two
+//    days. Same-line keeps the real guard (feature parity per MINOR) without the
+//    empty-release tax.
+if (lineOf(iosVersion) !== lineOf(androidVersion)) {
   console.error(
-    `\n❌ Native dep mismatch. iOS BearoundSDK (${iosVersion}) and Android ` +
-      `bearound-android-sdk (${androidVersion}) must pin the exact same native release.\n` +
-      `   Bump both in lockstep when a new native version ships.`
+    `\n❌ Native line mismatch. iOS BearoundSDK (${iosVersion}) and Android ` +
+      `bearound-android-sdk (${androidVersion}) must be on the same MAJOR.MINOR line.\n` +
+      `   Bump the lagging platform to the current line.`
   );
   process.exit(1);
 }
@@ -65,5 +75,5 @@ if (iosMajor !== pkgMajor) {
 }
 
 console.log(
-  `\n✅ Aligned: native ${iosVersion} on both platforms; RN major ${pkgMajor} mirrors native major ${iosMajor}.`
+  `\n✅ Aligned: native line ${lineOf(iosVersion)} (iOS ${iosVersion} / Android ${androidVersion}); RN major ${pkgMajor} mirrors native major ${iosMajor}.`
 );
