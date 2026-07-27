@@ -7,6 +7,27 @@ import BearoundSDK
 @objcMembers
 @objc(RNBearoundBridge)
 public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralManagerDelegate, BeAroundSDKDelegate {
+
+  // MARK: - Bench notifications (native-example parity; QA aid)
+  // Same texts/cooldowns as the native BeAroundScan example so side-by-side
+  // background tests read identically on both lock screens.
+  /// Off by default; the bundled example turns it on from its AppDelegate.
+  /// Production hosts never see these notifications.
+  public var debugNotificationsEnabled = false
+  private var debugNotifyLast: [String: Date] = [:]
+  private func debugNotify(id: String, title: String, body: String, cooldown: TimeInterval) {
+    guard debugNotificationsEnabled else { return }
+    if let last = debugNotifyLast[id], Date().timeIntervalSince(last) < cooldown { return }
+    debugNotifyLast[id] = Date()
+    let content = UNMutableNotificationContent()
+    content.title = title
+    content.body = body
+    content.sound = .default
+    UNUserNotificationCenter.current().add(
+      UNNotificationRequest(identifier: "bearound.debug.\(id).\(Int(Date().timeIntervalSince1970))",
+                            content: content, trigger: nil))
+  }
+
   @objc public static let shared = RNBearoundBridge()
   private lazy var sdk: BeAroundSDK = {
     if Thread.isMainThread {
@@ -403,6 +424,11 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
   }
   
   public func didCompleteSync(beaconCount: Int, success: Bool, error: Error?) {
+    debugNotify(id: "sync",
+                title: success ? "Sync Completo" : "Sync Falhou",
+                body: success ? "Enviado\(beaconCount == 1 ? "" : "s") \(beaconCount) beacon\(beaconCount == 1 ? "" : "s") para o servidor"
+                              : (error?.localizedDescription ?? "erro desconhecido"),
+                cooldown: 5)
     let payload: [String: Any] = [
       "type": "completed",
       "beaconCount": beaconCount,
@@ -419,6 +445,9 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
   // v3.0: native changed the signature from (beaconCount: Int) to (beacons: [Beacon]).
   // The JS event keeps the {beaconCount} shape for cross-platform parity with Android.
   public func didDetectBeaconInBackground(beacons: [Beacon]) {
+    debugNotify(id: "bg-detect", title: "Beacon Detectado (Background)",
+                body: "Encontrado \(beacons.count) beacon\(beacons.count == 1 ? "" : "s") próximo\(beacons.count == 1 ? "" : "s")",
+                cooldown: 5)
     let payload: [String: Any] = [
       "beaconCount": beacons.count
     ]
@@ -431,12 +460,16 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
   // v2.5 — Beacon region lifecycle (bridge only forwards the event; host app owns any notification).
 
   public func didEnterBeaconRegion() {
+    debugNotify(id: "zone-enter", title: "Entrou na zona",
+                body: "Bearound detectou uma região de beacons (Location)", cooldown: 10)
     DispatchQueue.main.async {
       BearoundReactSdkEventEmitter.emit("bearound:beaconRegion", body: ["type": "enter"])
     }
   }
 
   public func didExitBeaconRegion() {
+    debugNotify(id: "zone-exit", title: "Saiu da zona",
+                body: "Bearound: você saiu da região de beacons (Location)", cooldown: 10)
     DispatchQueue.main.async {
       BearoundReactSdkEventEmitter.emit("bearound:beaconRegion", body: ["type": "exit"])
     }
@@ -451,12 +484,16 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
   // v2.5 — Bluetooth "two eyes" zone (iOS-only; Android has no equivalent).
 
   public func didEnterBluetoothZone() {
+    debugNotify(id: "bt-zone-enter", title: "Entrou na zona",
+                body: "Bearound detectou uma região de beacons (Bluetooth)", cooldown: 10)
     DispatchQueue.main.async {
       BearoundReactSdkEventEmitter.emit("bearound:bluetoothZone", body: ["type": "enter"])
     }
   }
 
   public func didExitBluetoothZone() {
+    debugNotify(id: "bt-zone-exit", title: "Saiu da zona",
+                body: "Bearound: você saiu da região de beacons (Bluetooth)", cooldown: 10)
     DispatchQueue.main.async {
       BearoundReactSdkEventEmitter.emit("bearound:bluetoothZone", body: ["type": "exit"])
     }

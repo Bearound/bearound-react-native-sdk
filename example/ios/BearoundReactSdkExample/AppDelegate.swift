@@ -27,6 +27,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     // log + local notification never happen. Doing this via the async JS
     // configure() path is too late and races the relaunch region event.
     BeAroundSDK.shared.delegate = RNBearoundBridge.shared
+    RNBearoundBridge.shared.debugNotificationsEnabled = true
 
     // Register background tasks BEFORE app finishes launching
     BeAroundSDK.shared.registerBackgroundTasks()
