@@ -794,7 +794,7 @@ getBluetoothState(): Promise<BluetoothState>; // current Bluetooth adapter state
 // Location authorization (iOS-only; no-op on Android — use requestForegroundPermissions there)
 requestLocationAuthorization(level?: 'always' | 'whenInUse'): Promise<void>;
 
-// Persisted detection log (iOS-only; Android resolves [] / no-op)
+// Persisted detection log (both platforms; Android needs native SDK 3.6.2+)
 // Entries are written natively on every event — including while the app is
 // backgrounded or terminated — so JS can show what happened while it wasn't running.
 getPersistedLog(): Promise<PersistedLogEntry[]>;

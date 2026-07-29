@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Real persisted detection log on Android** — `getPersistedLog()` / `clearPersistedLog()` now forward to the native Android SDK v3.6.2 (`getDetectionLogJson()` / `clearDetectionLog()`) instead of resolving a hardcoded `[]`. The log is disk-persisted (SharedPreferences) and each entry is tagged with the app state at write time — `foreground`, `background`, `backgroundLocked` or `terminated` — so the example's Log screen finally shows what the SDK did while the app was closed, on both platforms with the same entry vocabulary (`Scan`, `Background`, `Região`, `Sync OK`, `Sync falhou`).
+- **Per-minute view in the example's Log screen** — "Detalhado / Por Minuto" toggle mirroring the native iOS `DetectionLogView`: one row per minute with total detections, per-state badges (FG/BG/LK/T) and the number of distinct beacons seen in that minute.
+
+### Changed
+
+- **Android native SDK pin bumped to v3.6.2** (persisted detection log API), staying in lockstep with iOS `BearoundSDK` 3.6.2.
+- The example now reads the native persisted log on Android too (the JS-side optimistic log remains only as a live buffer between refreshes, exactly like on iOS).
+
 ## [3.6.2] - 2026-07-25
 
 ### Changed

@@ -3,6 +3,7 @@ import {
   Alert,
   AppState,
   Button,
+  PermissionsAndroid,
   Platform,
   Pressable,
   SafeAreaView,
@@ -244,11 +245,10 @@ export default function App() {
     });
   }, []);
 
-  // Load the NATIVE persisted log (iOS-only — the Android SDK exposes no
-  // detection-log API and always resolves [], which would wipe the optimistic
-  // in-memory log; on Android we keep the JS log as the only source).
+  // Load the NATIVE persisted log — source of truth on both platforms
+  // (Android since native SDK 3.6.2). Optimistic JS entries from pushLog are
+  // replaced by the native log on every refresh, exactly like on iOS.
   const refreshLog = useCallback(async () => {
-    if (Platform.OS !== 'ios') return;
     try {
       const entries = await BeAround.getPersistedLog();
       setDetectionLog(entries as unknown as DetectionLogEntry[]);
@@ -368,6 +368,23 @@ export default function App() {
   }, [updatePermissionStatus]);
 
   const requestPermissions = useCallback(async () => {
+    // Native BearoundScan architecture: the example asks for the THREE
+    // permission groups — location + nearby devices + notifications. The SDK's
+    // ensurePermissions deliberately skips location on Android 12+ (Play-policy
+    // stance for generic hosts), so the example requests it itself, exactly
+    // like the native and Flutter samples do.
+    if (Platform.OS === 'android') {
+      await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        {
+          title: 'Permissão de Localização',
+          message:
+            'Localização habilita o segundo olho de detecção (região/beacons).',
+          buttonPositive: 'OK',
+          buttonNegative: 'Cancelar',
+        }
+      );
+    }
     const status = await ensurePermissions({ askBackground: true });
     updatePermissionStatus(status);
 
