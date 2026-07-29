@@ -3,6 +3,7 @@ import {
   Alert,
   AppState,
   Button,
+  PermissionsAndroid,
   Platform,
   Pressable,
   SafeAreaView,
@@ -367,6 +368,23 @@ export default function App() {
   }, [updatePermissionStatus]);
 
   const requestPermissions = useCallback(async () => {
+    // Native BearoundScan architecture: the example asks for the THREE
+    // permission groups — location + nearby devices + notifications. The SDK's
+    // ensurePermissions deliberately skips location on Android 12+ (Play-policy
+    // stance for generic hosts), so the example requests it itself, exactly
+    // like the native and Flutter samples do.
+    if (Platform.OS === 'android') {
+      await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        {
+          title: 'Permissão de Localização',
+          message:
+            'Localização habilita o segundo olho de detecção (região/beacons).',
+          buttonPositive: 'OK',
+          buttonNegative: 'Cancelar',
+        }
+      );
+    }
     const status = await ensurePermissions({ askBackground: true });
     updatePermissionStatus(status);
 

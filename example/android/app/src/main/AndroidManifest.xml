@@ -11,8 +11,12 @@
       tools:targetApi="s" />
 
   <!-- Location — legacy only: required to run a BLE scan on API <= 30. -->
-  <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
-  <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="30" />
+  <!-- No maxSdkVersion: the example follows the native BearoundScan architecture —
+       location + nearby + notifications on every release. Capping at 30 leaves the
+       permission undeclared on Android 12+ (unrequestable, invisible in Settings),
+       the exact bug fixed in the Flutter example (bearound-flutter-sdk#50). -->
+  <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+  <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
   <!-- Foreground service: CONNECTED_DEVICE (BLE) on Android 14+.
        The connectedDevice service (BeaconScanService) is provided by the native SDK via manifest merge. -->
