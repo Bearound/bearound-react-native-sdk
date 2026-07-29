@@ -28,6 +28,6 @@ Os 8 eventos "comuns" têm nomes por convenção de cada plataforma (iOS `didX`,
 
 | Conceito | iOS | Android | RN | Flutter |
 |---|---|---|---|---|
-| Detection log | `getDetectionLogJson()` / `clearDetectionLog()` | `getDetectionLogJson()` / `clearDetectionLog()` (SDK 3.7.0+, 1:1 com iOS) | `getPersistedLog()` / `clearPersistedLog()` (ambas as plataformas) | idem RN (ambas as plataformas) |
+| Detection log | `getDetectionLogJson()` / `clearDetectionLog()` | `getDetectionLogJson()` / `clearDetectionLog()` (SDK 3.6.2+, 1:1 com iOS) | `getPersistedLog()` / `clearPersistedLog()` (ambas as plataformas) | idem RN (ambas as plataformas) |
 
 - O snapshot `diagnostics()` do Android 3.3.1 deliberadamente **não** é bridged — RN/Flutter expõem getters individuais (`getSdkVersion`, `getBluetoothState`, etc.) em vez do objeto agregado.

@@ -291,7 +291,7 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     guarded(promise, "BLUETOOTH_STATE_ERROR") { promise.resolve(currentBluetoothState()) }
   }
 
-  // Persisted detection log — Android SDK 3.7.0+ expõe getDetectionLogJson/
+  // Persisted detection log — Android SDK 3.6.2+ expõe getDetectionLogJson/
   // clearDetectionLog (1:1 com o iOS): entradas Scan/Background/Região/Sync
   // taggeadas com o estado do app (foreground/background/backgroundLocked/
   // terminated), persistidas em disco — sobrevivem à morte do processo.

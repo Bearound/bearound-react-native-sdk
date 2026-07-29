@@ -48,7 +48,7 @@ export interface Spec extends TurboModule {
 
   // Persistent detection log written natively (survives termination / captures
   // closed-state events). Returns a JSON string array of entries.
-  // Both platforms (Android since native SDK 3.7.0).
+  // Both platforms (Android since native SDK 3.6.2).
   getPersistedLog(): Promise<string>;
   clearPersistedLog(): Promise<void>;
 

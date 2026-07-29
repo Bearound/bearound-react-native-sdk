@@ -76,8 +76,8 @@ def kotlin_version = getExtOrDefault("kotlinVersion")
 dependencies {
   implementation "com.facebook.react:react-android"
   // Exact pin, kept in lockstep with the iOS podspec dep (same native release).
-  // v3.7.0 adds the persisted detection log with app-state tagging
+  // v3.6.2 adds the persisted detection log with app-state tagging
   // (getDetectionLogJson/clearDetectionLog, 1:1 with iOS), on top of the 3.6.x
   // line (telemetry handoff, ghost-beacon fixes, scan watchdog).
-  implementation 'com.github.Bearound:bearound-android-sdk:v3.7.0'
+  implementation 'com.github.Bearound:bearound-android-sdk:v3.6.2'
 }

@@ -245,7 +245,7 @@ export default function App() {
   }, []);
 
   // Load the NATIVE persisted log — source of truth on both platforms
-  // (Android since native SDK 3.7.0). Optimistic JS entries from pushLog are
+  // (Android since native SDK 3.6.2). Optimistic JS entries from pushLog are
   // replaced by the native log on every refresh, exactly like on iOS.
   const refreshLog = useCallback(async () => {
     try {

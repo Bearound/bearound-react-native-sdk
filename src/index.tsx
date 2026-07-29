@@ -561,7 +561,7 @@ export type PersistedLogEntry = {
 
 /**
  * Read the **native** detection log — both platforms (Android since native
- * SDK 3.7.0). Entries are persisted natively on every event, including
+ * SDK 3.6.2). Entries are persisted natively on every event, including
  * backgrounded/terminated-state wakes, so JS can show what happened while it
  * wasn't running.
  */
