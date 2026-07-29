@@ -244,11 +244,10 @@ export default function App() {
     });
   }, []);
 
-  // Load the NATIVE persisted log (iOS-only — the Android SDK exposes no
-  // detection-log API and always resolves [], which would wipe the optimistic
-  // in-memory log; on Android we keep the JS log as the only source).
+  // Load the NATIVE persisted log — source of truth on both platforms
+  // (Android since native SDK 3.7.0). Optimistic JS entries from pushLog are
+  // replaced by the native log on every refresh, exactly like on iOS.
   const refreshLog = useCallback(async () => {
-    if (Platform.OS !== 'ios') return;
     try {
       const entries = await BeAround.getPersistedLog();
       setDetectionLog(entries as unknown as DetectionLogEntry[]);

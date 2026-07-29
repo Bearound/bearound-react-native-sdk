@@ -534,16 +534,16 @@ export async function getBluetoothState(): Promise<BluetoothState> {
 }
 
 /**
- * App-state bucket recorded natively for each persisted log entry. The
- * persisted log is iOS-only (see {@link getPersistedLog}), so these states
- * only ever come from iOS.
+ * App-state bucket recorded natively for each persisted log entry
+ * (see {@link getPersistedLog}). Both platforms report the same states.
  *
  * - `foreground` — app active and on screen.
  * - `background` — app backgrounded, device screen unlocked.
  * - `backgroundLocked` — app backgrounded AND device screen locked
- *   (iOS: `isProtectedDataAvailable`).
- * - `terminated` — event fired during a system-initiated relaunch
- *   (BLE/region wake-up) BEFORE the app's UI became active.
+ *   (iOS: `isProtectedDataAvailable`; Android: keyguard/screen off).
+ * - `terminated` — event fired while the process was system-started and the
+ *   UI never became active (iOS: BLE/region relaunch; Android:
+ *   broadcast-delivered scan, boot receiver or watchdog alarm).
  */
 export type PersistedLogState =
   | 'foreground'
@@ -560,11 +560,10 @@ export type PersistedLogEntry = {
 };
 
 /**
- * Read the **native** detection log. **iOS-only** — the Android SDK 3.3.1
- * exposes no detection-log API; Android always resolves `[]` (see
- * EVENT-PARITY.md). On iOS, entries are persisted natively on every event,
- * including backgrounded/terminated-state wakes, so JS can show what happened
- * while it wasn't running.
+ * Read the **native** detection log — both platforms (Android since native
+ * SDK 3.7.0). Entries are persisted natively on every event, including
+ * backgrounded/terminated-state wakes, so JS can show what happened while it
+ * wasn't running.
  */
 export async function getPersistedLog(): Promise<PersistedLogEntry[]> {
   const raw = await Native.getPersistedLog();
@@ -588,7 +587,7 @@ export async function getPersistedLog(): Promise<PersistedLogEntry[]> {
   }
 }
 
-/** Clear the native persisted detection log. **iOS-only** (no-op on Android). */
+/** Clear the native persisted detection log (both platforms). */
 export async function clearPersistedLog(): Promise<void> {
   await Native.clearPersistedLog();
 }
