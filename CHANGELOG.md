@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.6.3] - 2026-07-31
+
+### Changed
+
+- **Native SDKs bumped to 3.6.3 (iOS + Android)** — background detections now deliver to the ingest in seconds instead of minutes (device-matrix top-5 #1). iOS: immediate-first upload inside the execution window (background-session uploads started in background are discretionary and were deferred for minutes), stuck-sync watchdog, BGTask/push handlers that wait for the upload, foreground flush. Android: immediate flush on every background detection (the periodic timer freezes in Doze), `goAsync()` broadcast window, expedited one-shot sync worker with network constraint, periodic worker that awaits the upload. Field-validated on iPhone 17 Pro Max (iOS 27 beta): foreground launch→backend 14s; continuous seconds-level delivery in background; terminated wake delivering in the same second. No JS API changes.
+
 ### Added
 
 - **Real persisted detection log on Android** — `getPersistedLog()` / `clearPersistedLog()` now forward to the native Android SDK v3.6.2 (`getDetectionLogJson()` / `clearDetectionLog()`) instead of resolving a hardcoded `[]`. The log is disk-persisted (SharedPreferences) and each entry is tagged with the app state at write time — `foreground`, `background`, `backgroundLocked` or `terminated` — so the example's Log screen finally shows what the SDK did while the app was closed, on both platforms with the same entry vocabulary (`Scan`, `Background`, `Região`, `Sync OK`, `Sync falhou`).
@@ -14,7 +20,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Android native SDK pin bumped to v3.6.2** (persisted detection log API), staying in lockstep with iOS `BearoundSDK` 3.6.2.
 - The example now reads the native persisted log on Android too (the JS-side optimistic log remains only as a live buffer between refreshes, exactly like on iOS).
 
 ## [3.6.2] - 2026-07-25

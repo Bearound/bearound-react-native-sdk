@@ -1,6 +1,6 @@
 {
   "name": "@bearound/react-native-sdk",
-  "version": "3.6.2",
+  "version": "3.6.3",
   "description": "bearound",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
