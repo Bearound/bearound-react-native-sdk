@@ -101,7 +101,10 @@ describe('Bearound SDK Core Functions', () => {
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
         'test-token-123',
         'high',
-        100
+        100,
+        true,
+        20 * 60 * 1000,
+        12_000
       );
     });
 
@@ -116,7 +119,10 @@ describe('Bearound SDK Core Functions', () => {
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
         'test-token',
         'high',
-        100
+        100,
+        true,
+        20 * 60 * 1000,
+        12_000
       );
     });
 
@@ -131,12 +137,18 @@ describe('Bearound SDK Core Functions', () => {
         businessToken: 'my-business-token',
         scanPrecision: ScanPrecision.LOW,
         maxQueuedPayloads: MaxQueuedPayloads.LARGE,
+        periodicReconciliationEnabled: false,
+        periodicReconciliationIntervalMs: 60 * 60 * 1000,
+        periodicScanDurationMs: 8_000,
       });
 
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
         'my-business-token',
         'low',
-        200
+        200,
+        false,
+        60 * 60 * 1000,
+        8_000
       );
     });
 
@@ -148,7 +160,10 @@ describe('Bearound SDK Core Functions', () => {
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
         'my-token',
         'high',
-        100
+        100,
+        true,
+        20 * 60 * 1000,
+        12_000
       );
     });
   });

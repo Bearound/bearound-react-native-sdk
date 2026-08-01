@@ -656,6 +656,16 @@ export type SdkConfig = {
   businessToken: string; // required - your business token
   scanPrecision?: ScanPrecision; // defaults to HIGH (aligned with the iOS native default)
   maxQueuedPayloads?: MaxQueuedPayloads; // defaults to MEDIUM
+
+  // Periodic background reconciliation (best effort — the OS decides when it
+  // actually runs; iOS: BGAppRefreshTask, Android: WorkManager). The interval is
+  // only the MINIMUM requested, never a guaranteed cadence. Out-of-range values
+  // are clamped by the NATIVE SDKs with a highlighted log warning: interval
+  // floor 10 min (iOS) / 15 min (Android, WorkManager hard minimum), ceiling
+  // 24 h; scan window 3–15s (iOS, ~30s BGTask budget) / 3–30s (Android).
+  periodicReconciliationEnabled?: boolean; // default: true
+  periodicReconciliationIntervalMs?: number; // default: 20 * 60 * 1000 (20 min)
+  periodicScanDurationMs?: number; // default: 12_000 (12s)
 };
 
 export type UserProperties = {

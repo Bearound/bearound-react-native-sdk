@@ -52,7 +52,10 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
   public func configure(
     _ businessToken: String,
     scanPrecision: String,
-    maxQueuedPayloads: Double
+    maxQueuedPayloads: Double,
+    periodicReconciliationEnabled: Bool,
+    periodicReconciliationIntervalMs: Double,
+    periodicScanDurationMs: Double
   ) {
     DispatchQueue.main.async {
       let precision = self.mapToScanPrecision(scanPrecision)
@@ -63,11 +66,16 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
         self.sdk.stopScanning()
       }
 
+      // Wire carries millis; the iOS SDK takes seconds. Validation/clamping
+      // lives in the native SDK (single source of truth).
       self.sdk.configure(
         businessToken: businessToken,
         scanPrecision: precision,
         maxQueuedPayloads: maxQueued,
-        technology: "react-native"
+        technology: "react-native",
+        periodicReconciliationEnabled: periodicReconciliationEnabled,
+        periodicReconciliationInterval: periodicReconciliationIntervalMs / 1000.0,
+        periodicScanDuration: periodicScanDurationMs / 1000.0
       )
       self.sdk.delegate = self
       self.configured = true

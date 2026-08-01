@@ -68,6 +68,7 @@ export function EyeCard(props: EyeCardProps) {
     <View
       style={[
         styles.card,
+        // eslint-disable-next-line react-native/no-inline-styles
         { borderColor: props.isInZone ? meta.color : '#1f1f1f' },
         props.isInZone && { backgroundColor: `${meta.color}14` },
       ]}
@@ -76,6 +77,7 @@ export function EyeCard(props: EyeCardProps) {
         <View
           style={[
             styles.dot,
+            // eslint-disable-next-line react-native/no-inline-styles
             { backgroundColor: props.isInZone ? meta.color : '#555' },
           ]}
         />
@@ -87,6 +89,7 @@ export function EyeCard(props: EyeCardProps) {
         <Text
           style={[
             styles.zonePillText,
+            // eslint-disable-next-line react-native/no-inline-styles
             { color: props.isInZone ? meta.color : '#9e9e9e' },
           ]}
         >
@@ -103,6 +106,7 @@ export function EyeCard(props: EyeCardProps) {
         <View
           style={[
             styles.modeChip,
+            // eslint-disable-next-line react-native/no-inline-styles
             {
               backgroundColor: props.modeIsActive
                 ? `${meta.color}22`
@@ -114,6 +118,7 @@ export function EyeCard(props: EyeCardProps) {
           <Text
             style={[
               styles.modeChipText,
+              // eslint-disable-next-line react-native/no-inline-styles
               { color: props.modeIsActive ? meta.color : '#9e9e9e' },
             ]}
           >

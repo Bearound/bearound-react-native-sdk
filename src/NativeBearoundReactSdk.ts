@@ -5,7 +5,10 @@ export interface Spec extends TurboModule {
   configure(
     businessToken: string,
     scanPrecision: string,
-    maxQueuedPayloads: number
+    maxQueuedPayloads: number,
+    periodicReconciliationEnabled: boolean,
+    periodicReconciliationIntervalMs: number,
+    periodicScanDurationMs: number
   ): Promise<void>;
 
   startScanning(): Promise<void>;

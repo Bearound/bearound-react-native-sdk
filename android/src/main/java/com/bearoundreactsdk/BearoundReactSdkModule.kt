@@ -120,6 +120,9 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     businessToken: String,
     scanPrecision: String,
     maxQueuedPayloads: Double,
+    periodicReconciliationEnabled: Boolean,
+    periodicReconciliationIntervalMs: Double,
+    periodicScanDurationMs: Double,
     promise: Promise
   ) {
     try {
@@ -142,7 +145,11 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
         businessToken = businessToken.trim(),
         scanPrecision = precision,
         maxQueuedPayloads = maxQueued,
-        technology = "react-native"
+        technology = "react-native",
+        // Validation/clamping lives in the native SDK (single source of truth).
+        periodicReconciliationEnabled = periodicReconciliationEnabled,
+        periodicReconciliationIntervalMillis = periodicReconciliationIntervalMs.toLong(),
+        periodicScanDurationMillis = periodicScanDurationMs.toLong()
       )
 
       if (wasScanning) {

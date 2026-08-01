@@ -161,11 +161,13 @@ function SummaryBadge({
     <View
       style={[
         styles.badge,
+        // eslint-disable-next-line react-native/no-inline-styles
         { backgroundColor: isOn ? `${color}1f` : 'rgba(255,255,255,0.05)' },
       ]}
     >
       <View style={styles.badgeHeader}>
         <View
+          // eslint-disable-next-line react-native/no-inline-styles
           style={[styles.badgeDot, { backgroundColor: isOn ? color : '#555' }]}
         />
         <Text style={styles.badgeTitle}>{title}</Text>
