@@ -25,6 +25,28 @@ export type SdkConfig = {
   businessToken: string;
   scanPrecision?: ScanPrecision;
   maxQueuedPayloads?: MaxQueuedPayloads;
+  /**
+   * Enables the periodic background reconciliation layer (iOS: BGAppRefreshTask;
+   * Android: WorkManager PeriodicWorkRequest). Best effort — the OS decides when
+   * (and whether) it runs. Default: true.
+   */
+  periodicReconciliationEnabled?: boolean;
+  /**
+   * MINIMUM interval requested between eligible executions, in milliseconds —
+   * a floor, never a guaranteed cadence. Default: 20 min (1_200_000).
+   *
+   * Guard rails applied by the NATIVE SDKs (out-of-range values are clamped with
+   * a highlighted log warning — never silently, never a crash): effective floor
+   * is 10 min on iOS and 15 min on Android (WorkManager's hard minimum);
+   * ceiling 24 h on both.
+   */
+  periodicReconciliationIntervalMs?: number;
+  /**
+   * Ceiling of the collection window inside the periodic task, in milliseconds.
+   * Default: 12s (12_000). Native ranges: 3–15s on iOS (~30s BGTask budget),
+   * 3–30s on Android.
+   */
+  periodicScanDurationMs?: number;
 };
 
 /**
@@ -380,6 +402,9 @@ export async function configure(config: SdkConfig) {
     // duty cycles.
     scanPrecision = ScanPrecision.HIGH,
     maxQueuedPayloads = MaxQueuedPayloads.MEDIUM,
+    periodicReconciliationEnabled = true,
+    periodicReconciliationIntervalMs = 20 * 60 * 1000,
+    periodicScanDurationMs = 12_000,
   } = config;
 
   if (!businessToken || businessToken.trim().length === 0) {
@@ -396,7 +421,10 @@ export async function configure(config: SdkConfig) {
   await Native.configure(
     businessToken.trim(),
     scanPrecision,
-    maxQueuedPayloads
+    maxQueuedPayloads,
+    periodicReconciliationEnabled,
+    periodicReconciliationIntervalMs,
+    periodicScanDurationMs
   );
 }
 

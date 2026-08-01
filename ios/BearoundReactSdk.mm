@@ -16,6 +16,9 @@ RCT_EXPORT_METHOD(removeListeners:(double)count) {}
 - (void)configure:(NSString *)businessToken
     scanPrecision:(NSString *)scanPrecision
 maxQueuedPayloads:(double)maxQueuedPayloads
+periodicReconciliationEnabled:(BOOL)periodicReconciliationEnabled
+periodicReconciliationIntervalMs:(double)periodicReconciliationIntervalMs
+periodicScanDurationMs:(double)periodicScanDurationMs
           resolve:(RCTPromiseResolveBlock)resolve
            reject:(RCTPromiseRejectBlock)reject
 {
@@ -30,7 +33,10 @@ maxQueuedPayloads:(double)maxQueuedPayloads
 
   [[RNBearoundBridge shared] configure:trimmed
                          scanPrecision:scanPrecision ?: @"high"
-                     maxQueuedPayloads:maxQueuedPayloads];
+                     maxQueuedPayloads:maxQueuedPayloads
+         periodicReconciliationEnabled:periodicReconciliationEnabled
+      periodicReconciliationIntervalMs:periodicReconciliationIntervalMs
+                periodicScanDurationMs:periodicScanDurationMs];
   resolve(nil);
 }
 
