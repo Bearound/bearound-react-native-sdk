@@ -786,6 +786,7 @@ export default function App() {
           <Text
             style={[
               styles.readyHint,
+              // eslint-disable-next-line react-native/no-inline-styles
               { color: canScan ? '#4caf50' : '#ff9800' },
             ]}
           >
@@ -837,6 +838,7 @@ export default function App() {
               <Text
                 style={[
                   styles.infoValue,
+                  // eslint-disable-next-line react-native/no-inline-styles
                   {
                     color:
                       lastSyncResult === 'success'
@@ -1074,6 +1076,7 @@ export default function App() {
                     ) : null}
                     {beacon.isStale ? (
                       <Text
+                        // eslint-disable-next-line react-native/no-inline-styles
                         style={[styles.beaconMetaText, { color: '#ff9800' }]}
                       >
                         stale
@@ -1081,6 +1084,7 @@ export default function App() {
                     ) : null}
                     {beacon.alreadySynced ? (
                       <Text
+                        // eslint-disable-next-line react-native/no-inline-styles
                         style={[styles.beaconMetaText, { color: '#4caf50' }]}
                       >
                         ✓ synced
