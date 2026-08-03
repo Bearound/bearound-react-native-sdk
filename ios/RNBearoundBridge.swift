@@ -131,6 +131,23 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
     }
   }
 
+  /// Shows the App Tracking Transparency prompt; once authorised the SDK reports the IDFA.
+  ///
+  /// Main queue and app-active are both required — iOS silently ignores the prompt
+  /// otherwise, leaving the status at `notDetermined` with no error to observe.
+  public func requestTrackingAuthorization(_ completion: @escaping (String) -> Void) {
+    DispatchQueue.main.async {
+      self.sdk.requestTrackingAuthorization { status in
+        completion(status)
+      }
+    }
+  }
+
+  /// ATT status without prompting.
+  public func trackingAuthorizationStatus() -> String {
+    BeAroundSDK.trackingAuthorizationStatus()
+  }
+
   // Bluetooth eye — current CBCentralManager state. Independent of Location.
 
   public func getBluetoothState() -> String {

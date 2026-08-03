@@ -333,6 +333,17 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     promise.resolve(null)
   }
 
+  // App Tracking Transparency is an iOS concept. On Android the advertising-id choice
+  // lives in system settings and the platform enforces it (opting out zeroes the id),
+  // so there is no prompt to show — answer "unavailable" to keep the JS API uniform.
+  override fun requestTrackingAuthorization(promise: Promise) {
+    promise.resolve("unavailable")
+  }
+
+  override fun getTrackingAuthorizationStatus(promise: Promise) {
+    promise.resolve("unavailable")
+  }
+
   // Foreground-service scanning (Android-only) — persistent notification keeps the
   // process alive on aggressive OEMs while scanning in background.
 

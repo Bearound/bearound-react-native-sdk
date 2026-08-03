@@ -631,6 +631,41 @@ export async function requestLocationAuthorization(
   await Native.requestLocationAuthorization(level);
 }
 
+/** ATT authorisation state. `unavailable` on iOS < 14 and on Android (no such concept). */
+export type TrackingAuthorizationStatus =
+  | 'authorized'
+  | 'denied'
+  | 'restricted'
+  | 'notDetermined'
+  | 'unavailable';
+
+/**
+ * Shows the App Tracking Transparency prompt and, once authorised, the SDK reports the
+ * **IDFA** with every payload. **iOS-only.**
+ *
+ * The SDK never shows this dialog on its own: Apple requires it to appear in a context the
+ * user understands, and an app that prompts at an arbitrary moment gets rejected. Call it at
+ * a point in your onboarding right after explaining why, with the app in the **foreground**
+ * (iOS ignores it otherwise).
+ *
+ * Requires `NSUserTrackingUsageDescription` in your `Info.plist` — without that key iOS shows
+ * no dialog at all and the status stays `notDetermined` forever.
+ *
+ * Answering is a one-time event per install: later calls return the stored decision with no
+ * UI, so it is safe to call on every launch.
+ *
+ * On **Android there is no prompt** — the user's choice lives in system settings and the
+ * platform enforces it — so this resolves `'unavailable'`.
+ */
+export async function requestTrackingAuthorization(): Promise<TrackingAuthorizationStatus> {
+  return (await Native.requestTrackingAuthorization()) as TrackingAuthorizationStatus;
+}
+
+/** Reads the ATT status **without** prompting. Android: always `'unavailable'`. */
+export async function getTrackingAuthorizationStatus(): Promise<TrackingAuthorizationStatus> {
+  return (await Native.getTrackingAuthorizationStatus()) as TrackingAuthorizationStatus;
+}
+
 // --- Foreground-service scanning (Android-only) ---
 
 /**

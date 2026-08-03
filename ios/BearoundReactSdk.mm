@@ -169,6 +169,20 @@ periodicScanDurationMs:(double)periodicScanDurationMs
   resolve(nil);
 }
 
+- (void)requestTrackingAuthorization:(RCTPromiseResolveBlock)resolve
+                              reject:(RCTPromiseRejectBlock)reject
+{
+  [[RNBearoundBridge shared] requestTrackingAuthorization:^(NSString *status) {
+    resolve(status);
+  }];
+}
+
+- (void)getTrackingAuthorizationStatus:(RCTPromiseResolveBlock)resolve
+                                reject:(RCTPromiseRejectBlock)reject
+{
+  resolve([[RNBearoundBridge shared] trackingAuthorizationStatus]);
+}
+
 - (void)enableForegroundScanning:(NSDictionary *)config
                          resolve:(RCTPromiseResolveBlock)resolve
                           reject:(RCTPromiseRejectBlock)reject
