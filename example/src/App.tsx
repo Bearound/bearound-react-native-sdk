@@ -602,14 +602,14 @@ export default function App() {
         setLocationEnterCount((c) => c + 1);
         pushGeofenceEvent(
           'region-enter',
-          'iOS/Android reportou entrada na zona do beacon'
+          'Entrou na região Bearound (beacon ou aparelho com o SDK)'
         );
-        pushLog('Região', 'Entrou na zona do beacon');
+        pushLog('Região', 'Entrou na região Bearound');
       } else {
         setIsInBeaconRegion(false);
         setLastExitedRegionAt(Date.now());
-        pushGeofenceEvent('region-exit', 'Saiu da zona do beacon');
-        pushLog('Região', 'Saiu da zona do beacon');
+        pushGeofenceEvent('region-exit', 'Saiu da região Bearound');
+        pushLog('Região', 'Saiu da região Bearound');
       }
     });
 
@@ -871,7 +871,7 @@ export default function App() {
             </View>
 
             <InfoRow
-              label="Zona do beacon"
+              label="Zona Bearound"
               value={isInBeaconRegion ? 'DENTRO' : 'fora'}
               valueColor={isInBeaconRegion ? '#4caf50' : '#9e9e9e'}
             />
