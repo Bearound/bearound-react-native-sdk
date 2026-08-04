@@ -123,6 +123,10 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     periodicReconciliationEnabled: Boolean,
     periodicReconciliationIntervalMs: Double,
     periodicScanDurationMs: Double,
+    presenceHeartbeatIntervalMs: Double,
+    // Part of the cross-platform signature (the codegen spec is shared), but App
+    // Tracking Transparency is iOS-only — read and dropped here on purpose.
+    requestTrackingOnStart: Boolean,
     promise: Promise
   ) {
     try {
@@ -149,7 +153,8 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
         // Validation/clamping lives in the native SDK (single source of truth).
         periodicReconciliationEnabled = periodicReconciliationEnabled,
         periodicReconciliationIntervalMillis = periodicReconciliationIntervalMs.toLong(),
-        periodicScanDurationMillis = periodicScanDurationMs.toLong()
+        periodicScanDurationMillis = periodicScanDurationMs.toLong(),
+        presenceHeartbeatIntervalMillis = presenceHeartbeatIntervalMs.toLong()
       )
 
       if (wasScanning) {
@@ -331,6 +336,17 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     // Android runtime location permissions are requested from JS (see permissions.ts)
     // and declared in the manifest — there is no native call to make here.
     promise.resolve(null)
+  }
+
+  // App Tracking Transparency is an iOS concept. On Android the advertising-id choice
+  // lives in system settings and the platform enforces it (opting out zeroes the id),
+  // so there is no prompt to show — answer "unavailable" to keep the JS API uniform.
+  override fun requestTrackingAuthorization(promise: Promise) {
+    promise.resolve("unavailable")
+  }
+
+  override fun getTrackingAuthorizationStatus(promise: Promise) {
+    promise.resolve("unavailable")
   }
 
   // Foreground-service scanning (Android-only) — persistent notification keeps the

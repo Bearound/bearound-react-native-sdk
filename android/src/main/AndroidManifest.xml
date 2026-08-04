@@ -1,2 +1,14 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Wi-Fi observations. ACCESS_WIFI_STATE is install-time; NEARBY_WIFI_DEVICES is the
+         Android 13+ runtime gate that unlocks the NEIGHBOURING access points (without it the
+         system only ever reports the connected one). Declared here, in the library, rather
+         than relying on the native AAR's manifest merge: `src/permissions.ts` asks for it at
+         runtime, and an undeclared permission is denied instantly — no dialog, no error. -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission
+        android:name="android.permission.NEARBY_WIFI_DEVICES"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="tiramisu" />
 </manifest>

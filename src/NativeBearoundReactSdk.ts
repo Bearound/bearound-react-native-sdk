@@ -8,7 +8,9 @@ export interface Spec extends TurboModule {
     maxQueuedPayloads: number,
     periodicReconciliationEnabled: boolean,
     periodicReconciliationIntervalMs: number,
-    periodicScanDurationMs: number
+    periodicScanDurationMs: number,
+    presenceHeartbeatIntervalMs: number,
+    requestTrackingOnStart: boolean
   ): Promise<void>;
 
   startScanning(): Promise<void>;
@@ -48,6 +50,8 @@ export interface Spec extends TurboModule {
   getAuthorizationStatus(): Promise<string>;
   getBluetoothState(): Promise<string>;
   requestLocationAuthorization(level: string): Promise<void>;
+  requestTrackingAuthorization(): Promise<string>;
+  getTrackingAuthorizationStatus(): Promise<string>;
 
   // Persistent detection log written natively (survives termination / captures
   // closed-state events). Returns a JSON string array of entries.

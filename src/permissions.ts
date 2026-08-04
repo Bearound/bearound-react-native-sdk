@@ -212,6 +212,16 @@ export async function requestForegroundPermissions(): Promise<PermissionResult> 
         'Permissão de Notificações',
         'Usamos notificações para indicar o monitoramento em andamento.'
       );
+      // Android 13+: unlocks the neighbouring access points for the Wi-Fi
+      // observations. Same "Nearby devices" group as BLUETOOTH_SCAN — already
+      // granted above — so the system usually shows no second dialog. Without
+      // it the SDK reports only the connected access point, never its
+      // neighbours, which are what feed the access-point map.
+      await req(
+        PermissionsAndroid.PERMISSIONS.NEARBY_WIFI_DEVICES,
+        'Permissão de dispositivos por perto',
+        'Usamos as redes Wi-Fi visíveis para melhorar a precisão de localização.'
+      );
     }
     return checkPermissions();
   }

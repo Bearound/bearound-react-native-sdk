@@ -55,7 +55,9 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
     maxQueuedPayloads: Double,
     periodicReconciliationEnabled: Bool,
     periodicReconciliationIntervalMs: Double,
-    periodicScanDurationMs: Double
+    periodicScanDurationMs: Double,
+    presenceHeartbeatIntervalMs: Double,
+    requestTrackingOnStart: Bool
   ) {
     DispatchQueue.main.async {
       let precision = self.mapToScanPrecision(scanPrecision)
@@ -75,7 +77,9 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
         technology: "react-native",
         periodicReconciliationEnabled: periodicReconciliationEnabled,
         periodicReconciliationInterval: periodicReconciliationIntervalMs / 1000.0,
-        periodicScanDuration: periodicScanDurationMs / 1000.0
+        periodicScanDuration: periodicScanDurationMs / 1000.0,
+        requestTrackingOnStart: requestTrackingOnStart,
+        presenceHeartbeatInterval: presenceHeartbeatIntervalMs / 1000.0
       )
       self.sdk.delegate = self
       self.configured = true
@@ -129,6 +133,23 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
     DispatchQueue.main.async {
       self.sdk.requestLocationAuthorization(mapped)
     }
+  }
+
+  /// Shows the App Tracking Transparency prompt; once authorised the SDK reports the IDFA.
+  ///
+  /// Main queue and app-active are both required — iOS silently ignores the prompt
+  /// otherwise, leaving the status at `notDetermined` with no error to observe.
+  public func requestTrackingAuthorization(_ completion: @escaping (String) -> Void) {
+    DispatchQueue.main.async {
+      self.sdk.requestTrackingAuthorization { status in
+        completion(status)
+      }
+    }
+  }
+
+  /// ATT status without prompting.
+  public func trackingAuthorizationStatus() -> String {
+    BeAroundSDK.trackingAuthorizationStatus()
   }
 
   // Bluetooth eye — current CBCentralManager state. Independent of Location.
