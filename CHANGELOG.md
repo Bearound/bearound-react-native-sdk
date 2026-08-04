@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 3.8.1
+
+### Changed
+- Native SDKs pinned to **3.8.1**, which carries the fix for `encounter_mesh` and
+  `presence_heartbeat` never reaching the payload — until now every beacon-less upload was
+  labelled as an ordinary timer sync, so a presence report was indistinguishable from a
+  regular one on the backend.
+
 ## 3.8.0
 
 ### Added
