@@ -1,7 +1,7 @@
 # 🐻 Bearound React Native SDK
 
 Official SDK to integrate **Bearound's** secure BLE beacon detection into **React Native** apps (Android and iOS).
-Aligned with Bearound native SDKs **3.5.0** (exact pins live in `android/build.gradle` and `BearoundReactSdk.podspec`, kept in lockstep by `scripts/check-native-versions.mjs`).
+Aligned with Bearound native SDKs **3.8.0** (exact pins live in `android/build.gradle` and `BearoundReactSdk.podspec`, kept in lockstep by `scripts/check-native-versions.mjs`).
 
 > ✅ Compatible with **New Architecture** (TurboModules) and also compatible with classic architecture.
 
@@ -20,6 +20,9 @@ Aligned with Bearound native SDKs **3.5.0** (exact pins live in `android/build.g
 * [Permission Configuration](#permission-configuration)
   * [Android – Manifest](#android--manifest)
   * [iOS – Info.plist and Background Modes](#ios--infoplist-and-background-modes)
+* [Wi-Fi observations](#wi-fi-observations)
+* [Presence heartbeat](#presence-heartbeat)
+* [Advertising identifier (IDFA / AAID)](#advertising-identifier-idfa--aaid)
 * [Scan modes (Android)](#scan-modes-android)
 * [iOS Background Integration (required)](#ios-background-integration-required)
 * [Quick Start](#quick-start)
@@ -181,6 +184,33 @@ on both platforms.
 
 Nothing degrades if you skip the iOS capability: the field is simply omitted and every other
 feature behaves the same.
+
+## Presence heartbeat
+
+Until 3.8.0 a device that saw no beacon and no other SDK device stayed silent, and the
+backend could not tell **"there was no coverage here"** apart from **"the app was not
+running"**. Those two look identical in the data and mean opposite things.
+
+Now a scan that finds nothing still reports, under the `presence_heartbeat` sync trigger,
+carrying what the device *can* observe: its own location and the Wi-Fi around it.
+
+```ts
+BeAround.configure({
+  businessToken: 'your-business-token',
+  presenceHeartbeatIntervalMs: 5 * 60 * 1000, // default
+});
+```
+
+| | |
+|---|---|
+| Default | 5 minutes (`300000`) |
+| Accepted range | 1 minute – 1 hour (clamped natively, with a log warning) |
+| Turn it off | `0` |
+
+Two things it does **not** do. It never throttles **scanning** — only the upload, so
+detection latency is untouched. And it sends nothing when there is neither a location fix
+nor an access point to report: an app that grants no permissions keeps sending exactly what
+it sent before.
 
 ## Advertising identifier (IDFA / AAID)
 
@@ -722,6 +752,16 @@ export type SdkConfig = {
   periodicReconciliationEnabled?: boolean; // default: true
   periodicReconciliationIntervalMs?: number; // default: 20 * 60 * 1000 (20 min)
   periodicScanDurationMs?: number; // default: 12_000 (12s)
+
+  // A scan that finds nothing still reports (its location + the Wi-Fi around it), so the
+  // backend can tell "no coverage here" apart from "the app wasn't running". Throttles the
+  // UPLOAD only — scanning is untouched. Clamped natively to 1 min–1 h; 0 disables.
+  // See "Presence heartbeat".
+  presenceHeartbeatIntervalMs?: number; // default: 5 * 60 * 1000 (5 min)
+
+  // iOS only: shows the App Tracking Transparency prompt when scanning starts, which is
+  // what unlocks the IDFA. Android has no such prompt and ignores this.
+  requestTrackingOnStart?: boolean; // default: true
 };
 
 export type UserProperties = {
