@@ -32,7 +32,6 @@ Aligned with Bearound native SDKs **3.5.0** (exact pins live in `android/build.g
 * [Migrating from 2.x](#migrating-from-2x)
 * [License](#license)
 
-> Cross-platform behavior of every event and getter (including iOS-only / Android-only gaps) is documented in [EVENT-PARITY.md](./EVENT-PARITY.md).
 
 ---
 
@@ -1107,7 +1106,7 @@ Version 3.x of this package tracks the native SDKs across their 3.0.0 major. If 
 * **`BeaconMetadata` semantics changed**: `batteryLevel` is now **millivolts** (e.g. `3269`), not a 0–100 percentage; `firmwareVersion` is now an integer encoded as a string (e.g. `"1"`), not a semver (`"2.1.0"`). Update any UI/analytics that parsed these.
 * **Default `scanPrecision` is now `HIGH`** (was `MEDIUM`). Pass `scanPrecision: ScanPrecision.MEDIUM` explicitly to keep the 2.x duty cycle.
 * Coming from **≤ 2.1.0**: `enableBluetoothScanning`/`enablePeriodicScanning` config flags were removed (always-on) and `addSyncStatusListener` was replaced by `addSyncLifecycleListener`.
-* Everything else is additive — two-eyes listeners, persisted log, foreground-service APIs, diagnostics getters, `setPushToken` (3.4.1+). Full details per release in [CHANGELOG.md](./CHANGELOG.md); cross-platform behavior in [EVENT-PARITY.md](./EVENT-PARITY.md).
+* Everything else is additive — two-eyes listeners, persisted log, foreground-service APIs, diagnostics getters, `setPushToken` (3.4.1+). Full details per release in [CHANGELOG.md](./CHANGELOG.md).
 
 ---
 

@@ -8,7 +8,9 @@ export interface Spec extends TurboModule {
     maxQueuedPayloads: number,
     periodicReconciliationEnabled: boolean,
     periodicReconciliationIntervalMs: number,
-    periodicScanDurationMs: number
+    periodicScanDurationMs: number,
+    presenceHeartbeatIntervalMs: number,
+    requestTrackingOnStart: boolean
   ): Promise<void>;
 
   startScanning(): Promise<void>;
