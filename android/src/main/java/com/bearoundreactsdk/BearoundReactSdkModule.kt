@@ -274,7 +274,7 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
 
   override fun getBleDiagnosticInfo(promise: Promise) {
     // Android 3.3.1 exposes a general diagnostics() snapshot instead (different
-    // content) — deliberately not bridged; see EVENT-PARITY.md.
+    // content) — deliberately not bridged.
     promise.resolve("")
   }
 
