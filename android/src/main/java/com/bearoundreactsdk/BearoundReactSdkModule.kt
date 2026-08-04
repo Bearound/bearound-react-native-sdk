@@ -123,6 +123,10 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     periodicReconciliationEnabled: Boolean,
     periodicReconciliationIntervalMs: Double,
     periodicScanDurationMs: Double,
+    presenceHeartbeatIntervalMs: Double,
+    // Part of the cross-platform signature (the codegen spec is shared), but App
+    // Tracking Transparency is iOS-only — read and dropped here on purpose.
+    requestTrackingOnStart: Boolean,
     promise: Promise
   ) {
     try {
@@ -149,7 +153,8 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
         // Validation/clamping lives in the native SDK (single source of truth).
         periodicReconciliationEnabled = periodicReconciliationEnabled,
         periodicReconciliationIntervalMillis = periodicReconciliationIntervalMs.toLong(),
-        periodicScanDurationMillis = periodicScanDurationMs.toLong()
+        periodicScanDurationMillis = periodicScanDurationMs.toLong(),
+        presenceHeartbeatIntervalMillis = presenceHeartbeatIntervalMs.toLong()
       )
 
       if (wasScanning) {

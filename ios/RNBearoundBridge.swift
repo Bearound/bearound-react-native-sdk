@@ -55,7 +55,9 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
     maxQueuedPayloads: Double,
     periodicReconciliationEnabled: Bool,
     periodicReconciliationIntervalMs: Double,
-    periodicScanDurationMs: Double
+    periodicScanDurationMs: Double,
+    presenceHeartbeatIntervalMs: Double,
+    requestTrackingOnStart: Bool
   ) {
     DispatchQueue.main.async {
       let precision = self.mapToScanPrecision(scanPrecision)
@@ -75,7 +77,9 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
         technology: "react-native",
         periodicReconciliationEnabled: periodicReconciliationEnabled,
         periodicReconciliationInterval: periodicReconciliationIntervalMs / 1000.0,
-        periodicScanDuration: periodicScanDurationMs / 1000.0
+        periodicScanDuration: periodicScanDurationMs / 1000.0,
+        requestTrackingOnStart: requestTrackingOnStart,
+        presenceHeartbeatInterval: presenceHeartbeatIntervalMs / 1000.0
       )
       self.sdk.delegate = self
       self.configured = true

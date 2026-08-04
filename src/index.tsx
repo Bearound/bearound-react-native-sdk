@@ -47,6 +47,29 @@ export type SdkConfig = {
    * 3–30s on Android.
    */
   periodicScanDurationMs?: number;
+  /**
+   * How often a scan that found NOTHING still reports in, in milliseconds.
+   * Default: 5 min (300_000).
+   *
+   * A scan that finds no beacon and no peer is data too: the device was there and
+   * saw nothing. Those payloads carry the device's own location and the Wi-Fi it
+   * can see — without them the backend cannot tell "no coverage here" apart from
+   * "the app was not running". Only the upload is throttled; scanning is unchanged.
+   *
+   * Native range: 1 min to 1 h (out-of-range values are clamped with a warning).
+   * Pass `0` to turn the empty-scan report off.
+   */
+  presenceHeartbeatIntervalMs?: number;
+  /**
+   * iOS only. Lets the SDK raise the App Tracking Transparency prompt by itself
+   * shortly after `configure()`. Default: true.
+   *
+   * Pass `false` to own the moment — show your own explainer first, or prompt
+   * deeper into onboarding — and call `requestTrackingAuthorization()` yourself.
+   * Nothing is shown unless the app declares `NSUserTrackingUsageDescription`.
+   * Ignored on Android.
+   */
+  requestTrackingOnStart?: boolean;
 };
 
 /**
@@ -405,6 +428,8 @@ export async function configure(config: SdkConfig) {
     periodicReconciliationEnabled = true,
     periodicReconciliationIntervalMs = 20 * 60 * 1000,
     periodicScanDurationMs = 12_000,
+    presenceHeartbeatIntervalMs = 5 * 60 * 1000,
+    requestTrackingOnStart = true,
   } = config;
 
   if (!businessToken || businessToken.trim().length === 0) {
@@ -424,7 +449,9 @@ export async function configure(config: SdkConfig) {
     maxQueuedPayloads,
     periodicReconciliationEnabled,
     periodicReconciliationIntervalMs,
-    periodicScanDurationMs
+    periodicScanDurationMs,
+    presenceHeartbeatIntervalMs,
+    requestTrackingOnStart
   );
 }
 

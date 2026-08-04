@@ -104,7 +104,9 @@ describe('Bearound SDK Core Functions', () => {
         100,
         true,
         20 * 60 * 1000,
-        12_000
+        12_000,
+        5 * 60 * 1000,
+        true
       );
     });
 
@@ -122,7 +124,9 @@ describe('Bearound SDK Core Functions', () => {
         100,
         true,
         20 * 60 * 1000,
-        12_000
+        12_000,
+        5 * 60 * 1000,
+        true
       );
     });
 
@@ -140,6 +144,8 @@ describe('Bearound SDK Core Functions', () => {
         periodicReconciliationEnabled: false,
         periodicReconciliationIntervalMs: 60 * 60 * 1000,
         periodicScanDurationMs: 8_000,
+        presenceHeartbeatIntervalMs: 10 * 60 * 1000,
+        requestTrackingOnStart: false,
       });
 
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
@@ -148,7 +154,9 @@ describe('Bearound SDK Core Functions', () => {
         200,
         false,
         60 * 60 * 1000,
-        8_000
+        8_000,
+        10 * 60 * 1000,
+        false
       );
     });
 
@@ -163,7 +171,9 @@ describe('Bearound SDK Core Functions', () => {
         100,
         true,
         20 * 60 * 1000,
-        12_000
+        12_000,
+        5 * 60 * 1000,
+        true
       );
     });
   });

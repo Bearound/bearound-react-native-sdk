@@ -19,6 +19,8 @@ maxQueuedPayloads:(double)maxQueuedPayloads
 periodicReconciliationEnabled:(BOOL)periodicReconciliationEnabled
 periodicReconciliationIntervalMs:(double)periodicReconciliationIntervalMs
 periodicScanDurationMs:(double)periodicScanDurationMs
+presenceHeartbeatIntervalMs:(double)presenceHeartbeatIntervalMs
+requestTrackingOnStart:(BOOL)requestTrackingOnStart
           resolve:(RCTPromiseResolveBlock)resolve
            reject:(RCTPromiseRejectBlock)reject
 {
@@ -36,7 +38,9 @@ periodicScanDurationMs:(double)periodicScanDurationMs
                      maxQueuedPayloads:maxQueuedPayloads
          periodicReconciliationEnabled:periodicReconciliationEnabled
       periodicReconciliationIntervalMs:periodicReconciliationIntervalMs
-                periodicScanDurationMs:periodicScanDurationMs];
+                periodicScanDurationMs:periodicScanDurationMs
+           presenceHeartbeatIntervalMs:presenceHeartbeatIntervalMs
+                requestTrackingOnStart:requestTrackingOnStart];
   resolve(nil);
 }
 
