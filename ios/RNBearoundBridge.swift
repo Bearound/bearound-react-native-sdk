@@ -15,14 +15,16 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
   /// Production hosts never see these notifications.
   public var debugNotificationsEnabled = false
   private var debugNotifyLast: [String: Date] = [:]
-  private func debugNotify(id: String, title: String, body: String, cooldown: TimeInterval) {
+  private func debugNotify(id: String, title: String, body: String, cooldown: TimeInterval, sound: Bool = true) {
     guard debugNotificationsEnabled else { return }
     if let last = debugNotifyLast[id], Date().timeIntervalSince(last) < cooldown { return }
     debugNotifyLast[id] = Date()
     let content = UNMutableNotificationContent()
     content.title = title
     content.body = body
-    content.sound = .default
+    // The start of a sync is progress, not news: it fires on every cycle, so it stays
+    // silent the way the native example does. Everything else keeps its sound.
+    content.sound = sound ? .default : nil
     UNUserNotificationCenter.current().add(
       UNNotificationRequest(identifier: "bearound.debug.\(id).\(Int(Date().timeIntervalSince1970))",
                             content: content, trigger: nil))
@@ -386,6 +388,12 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
   // BeAroundSDKDelegate callbacks (native 3.3.1)
   
   public func didUpdateBeacons(_ beacons: [Beacon]) {
+    if !beacons.isEmpty {
+      debugNotify(id: "detect",
+                  title: "Beacon Detectado",
+                  body: "Encontrado\(beacons.count == 1 ? "" : "s") \(beacons.count) beacon\(beacons.count == 1 ? "" : "s") próximo\(beacons.count == 1 ? "" : "s")",
+                  cooldown: 300)
+    }
     let mapped = beacons.map { mapBeacon($0) }
     DispatchQueue.main.async {
       BearoundReactSdkEventEmitter.emit("bearound:beacons", body: ["beacons": mapped])
@@ -437,12 +445,22 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
   }
 
   public func didChangeScanning(isScanning: Bool) {
+    debugNotify(id: isScanning ? "scan-start" : "scan-stop",
+                title: isScanning ? "Escaneamento Iniciado" : "Escaneamento Parado",
+                body: isScanning ? "BeAroundSDK está escaneando beacons"
+                                 : "BeAroundSDK parou de escanear",
+                cooldown: 10)
     DispatchQueue.main.async {
       BearoundReactSdkEventEmitter.emit("bearound:scanning", body: ["isScanning": isScanning])
     }
   }
-  
+
   public func willStartSync(beaconCount: Int) {
+    debugNotify(id: "sync-start",
+                title: "Sincronizando",
+                body: "Enviando \(beaconCount) beacon\(beaconCount == 1 ? "" : "s") para o servidor",
+                cooldown: 30,
+                sound: false)
     let payload: [String: Any] = [
       "type": "started",
       "beaconCount": beaconCount
