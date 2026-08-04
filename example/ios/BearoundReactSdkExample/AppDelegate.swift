@@ -57,13 +57,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     // If iOS relaunched us due to a region/bluetooth event, surface it immediately
     // (the SDK auto-restores scanning from storage; we don't reconfigure here so
     // the user's saved scan precision is preserved).
-    if launchOptions?[.location] != nil {
-      NSLog("[BearoundReactSdkExample] App launched due to LOCATION event (beacon region entry)")
-      postRelaunchNotification()
-    }
-    if launchOptions?[.bluetoothCentrals] != nil {
-      NSLog("[BearoundReactSdkExample] App launched due to BLUETOOTH event (state restoration)")
-      postRelaunchNotification()
+    // iOS can deliver BOTH reasons for the same relaunch; notifying per reason posted two
+    // identical notifications back to back, which reads on screen as "it relaunched twice".
+    // One notification, naming whichever reason (or reasons) arrived.
+    var relaunchReasons: [String] = []
+    if launchOptions?[.location] != nil { relaunchReasons.append("região") }
+    if launchOptions?[.bluetoothCentrals] != nil { relaunchReasons.append("Bluetooth") }
+    if !relaunchReasons.isEmpty {
+      let reason = relaunchReasons.joined(separator: " + ")
+      NSLog("[BearoundReactSdkExample] App relaunched by %@", reason)
+      postRelaunchNotification(reason: reason)
     }
 
     let delegate = ReactNativeDelegate()
@@ -166,10 +169,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     completionHandler([.banner, .list, .sound, .badge])
   }
 
-  private func postRelaunchNotification() {
+  private func postRelaunchNotification(reason: String) {
     let content = UNMutableNotificationContent()
-    content.title = "App reativado"
-    content.body = "Bearound detectou uma região de beacon em segundo plano"
+    content.title = "App Reativado"
+    content.body = "iOS relançou o app em segundo plano por \(reason)"
     content.sound = .default
     let request = UNNotificationRequest(
       identifier: "bearound-relaunch-\(UUID().uuidString)",
