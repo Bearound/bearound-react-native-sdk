@@ -15,8 +15,14 @@
  * - **Android ≤ 11 (API ≤ 30):** fine/coarse location gates the BLE scan.
  * - `POST_NOTIFICATIONS` (Android 13+): optional, for foreground-service /
  *   monitoring indicators — not required to scan.
- * - `ACCESS_BACKGROUND_LOCATION`: NOT a scan requirement; requested only via the
- *   explicit {@link requestBackgroundLocation} opt-in.
+ * - `ACCESS_BACKGROUND_LOCATION`: NOT a scan requirement — but it IS what keeps Wi-Fi
+ *   observations coming once the app is backgrounded. Without it, from Android 10 on, a
+ *   backgrounded app gets an empty scan list and the placeholder BSSID
+ *   `02:00:00:00:00:00`; the SDK discards the placeholder, so `wifis[]` and
+ *   `network.apId` simply arrive empty, with no error anywhere. Measured in production:
+ *   25 access points dropped to zero the instant the app was backgrounded. Requested
+ *   only via the explicit {@link requestBackgroundLocation} opt-in — see its docs before
+ *   deciding.
  *
  * @author Bearound Team
  */
@@ -263,6 +269,16 @@ export async function requestForegroundPermissions(): Promise<PermissionResult> 
  *
  * This never opens app Settings on your behalf; if the return value indicates
  * a permanent denial the host app decides whether to route the user there.
+ *
+ * **When you actually need this.** Beacon detection never does — on Android 12+ the SDK
+ * scans on `BLUETOOTH_SCAN`, with no location at all. Wi-Fi observations do: without this
+ * grant they only work while your app is on screen, and a fleet is almost never on screen.
+ * If you are contributing to the access-point map, this is the difference between
+ * collecting and not collecting.
+ *
+ * **What it costs.** It is a dangerous permission with a Google Play policy review and a
+ * demonstration video attached. Skipping it is a legitimate choice — just not a silent
+ * one. Check the outcome in the payload: `device.permissions.backgroundLocation`.
  *
  * @returns Promise<boolean> true if background location permission is granted
  *

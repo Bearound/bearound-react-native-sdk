@@ -122,6 +122,18 @@ Guardrails — follow strictly:
   keeps working); the on-device permission grants (Always location + Background App
   Refresh); and the Google Play connectedDevice foreground-service declaration + demo
   video. Do not attempt those yourself.
+- Wi-Fi observations in the BACKGROUND need one more grant on each platform, and its
+  absence is INVISIBLE — the system returns empty instead of an error. Android: without
+  ACCESS_BACKGROUND_LOCATION a backgrounded app gets an empty scan list and the
+  placeholder BSSID 02:00:00:00:00:00, so wifis[] arrives empty (measured: 25 access
+  points to zero the instant the app was backgrounded). iOS: .whenInUse stops revealing
+  the access point in the background; .always keeps it. Neither is needed for beacon
+  detection, and on Android it costs a Google Play policy review plus a demo video. So
+  ASK ME whether background Wi-Fi matters for this app. If yes, call
+  requestBackgroundLocation() AFTER foreground location is granted (Android 11+ refuses
+  both in one dialog) and use .always on iOS. If no, leave it out — valid choice, just
+  not a silent one. Verify either way in the payload:
+  device.permissions.backgroundLocation.
 ```
 
 Web-capable agents can fetch this prompt directly from its raw URL:
