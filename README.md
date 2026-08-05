@@ -185,6 +185,35 @@ on both platforms.
 Nothing degrades if you skip the iOS capability: the field is simply omitted and every other
 feature behaves the same.
 
+> ### ⚠️ Sem permissão de background, o Wi-Fi só é coletado com o app aberto
+>
+> A tabela acima cobre **o que desbloqueia** a coleta. Ela não cobre **por quanto tempo** —
+> e essa é a parte que surpreende.
+>
+> - **Android:** a partir do 10, um app em background sem `ACCESS_BACKGROUND_LOCATION`
+>   recebe lista de scan vazia e o BSSID placeholder `02:00:00:00:00:00`. Não é erro, não
+>   é exceção: o SDK descarta o placeholder e `wifis[]` chega vazio. Medido em produção —
+>   **25 pontos de acesso viraram zero no instante em que o app foi para background**, com
+>   todas as permissões que ele pediu concedidas.
+> - **iOS:** com `.whenInUse` o sistema para de revelar o access point em background e
+>   retorna `nil`. `.always` é o que mantém a coleta viva.
+>
+> Como uma frota passa quase todo o tempo em background, "só em foreground" na prática
+> significa **quase nunca** — e um teste manual com o app aberto passa perfeitamente.
+>
+> No Android, `requestPermissions()` **não** pede background location de propósito: é
+> permissão *dangerous*, com revisão de política da Play e vídeo de demonstração
+> atrelados. Se você contribui para o mapa de pontos de acesso, peça explicitamente:
+>
+> ```typescript
+> import { requestBackgroundLocation } from '@bearound/react-native-sdk';
+>
+> // só DEPOIS que a localização de foreground já foi concedida
+> const ok = await requestBackgroundLocation();
+> ```
+>
+> Confira o resultado no payload: `device.permissions.backgroundLocation`.
+
 ## Presence heartbeat
 
 Until 3.8.0 a device that saw no beacon and no other SDK device stayed silent, and the
