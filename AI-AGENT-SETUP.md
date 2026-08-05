@@ -49,9 +49,12 @@ is more specific, it wins.
 
 3. iOS Info.plist: add the five UIBackgroundModes (fetch, location, processing,
    bluetooth-central, remote-notification), the two BGTaskSchedulerPermittedIdentifiers
-   (io.bearound.sdk.sync, io.bearound.sdk.processing), and the four
-   NS…UsageDescription strings — write a user-facing rationale that matches what THIS
-   app actually does (no internal jargon). Then run `plutil -lint` and confirm OK.
+   (io.bearound.sdk.sync, io.bearound.sdk.processing), and the NS…UsageDescription
+   strings — write a user-facing rationale that matches what THIS app actually does (no
+   internal jargon). Then run `plutil -lint` and confirm OK.
+   Include NSUserTrackingUsageDescription: without that key iOS never shows the App
+   Tracking Transparency prompt, so the SDK reports no advertising identifier — and
+   nothing errors, the field is simply never there.
 
 4. JS — configure, THEN request permissions, THEN scan (order matters; follow the
    README Quick Start): on root-component mount call
@@ -114,9 +117,11 @@ Guardrails — follow strictly:
   `development` for Debug and `production` for Release (a Release/TestFlight build
   left on development silently fails the silent-push wake in production), with
   CODE_SIGN_ENTITLEMENTS pointing at the .entitlements in BOTH build configs; the
-  on-device permission grants (Always location + Background App Refresh); and the
-  Google Play connectedDevice foreground-service declaration + demo video. Do not
-  attempt those yourself.
+  Access WiFi Information capability, which is what lets the SDK report the connected
+  Wi-Fi access point (without it iOS returns nothing, with no error — everything else
+  keeps working); the on-device permission grants (Always location + Background App
+  Refresh); and the Google Play connectedDevice foreground-service declaration + demo
+  video. Do not attempt those yourself.
 ```
 
 Web-capable agents can fetch this prompt directly from its raw URL:
