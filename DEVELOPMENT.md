@@ -22,6 +22,11 @@ bearound-react-native-sdk/
 │   ├── index.tsx                # Main SDK entry point
 │   ├── permissions.ts           # Permission management
 │   └── NativeBearoundReactSdk.ts # TurboModule interface
+├── plugin/                      # Expo config plugin (plain CommonJS)
+│   ├── withBearound.js          # Info.plist, entitlements, manifest, AppDelegate mods
+│   ├── appDelegate.js           # Pure AppDelegate.swift transformation
+│   └── __tests__/__fixtures__/  # Verbatim Expo templates, SDK 53–57
+├── app.plugin.js                # Entry point Expo resolves for the plugin
 ├── android/                     # Android native code
 ├── ios/                         # iOS native code
 ├── example/                     # Example React Native app
@@ -94,7 +99,17 @@ Our testing strategy focuses on **functional testing** rather than complex mocki
 - ✅ **Cross-platform Testing** - Android vs iOS behavior
 - ✅ **Permission Flow Testing** - Core SDK functionality
 - ✅ **Type Safety Testing** - TypeScript compliance
+- ✅ **Expo config plugin** - the `AppDelegate.swift` transformation runs against the
+  verbatim `expo-template-bare-minimum` templates of SDK 53–57, asserting the injected
+  overrides, the `super` calls, brace balance and idempotency
 - ❌ **Unit Testing** - Avoided due to heavy native dependencies
+
+> Refreshing a template fixture: `npm pack expo-template-bare-minimum@sdk-<n>` and copy
+> `package/ios/HelloWorld/AppDelegate.swift` to
+> `plugin/__tests__/__fixtures__/ExpoAppDelegate.sdk<n>.swift`. A new Expo SDK is worth a
+> new fixture — the plugin anchors on that file's structure. Beyond the unit tests, the
+> end-to-end check is `npx expo prebuild --clean` in a scratch Expo app with the plugin
+> installed from `npm pack`, run twice to confirm nothing duplicates.
 
 ### Test Coverage
 

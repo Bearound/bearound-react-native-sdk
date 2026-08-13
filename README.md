@@ -16,6 +16,10 @@ Aligned with Bearound native SDKs **3.8.0** (exact pins live in `android/build.g
 
 * [Requirements](#requirements)
 * [Installation](#installation)
+* [Expo](#expo)
+  * [Config plugin](#config-plugin)
+  * [Plugin options](#plugin-options)
+  * [What still needs you](#what-still-needs-you)
 * [Set up with an AI agent](#set-up-with-an-ai-agent)
 * [Permission Configuration](#permission-configuration)
   * [Android – Manifest](#android--manifest)
@@ -41,6 +45,7 @@ Aligned with Bearound native SDKs **3.8.0** (exact pins live in `android/build.g
 ## Requirements
 
 * **React Native** ≥ 0.73
+* **Expo** SDK **53+** (with the [config plugin](#expo)) — dev client or EAS Build, **not** Expo Go
 * **Android**: minSdk **24+** (the library builds with `minSdkVersion 24`); Android 12+ requires the `BLUETOOTH_SCAN` runtime permission ("Nearby devices")
 * **iOS**: iOS **13+** (recommended 15+), Bluetooth and Location enabled
 
@@ -81,6 +86,125 @@ No additional Gradle configuration is needed beyond permissions. The native Andr
 
 ---
 
+## Expo
+
+The SDK ships an **Expo config plugin**, so an Expo app gets the whole native setup — background modes, BGTask identifiers, usage strings, entitlements and the `AppDelegate` wiring — from one line in `app.json`.
+
+Two things to know before you start:
+
+* **Expo Go cannot run this SDK.** It bundles native code, and Expo Go only ships the modules Expo compiled into it. Use a [development build](https://docs.expo.dev/develop/development-builds/introduction/) (`npx expo run:ios` / `run:android`, or EAS Build).
+* **Under [CNG](https://docs.expo.dev/workflow/continuous-native-generation/), hand edits to `ios/` and `android/` do not survive.** `expo prebuild` regenerates those folders from your config, so anything you paste into `AppDelegate.swift` by hand is gone on the next prebuild — silently, and only background/terminated detection breaks. That is exactly what the plugin exists to prevent.
+
+### Config plugin
+
+```bash
+npx expo install @bearound/react-native-sdk
+```
+
+```json
+{
+  "expo": {
+    "plugins": [
+      ["@bearound/react-native-sdk", {
+        "usageDescriptions": {
+          "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow \"Always\" so we can show you nearby offers even when the app is closed."
+        }
+      }]
+    ]
+  }
+}
+```
+
+```bash
+npx expo prebuild --clean   # or just build: prebuild runs as part of it
+```
+
+What it applies, on every prebuild:
+
+| Where | What |
+|---|---|
+| `Info.plist` | the five `UIBackgroundModes` (`fetch`, `location`, `processing`, `bluetooth-central`, `remote-notification`) and both `BGTaskSchedulerPermittedIdentifiers` (`io.bearound.sdk.sync`, `io.bearound.sdk.processing`) |
+| `Info.plist` | the four Bluetooth/Location `NS…UsageDescription` strings — **only if your config does not already declare them**, so `ios.infoPlist` and the `usageDescriptions` prop always win |
+| `<app>.entitlements` | `aps-environment` (silent-push wake) and `com.apple.developer.networking.wifi-info` (Access WiFi Information) |
+| `AppDelegate.swift` | the SDK delegate, `registerBackgroundTasks()`, APNs registration, background fetch, the silent-push handler and the background-URLSession handoff |
+| `AndroidManifest.xml` | nothing by default — the native SDK declares its own permissions and the manifest merger injects them. `ACCESS_BACKGROUND_LOCATION` only when you opt in with `backgroundWifi` |
+
+> **Expo's `AppDelegate` is not the bare React Native one.** It subclasses `ExpoAppDelegate`, which already implements the push, fetch and background-session callbacks and forwards them to the Expo modules in your app. So every method the plugin injects is an `override` that **calls `super`** — `expo-notifications`, `expo-background-task` and friends keep receiving everything they did before. The plugin also **never touches the `UNUserNotificationCenter` delegate**: `expo-notifications` owns it, and reassigning it would steal your app's push routing. To show notifications while the app is in the foreground, use `Notifications.setNotificationHandler()` in JS.
+
+The injected code sits between `// @generated begin bearound` / `// @generated end bearound` markers and is rewritten in place, so re-running prebuild never duplicates it. Verified against the `expo-template-bare-minimum` `AppDelegate` of **SDK 53, 54, 55, 56 and 57**.
+
+The JS side is the same as anywhere else — `configure()` on mount, then `ensurePermissions()`, then `startScanning()`: see [Quick Start](#quick-start). If your app pulls in Firebase or anything else that requires static frameworks, set `useFrameworks: "static"` via [`expo-build-properties`](https://docs.expo.dev/versions/latest/sdk/build-properties/); the SDK works either way.
+
+### If your app is already configured
+
+The plugin is additive, and it never overwrites a decision your app already made:
+
+* **`Info.plist`** — background modes and BGTask ids are merged as a union (your other modes stay); the `NS…UsageDescription` strings are written **only when absent**, so `ios.infoPlist` and the `usageDescriptions` prop win.
+* **`<app>.entitlements`** — an `aps-environment` you already set is kept as is.
+* **`AndroidManifest.xml`** — nothing is removed; `ACCESS_BACKGROUND_LOCATION` is added only with `backgroundWifi`.
+* **`AppDelegate.swift`** — if your app (or another config plugin) **already implements** one of these callbacks, the plugin **skips that one** rather than emitting a second declaration, which Swift would reject as `invalid redeclaration`. It prints a warning naming what it skipped: that method is then yours to keep correct, so make sure it carries the matching Bearound call from [§1](#1-appdelegate-wiring).
+* Listing the plugin twice is harmless — it runs once per prebuild.
+
+So an app that had been wired by hand and later adds the plugin still builds; you just have to reconcile whatever the warning names.
+
+### Parity with the reference apps
+
+The plugin was diffed against the two apps that are known to work in background — the native iOS example and this repo's own React Native example. Every SDK touch point that drives background and terminated-state operation is present, identically:
+
+`BeAroundSDK.shared.delegate` · `registerBackgroundTasks()` · `registerForRemoteNotifications()` · `launchOptions[.location]` / `[.bluetoothCentrals]` · `performBackgroundFetch` · `setPushToken` · `performBackgroundBLERefreshAndSync` (silent push) · `handleBackgroundURLSessionEvents` — plus the same `UIBackgroundModes` and `BGTaskSchedulerPermittedIdentifiers`, and a signed `aps-environment`. The plugin adds one thing the examples do not have: it only claims the background URLSession whose identifier is the SDK's, so another library's transfers still reach `super`.
+
+**What the plugin deliberately leaves to your app — all of it about notifications, none of it about detection:**
+
+| Reference apps do | Plugin does not | Why it does not affect detection |
+|---|---|---|
+| `UNUserNotificationCenter.current().delegate = self` | — | `expo-notifications` owns that delegate; stealing it breaks your app's push routing. Use `Notifications.setNotificationHandler()`. |
+| `requestAuthorization([.alert, .sound, .badge])` | — | Ask through `expo-notifications` (`requestPermissionsAsync()`), so one library owns the prompt. |
+| `willPresent` → `.banner` | — | Foreground presentation only. `setNotificationHandler` covers it. |
+| Post a local "App reactivated" notification | — | That notification belongs to the example app, not the SDK. |
+
+Waking on beacon entry, BGTasks, the silent-push wake and the background upload handoff are all driven by CoreLocation, BGTaskScheduler, APNs and `URLSession` — none of them go through `UNUserNotificationCenter`. The SDK never posts a notification; it only **reads** the authorization status for telemetry (so with no notification permission, that one telemetry field reports `denied`).
+
+> **This still costs you something concrete: your field test goes blind.** The 3-state test in [§6](#6-verify-it-works) uses a local notification as the proof that the app woke up in background. On Expo, install `expo-notifications`, request permission and set a handler — otherwise background detection may be working perfectly and you will have no way to see it.
+
+One more difference to know: `NSUserTrackingUsageDescription` is in the reference apps but is written **only if you pass `trackingUsageDescription`**. Without it there is no ATT prompt, so no advertising identifier — silently.
+
+### Plugin options
+
+All optional.
+
+| Prop | Default | What it does |
+|---|---|---|
+| `usageDescriptions` | generic copy | Overrides the `NS…UsageDescription` strings your users read in the iOS dialogs. Apple reviews this wording against what your app really does — write your own. |
+| `trackingUsageDescription` | *(unset)* | Adds `NSUserTrackingUsageDescription`. Without it iOS never shows the App Tracking Transparency prompt, so the SDK reports **no advertising identifier** — silently, nothing errors. |
+| `backgroundWifi` | `false` | Declares `ACCESS_BACKGROUND_LOCATION` on Android. Only needed to keep [Wi-Fi observations](#wi-fi-observations) coming while the app is in the background — beacon detection never needs it, and it costs a Play policy review. |
+| `wifiInfo` | `true` | Adds the iOS Access WiFi Information entitlement. |
+| `apsEnvironment` | `"development"` | The `aps-environment` entitlement. EAS Build sets `production` for release builds; pass `false` to manage it yourself. |
+| `appDelegate` | `true` | `false` skips the `AppDelegate` wiring — background and terminated-state detection stop working. Only for apps that wire it themselves. |
+
+```json
+["@bearound/react-native-sdk", { "backgroundWifi": true, "trackingUsageDescription": "We use your advertising identifier to measure store visits." }]
+```
+
+### What still needs you
+
+The plugin writes project files. It cannot touch your Apple/Google accounts or a physical device:
+
+* **Push credentials.** The entitlement is only half of it — APNs needs a push key on your App ID. `eas credentials` (or Xcode signing) is what creates it. Without it `didFailToRegisterForRemoteNotificationsWithError` fires, no token ever reaches the backend, and the terminated-state wake stays dead.
+* **On device:** grant **Always** location and turn on **Background App Refresh**.
+* **Google Play:** the `connectedDevice` foreground-service declaration + demo video, if you use [foreground-service scan mode](#scan-modes-android).
+
+**Verify the prebuild** before you trust it:
+
+```bash
+npx expo prebuild --clean
+plutil -p ios/*/Info.plist | grep -E "UIBackgroundModes|BGTaskScheduler" -A 8
+grep -c "@generated begin bearound" ios/*/AppDelegate.swift   # expect 2
+```
+
+Already ejected — `ios/` and `android/` committed and no longer prebuilt? Then the plugin does not run: wire it by hand from [iOS Background Integration](#ios-background-integration-required).
+
+---
+
 ## Set up with an AI agent
 
 Instead of wiring the intricate iOS/Android background setup by hand, hand it to an **AI coding agent** (Claude Code, Cursor, Copilot, …). This README is written to be **agent-readable** — the agent reads it and does the whole integration. There's one ready-made prompt to give it:
@@ -94,6 +218,8 @@ Open [`AI-AGENT-SETUP.md`](./AI-AGENT-SETUP.md) and click the **copy icon** on i
 - **Xcode → Push Notifications capability** on your app target, signed with **your** push-enabled App ID / provisioning profile. Set `aps-environment` to `development` for Debug and `production` for Release — see [§3](#3-push-notifications-capability-silent-push-wake-vector).
 - **On device:** grant **Always** location and turn on **Background App Refresh**.
 - **Google Play:** the `connectedDevice` foreground-service declaration + demonstration video required at review — see [Scan modes](#scan-modes-android).
+
+On **Expo**, the prompt takes the [config-plugin route](#expo) instead of editing native files: the entitlements and Info.plist keys above are written for you, and what stays human-only is the APNs push key (`eas credentials`), the on-device grants and the Play declaration.
 
 Prefer to wire it by hand? Everything the prompt references is spelled out in the sections below.
 
@@ -177,42 +303,61 @@ then on it can place a device even where no beacon reaches.
 access point's hardware address, canonicalised so the same router yields the same identifier
 on both platforms.
 
+**Collection is on by default and costs you nothing extra.** No separate dialog, no Play
+policy review, no demonstration video:
+
 | Platform | What it reports | What you must do |
 |---|---|---|
-| **Android** | The connected access point **and its neighbours**, with RSSI | Nothing — `requestPermissions()` already asks for `NEARBY_WIFI_DEVICES` on 13+, in the same "Nearby devices" group as Bluetooth (usually no second dialog) |
-| **iOS** | Only the **connected** access point, without RSSI (there is no public API for neighbours) | Add the **Access WiFi Information** capability in Xcode (Signing & Capabilities → + Capability) |
+| **Android** | The connected access point **and its neighbours**, with RSSI | Nothing — `requestPermissions()` already asks for `NEARBY_WIFI_DEVICES` on 13+, in the same "Nearby devices" group as Bluetooth, so usually no second dialog appears |
+| **iOS** | Only the **connected** access point, without RSSI (there is no public API for neighbours) | Add the **Access WiFi Information** capability — one checkbox in Xcode (Signing & Capabilities → + Capability), or automatic with the [Expo config plugin](#expo) |
 
 Nothing degrades if you skip the iOS capability: the field is simply omitted and every other
 feature behaves the same.
 
-> ### ⚠️ Sem permissão de background, o Wi-Fi só é coletado com o app aberto
+> ### ⚠️ In the **background**, Wi-Fi needs one permission more — and its absence is invisible
 >
-> A tabela acima cobre **o que desbloqueia** a coleta. Ela não cobre **por quanto tempo** —
-> e essa é a parte que surpreende.
+> The table above is about **what unlocks** collection. It says nothing about **for how
+> long** — and that is the part that surprises people.
 >
-> - **Android:** a partir do 10, um app em background sem `ACCESS_BACKGROUND_LOCATION`
->   recebe lista de scan vazia e o BSSID placeholder `02:00:00:00:00:00`. Não é erro, não
->   é exceção: o SDK descarta o placeholder e `wifis[]` chega vazio. Medido em produção —
->   **25 pontos de acesso viraram zero no instante em que o app foi para background**, com
->   todas as permissões que ele pediu concedidas.
-> - **iOS:** com `.whenInUse` o sistema para de revelar o access point em background e
->   retorna `nil`. `.always` é o que mantém a coleta viva.
+> - **Android:** from Android 10 on, a backgrounded app without `ACCESS_BACKGROUND_LOCATION`
+>   gets an empty scan list and the placeholder BSSID `02:00:00:00:00:00`. No error, no
+>   exception: the SDK discards the placeholder and `wifis[]` simply arrives empty. Measured
+>   in production — **25 access points dropped to zero the instant the app was backgrounded**,
+>   with every permission it had asked for granted.
+> - **iOS:** with `.whenInUse` the system stops revealing the access point in the background
+>   and returns `nil`. `.always` is what the SDK asks for — but do not count on it keeping
+>   collection alive. In a field run on **iPhone 17 Pro Max / iOS 27 with
+>   `location: authorized_always` granted**, over 300 payloads sent while the app sat in
+>   the background arrived with `wifis: null` and `location: null`, while foreground
+>   payloads carried both. The one background payload that *did* carry them was the
+>   **cold relaunch** — the app resurrected by iOS reported an access point and a fix
+>   88 ms into its life, then went quiet again. So treat iOS background Wi-Fi as
+>   *opportunistic, not guaranteed*, and verify on your target OS version.
 >
-> Como uma frota passa quase todo o tempo em background, "só em foreground" na prática
-> significa **quase nunca** — e um teste manual com o app aberto passa perfeitamente.
+> A fleet spends nearly all its time in the background, so "foreground only" means **almost
+> never** in practice — while a hand test with the app open passes perfectly.
 >
-> No Android, `requestPermissions()` **não** pede background location de propósito: é
-> permissão *dangerous*, com revisão de política da Play e vídeo de demonstração
-> atrelados. Se você contribui para o mapa de pontos de acesso, peça explicitamente:
+> Beacon detection is **not** affected either way: on Android 12+ the scan runs on
+> `BLUETOOTH_SCAN` (`neverForLocation`), with no location permission at all.
+>
+> That is why `requestPermissions()` deliberately does **not** ask for background location:
+> unlike Wi-Fi collection itself, it is a *dangerous* permission with a Google Play policy
+> review and a demonstration video attached. If your app contributes to the access-point map,
+> ask for it explicitly:
 >
 > ```typescript
 > import { requestBackgroundLocation } from '@bearound/react-native-sdk';
 >
-> // só DEPOIS que a localização de foreground já foi concedida
+> // only AFTER foreground location has been granted (Android 11+ refuses both
+> // in a single dialog). On iOS this resolves to the "Always" authorization.
 > const ok = await requestBackgroundLocation();
 > ```
 >
-> Confira o resultado no payload: `device.permissions.backgroundLocation`.
+> On Expo, declare the Android permission with the plugin prop
+> [`backgroundWifi: true`](#plugin-options) — otherwise the request resolves to
+> `NEVER_ASK_AGAIN` because the manifest never declared it.
+>
+> Check the outcome in the payload: `device.permissions.backgroundLocation`.
 
 ## Presence heartbeat
 
@@ -375,6 +520,8 @@ Requires `@react-native-firebase/messaging` and a **data** message (not notifica
 ## iOS Background Integration (required)
 
 This section is the **consumer contract** for background and terminated-state operation. Without this wiring the SDK still works in foreground, but it **silently degrades** in background: terminated-state uploads never finalize, BGTasks never run, and the app is never woken once iOS kills it.
+
+> **On Expo (CNG), do not do any of this by hand** — the [config plugin](#expo) applies this same contract on every prebuild, adapted to Expo's `ExpoAppDelegate` (every method an `override` that calls `super`). Editing `AppDelegate.swift` yourself works until the next `expo prebuild` wipes it. Read this section to understand *what* is wired and why; let the plugin do the wiring.
 
 The snippets below are the example app **verbatim**: §1 is the **complete** `AppDelegate` and §2 + the usage-description strings in [Permission Configuration → iOS](#ios--infoplist-and-background-modes) together form the **complete** `Info.plist`. Copy them as-is (changing only the module name, marked in §1).
 
@@ -1129,6 +1276,15 @@ bluetoothStateSub.remove();
 * Call `configure()` before `startScanning()` — `startScanning()` without a prior `configure()` resolves without error but detects nothing. Check with `isConfigured()`.
 * Verify the business token. An invalid token fails **silently** in the current version: beacons still appear locally, but every sync fails — watch `addSyncLifecycleListener` for `completed` events with `success: false`.
 * Check Bluetooth: `getBluetoothState()` should resolve `'poweredOn'` (`'unauthorized'` on iOS means the Bluetooth permission was denied).
+
+**Expo: nothing detected in background, or the wiring "disappeared"**
+
+* Check the `AppDelegate`: `grep -c "@generated begin bearound" ios/*/AppDelegate.swift` must print `2`. If it prints `0`, the plugin is not in `app.json`'s `plugins` array (or a prebuild ran without it) — everything still builds and runs in the foreground, which is why this goes unnoticed.
+* Running in **Expo Go**? It cannot load this SDK. Build a [development build](#expo).
+
+**iOS build fails with "could not build module 'React'"**
+
+* Seen on React Native 0.86 / Expo SDK 57 with the prebuilt React-Core framework, as `include of non-modular header inside framework module`. Fixed from the version above — update the package and re-run `pod install`. On an older SDK version, the workaround is `CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES = YES` for the `BearoundReactSdk` pod target in your Podfile's `post_install`.
 
 **Android 12+ (API 31+): permissions**
 
