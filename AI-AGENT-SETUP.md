@@ -35,7 +35,12 @@ EXPO ROUTE (replaces steps 1, 2 and 3):
       shows all five modes + both BGTask ids, and
       `grep -c "@generated begin bearound" ios/*/AppDelegate.swift` prints 2.
    d. Do NOT reassign the UNUserNotificationCenter delegate anywhere: expo-notifications
-      owns it. Use Notifications.setNotificationHandler() in JS for foreground banners.
+      owns it. The plugin leaves every notification concern to the app on purpose — the
+      SDK never posts notifications and detection does not go through them — but the
+      3-state field test uses a local notification as its ONLY proof that the app woke
+      up in background. So if the app has no notification stack yet, TELL ME, and wire
+      expo-notifications: requestPermissionsAsync() + setNotificationHandler() (banner in
+      foreground). Without it background detection can be working and be invisible.
    e. Expo Go CANNOT run this SDK (native code). The app must run as a development
       build — `npx expo run:ios` / `run:android` or EAS Build. Say so explicitly if
       the project is currently Expo-Go-only.

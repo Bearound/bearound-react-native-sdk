@@ -135,6 +135,27 @@ The injected code sits between `// @generated begin bearound` / `// @generated e
 
 The JS side is the same as anywhere else — `configure()` on mount, then `ensurePermissions()`, then `startScanning()`: see [Quick Start](#quick-start). If your app pulls in Firebase or anything else that requires static frameworks, set `useFrameworks: "static"` via [`expo-build-properties`](https://docs.expo.dev/versions/latest/sdk/build-properties/); the SDK works either way.
 
+### Parity with the reference apps
+
+The plugin was diffed against the two apps that are known to work in background — the native iOS example and this repo's own React Native example. Every SDK touch point that drives background and terminated-state operation is present, identically:
+
+`BeAroundSDK.shared.delegate` · `registerBackgroundTasks()` · `registerForRemoteNotifications()` · `launchOptions[.location]` / `[.bluetoothCentrals]` · `performBackgroundFetch` · `setPushToken` · `performBackgroundBLERefreshAndSync` (silent push) · `handleBackgroundURLSessionEvents` — plus the same `UIBackgroundModes` and `BGTaskSchedulerPermittedIdentifiers`, and a signed `aps-environment`. The plugin adds one thing the examples do not have: it only claims the background URLSession whose identifier is the SDK's, so another library's transfers still reach `super`.
+
+**What the plugin deliberately leaves to your app — all of it about notifications, none of it about detection:**
+
+| Reference apps do | Plugin does not | Why it does not affect detection |
+|---|---|---|
+| `UNUserNotificationCenter.current().delegate = self` | — | `expo-notifications` owns that delegate; stealing it breaks your app's push routing. Use `Notifications.setNotificationHandler()`. |
+| `requestAuthorization([.alert, .sound, .badge])` | — | Ask through `expo-notifications` (`requestPermissionsAsync()`), so one library owns the prompt. |
+| `willPresent` → `.banner` | — | Foreground presentation only. `setNotificationHandler` covers it. |
+| Post a local "App reactivated" notification | — | That notification belongs to the example app, not the SDK. |
+
+Waking on beacon entry, BGTasks, the silent-push wake and the background upload handoff are all driven by CoreLocation, BGTaskScheduler, APNs and `URLSession` — none of them go through `UNUserNotificationCenter`. The SDK never posts a notification; it only **reads** the authorization status for telemetry (so with no notification permission, that one telemetry field reports `denied`).
+
+> **This still costs you something concrete: your field test goes blind.** The 3-state test in [§6](#6-verify-it-works) uses a local notification as the proof that the app woke up in background. On Expo, install `expo-notifications`, request permission and set a handler — otherwise background detection may be working perfectly and you will have no way to see it.
+
+One more difference to know: `NSUserTrackingUsageDescription` is in the reference apps but is written **only if you pass `trackingUsageDescription`**. Without it there is no ATT prompt, so no advertising identifier — silently.
+
 ### Plugin options
 
 All optional.
