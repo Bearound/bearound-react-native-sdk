@@ -27,7 +27,14 @@ Pod::Spec.new do |s|
      'CLANG_ENABLE_MODULES'  => 'YES',
      'DEFINES_MODULE'        => 'YES',
      'OTHER_CFLAGS'          => '$(inherited) -fmodules',
-     'OTHER_CPLUSPLUSFLAGS'  => '$(inherited) -fcxx-modules -fmodules'
+     'OTHER_CPLUSPLUSFLAGS'  => '$(inherited) -fcxx-modules -fmodules',
+     # React Native 0.86 ships React-Core as a prebuilt framework whose umbrella
+     # header includes non-modular headers. Compiling this pod's generated
+     # `-Swift.h` against it fails with "include of non-modular header inside
+     # framework module" unless the check is relaxed for THIS target — which is
+     # what every app on RN 0.86 (Expo SDK 57) would otherwise have to patch into
+     # its own Podfile.
+     'CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES' => 'YES'
    }
 
   install_modules_dependencies(s)
