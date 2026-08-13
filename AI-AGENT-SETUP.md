@@ -7,10 +7,40 @@ the full iOS/Android background integration.
 
 ```text
 Integrate @bearound/react-native-sdk into this React Native app. First READ the
-SDK's README end to end — especially "iOS Background Integration (required)",
+SDK's README end to end — especially "Expo", "iOS Background Integration (required)",
 "Permission Configuration", "Quick Start", and "Set up with an AI agent" — then do
 ALL of the following. Follow the README's Quick Start and §1-§6; where a step below
 is more specific, it wins.
+
+0. FIRST decide which app this is, because it changes steps 1-3 completely:
+   - EXPO with managed native folders (CNG): `expo` is a dependency AND there is an
+     app.json / app.config.js with an `expo` key AND `ios/`+`android/` are absent or
+     gitignored. Then FOLLOW THE "EXPO ROUTE" BELOW and do NOT hand-edit AppDelegate
+     or Info.plist — `expo prebuild` regenerates them and your edits vanish silently,
+     taking background detection with them.
+   - BARE React Native, or an Expo app that committed `ios/`+`android/` and no longer
+     prebuilds: use steps 1-3 as written.
+
+EXPO ROUTE (replaces steps 1, 2 and 3):
+   a. `npx expo install @bearound/react-native-sdk`.
+   b. Add the config plugin to the `plugins` array in app.json / app.config.js:
+      ["@bearound/react-native-sdk", { "usageDescriptions": { ... } }] — write the
+      NS…UsageDescription copy to match what THIS app actually does, in the user's
+      language, no internal jargon. Add "trackingUsageDescription" too, or iOS never
+      shows the App Tracking Transparency prompt and the advertising identifier is
+      silently absent. It applies the five UIBackgroundModes, both
+      BGTaskSchedulerPermittedIdentifiers, the entitlements (aps-environment +
+      Access WiFi Information) and the AppDelegate wiring on every prebuild.
+   c. Run `npx expo prebuild --clean`, then VERIFY: `plutil -p ios/*/Info.plist`
+      shows all five modes + both BGTask ids, and
+      `grep -c "@generated begin bearound" ios/*/AppDelegate.swift` prints 2.
+   d. Do NOT reassign the UNUserNotificationCenter delegate anywhere: expo-notifications
+      owns it. Use Notifications.setNotificationHandler() in JS for foreground banners.
+   e. Expo Go CANNOT run this SDK (native code). The app must run as a development
+      build — `npx expo run:ios` / `run:android` or EAS Build. Say so explicitly if
+      the project is currently Expo-Go-only.
+   f. Then continue at step 4 (JS wiring), step 5 (Android push, if applicable) and
+      step 6 (verification, adapted: build with `npx expo run:ios` / `run:android`).
 
 1. Install: `npm i @bearound/react-native-sdk`, then `cd ios && pod install`. If this
    app's Podfile uses `use_frameworks!`, set `use_frameworks! :linkage => :static`
@@ -122,18 +152,28 @@ Guardrails — follow strictly:
   keeps working); the on-device permission grants (Always location + Background App
   Refresh); and the Google Play connectedDevice foreground-service declaration + demo
   video. Do not attempt those yourself.
-- Wi-Fi observations in the BACKGROUND need one more grant on each platform, and its
-  absence is INVISIBLE — the system returns empty instead of an error. Android: without
+  On the EXPO ROUTE the first two are already written by the config plugin — what
+  remains human-only there is the APNs push key (`eas credentials`, which also syncs
+  the capabilities to the App ID), the on-device grants, and the Play declaration.
+- Wi-Fi collection itself is ON BY DEFAULT and costs nothing extra — no Play policy
+  review, no demonstration video. Keep it: ensurePermissions() already asks for
+  NEARBY_WIFI_DEVICES on Android 13+ inside the same "Nearby devices" group as
+  Bluetooth (usually no second dialog), and on iOS the Access WiFi Information
+  capability is one checkbox (automatic via the Expo plugin). Do not disable it and do
+  not treat it as a costly permission.
+- What DOES cost something is keeping Wi-Fi alive in the BACKGROUND, and its absence is
+  INVISIBLE — the system returns empty instead of an error. Android: without
   ACCESS_BACKGROUND_LOCATION a backgrounded app gets an empty scan list and the
   placeholder BSSID 02:00:00:00:00:00, so wifis[] arrives empty (measured: 25 access
-  points to zero the instant the app was backgrounded). iOS: .whenInUse stops revealing
-  the access point in the background; .always keeps it. Neither is needed for beacon
-  detection, and on Android it costs a Google Play policy review plus a demo video. So
-  ASK ME whether background Wi-Fi matters for this app. If yes, call
-  requestBackgroundLocation() AFTER foreground location is granted (Android 11+ refuses
-  both in one dialog) and use .always on iOS. If no, leave it out — valid choice, just
-  not a silent one. Verify either way in the payload:
-  device.permissions.backgroundLocation.
+  points to zero the instant the app was backgrounded); that permission is the one that
+  carries the Google Play policy review plus demo video. iOS: .whenInUse stops revealing
+  the access point in the background, .always keeps it. Neither is needed for beacon
+  detection. So ASK ME whether background Wi-Fi matters for this app. If yes, declare
+  ACCESS_BACKGROUND_LOCATION (Expo: the plugin's "backgroundWifi": true; bare: the app
+  manifest — the SDK does not declare it) and call requestBackgroundLocation() AFTER
+  foreground location is granted (Android 11+ refuses both in one dialog), and use
+  .always on iOS. If no, leave it out — valid choice, just not a silent one. Verify
+  either way in the payload: device.permissions.backgroundLocation.
 ```
 
 Web-capable agents can fetch this prompt directly from its raw URL:

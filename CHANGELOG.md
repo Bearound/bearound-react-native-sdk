@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added
+- **Expo config plugin.** `["@bearound/react-native-sdk", { … }]` in `app.json` now applies the
+  entire native setup on every `expo prebuild`: the five `UIBackgroundModes`, both
+  `BGTaskSchedulerPermittedIdentifiers`, the usage-description strings (never overwriting the
+  app's own), the `aps-environment` and Access WiFi Information entitlements, and the
+  `AppDelegate` wiring. Under CNG hand edits to `ios/` do not survive a prebuild, so an Expo app
+  previously lost background and terminated-state detection with nothing to show for it.
+  Injected code is fenced by `@generated begin/end bearound` markers and rewritten in place, so
+  prebuild is idempotent. Every injected method is an `override` that calls `super`, keeping
+  `expo-notifications`/`expo-background-task` intact, and the `UNUserNotificationCenter`
+  delegate is left alone. Verified against the `expo-template-bare-minimum` `AppDelegate` of
+  Expo SDK 53–57.
+- Plugin props: `usageDescriptions`, `trackingUsageDescription`, `backgroundWifi`, `wifiInfo`,
+  `apsEnvironment`, `appDelegate`.
+
+### Fixed
+- **iOS build on React Native 0.86** (the version Expo SDK 57 ships). RN 0.86 delivers
+  React-Core as a prebuilt framework whose umbrella header pulls in non-modular headers, and
+  compiling this pod's generated `-Swift.h` against it failed with *"include of non-modular
+  header inside framework module" → could not build module 'React'*. The podspec now sets
+  `CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES` on its own target, so apps no longer
+  have to patch their Podfile. Verified with a clean `xcodebuild` of an Expo SDK 57 /
+  RN 0.86.2 app.
+
+### Changed
+- README gained an **Expo** section, and the AI setup prompt now branches: on a CNG app it takes
+  the config-plugin route instead of hand-editing `AppDelegate.swift`.
+- Wi-Fi documentation now separates the two things that were being read as one: collection is on
+  by default and costs no extra review or demo video, while keeping it alive in the **background**
+  is what requires `ACCESS_BACKGROUND_LOCATION` (Android) / `.always` (iOS). Beacon detection
+  needs neither.
+
 ## 3.8.1
 
 ### Changed

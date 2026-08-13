@@ -48,6 +48,8 @@ module.exports = {
   testMatch: [
     '<rootDir>/src/**/__tests__/**/*.test.{js,jsx,ts,tsx}',
     '<rootDir>/src/**/*.(test|spec).{js,jsx,ts,tsx}',
+    // Expo config plugin (plain CommonJS, runs on the developer's machine)
+    '<rootDir>/plugin/**/__tests__/**/*.test.js',
   ],
 
   // Ignore patterns
