@@ -326,10 +326,13 @@ feature behaves the same.
 >   with every permission it had asked for granted.
 > - **iOS:** with `.whenInUse` the system stops revealing the access point in the background
 >   and returns `nil`. `.always` is what the SDK asks for — but do not count on it keeping
->   collection alive: in a field run on **iPhone 17 Pro Max / iOS 27, with
->   `location: authorized_always` granted**, every background payload arrived with
->   `wifis: null` while foreground payloads carried the access point. Treat iOS background
->   Wi-Fi as *not guaranteed*, and verify on your target OS version rather than assuming.
+>   collection alive. In a field run on **iPhone 17 Pro Max / iOS 27 with
+>   `location: authorized_always` granted**, over 300 payloads sent while the app sat in
+>   the background arrived with `wifis: null` and `location: null`, while foreground
+>   payloads carried both. The one background payload that *did* carry them was the
+>   **cold relaunch** — the app resurrected by iOS reported an access point and a fix
+>   88 ms into its life, then went quiet again. So treat iOS background Wi-Fi as
+>   *opportunistic, not guaranteed*, and verify on your target OS version.
 >
 > A fleet spends nearly all its time in the background, so "foreground only" means **almost
 > never** in practice — while a hand test with the app open passes perfectly.

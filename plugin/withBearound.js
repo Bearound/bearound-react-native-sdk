@@ -24,7 +24,12 @@ const {
   withInfoPlist,
 } = require('@expo/config-plugins');
 
+const path = require('path');
+
 const { withBearoundAppDelegate } = require('./appDelegate');
+
+/** Prefixed so a prebuild log makes clear who is talking. */
+const warn = (message) => console.warn(`[bearound] ${message}`);
 
 const pkg = require('../package.json');
 
@@ -85,8 +90,46 @@ const withBearoundInfoPlist = (config, props) =>
     // the SDK reports no advertising identifier — silently, with no error.
     if (props.trackingUsageDescription) {
       plist.NSUserTrackingUsageDescription = props.trackingUsageDescription;
+    } else if (!plist.NSUserTrackingUsageDescription) {
+      // The reference apps ship this key. Its absence costs the advertising
+      // identifier and reports nothing — measured on device:
+      // "IDFA: NSUserTrackingUsageDescription ausente — prompt não exibido".
+      warn(
+        'no NSUserTrackingUsageDescription — iOS will not show the App Tracking ' +
+          'Transparency prompt, so payloads carry no advertising identifier. ' +
+          'Pass the `trackingUsageDescription` prop with copy describing YOUR use, ' +
+          'or ignore this if the app deliberately does not use the IDFA.'
+      );
     }
 
+    return cfg;
+  });
+
+/**
+ * The plugin deliberately leaves every notification concern to the app —
+ * expo-notifications owns the UNUserNotificationCenter delegate. Detection does
+ * not depend on it, but the 3-state field test uses a local notification as its
+ * only proof that the app woke up in background, so an app with no notification
+ * stack can have background detection working and no way to see it.
+ */
+const warnIfNoNotificationStack = (config) =>
+  withInfoPlist(config, (cfg) => {
+    try {
+      const appPkg = require(
+        path.join(cfg.modRequest.projectRoot, 'package.json')
+      );
+      const deps = { ...appPkg.dependencies, ...appPkg.devDependencies };
+      if (!deps['expo-notifications']) {
+        warn(
+          'expo-notifications is not installed. Beacon detection does not need ' +
+            'it — the SDK never posts notifications — but without it you cannot ' +
+            'see a background wake-up, which is how the 3-state field test is ' +
+            'verified. See the README, "Parity with the reference apps".'
+        );
+      }
+    } catch {
+      // No readable package.json: not worth failing a prebuild over.
+    }
     return cfg;
   });
 
@@ -160,6 +203,7 @@ const withBearoundIosAppDelegate = (config, props) => {
  */
 const withBearound = (config, props = {}) => {
   config = withBearoundInfoPlist(config, props);
+  config = warnIfNoNotificationStack(config);
   config = withBearoundEntitlements(config, props);
   config = withBearoundIosAppDelegate(config, props);
   config = withBearoundAndroidPermissions(config, props);
