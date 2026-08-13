@@ -135,6 +135,18 @@ The injected code sits between `// @generated begin bearound` / `// @generated e
 
 The JS side is the same as anywhere else — `configure()` on mount, then `ensurePermissions()`, then `startScanning()`: see [Quick Start](#quick-start). If your app pulls in Firebase or anything else that requires static frameworks, set `useFrameworks: "static"` via [`expo-build-properties`](https://docs.expo.dev/versions/latest/sdk/build-properties/); the SDK works either way.
 
+### If your app is already configured
+
+The plugin is additive, and it never overwrites a decision your app already made:
+
+* **`Info.plist`** — background modes and BGTask ids are merged as a union (your other modes stay); the `NS…UsageDescription` strings are written **only when absent**, so `ios.infoPlist` and the `usageDescriptions` prop win.
+* **`<app>.entitlements`** — an `aps-environment` you already set is kept as is.
+* **`AndroidManifest.xml`** — nothing is removed; `ACCESS_BACKGROUND_LOCATION` is added only with `backgroundWifi`.
+* **`AppDelegate.swift`** — if your app (or another config plugin) **already implements** one of these callbacks, the plugin **skips that one** rather than emitting a second declaration, which Swift would reject as `invalid redeclaration`. It prints a warning naming what it skipped: that method is then yours to keep correct, so make sure it carries the matching Bearound call from [§1](#1-appdelegate-wiring).
+* Listing the plugin twice is harmless — it runs once per prebuild.
+
+So an app that had been wired by hand and later adds the plugin still builds; you just have to reconcile whatever the warning names.
+
 ### Parity with the reference apps
 
 The plugin was diffed against the two apps that are known to work in background — the native iOS example and this repo's own React Native example. Every SDK touch point that drives background and terminated-state operation is present, identically:

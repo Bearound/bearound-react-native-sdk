@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const { withBearoundAppDelegate } = require('../appDelegate');
+const { withBearoundAppDelegate, METHODS } = require('../appDelegate');
 
 const readFixture = (sdk) =>
   fs.readFileSync(
@@ -126,5 +126,79 @@ describe('withBearoundAppDelegate', () => {
       countOf(source, '{') - countOf(source, '}')
     );
     expect(withBearoundAppDelegate(result)).toBe(result);
+  });
+
+  // An app that already wired the AppDelegate by hand — or another config plugin
+  // that injected the same callbacks — must not get a second declaration: Swift
+  // rejects it as `invalid redeclaration` and the build breaks.
+  describe('host app that already owns part of the wiring', () => {
+    const handWired = FIXTURE.replace(
+      '    let delegate = ReactNativeDelegate()',
+      [
+        '    BeAroundSDK.shared.delegate = RNBearoundBridge.shared',
+        '    BeAroundSDK.shared.registerBackgroundTasks()',
+        '    let delegate = ReactNativeDelegate()',
+      ].join('\n')
+    ).replace(
+      '  // Linking API',
+      [
+        '  func application(',
+        '    _ application: UIApplication,',
+        '    performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void',
+        '  ) {',
+        '    completionHandler(.noData)',
+        '  }',
+        '',
+        '  // Linking API',
+      ].join('\n')
+    );
+
+    const skipped = [];
+    const output = withBearoundAppDelegate(handWired, (what) =>
+      skipped.push(what)
+    );
+
+    it('skips what the host already implements', () => {
+      expect(skipped).toContain('didFinishLaunchingWithOptions');
+      expect(skipped).toContain('performFetchWithCompletionHandler');
+    });
+
+    it('never declares a method twice', () => {
+      // Count real declarations: the parameter list of each `func application(`,
+      // up to the brace that opens its body. Anything else mentioning the
+      // selector is a `super.` forward or a log line.
+      const signatures = output
+        .split(/func application\(/)
+        .slice(1)
+        .map((chunk) => chunk.slice(0, chunk.indexOf(') {')));
+
+      for (const { selector } of METHODS) {
+        const declarations = signatures.filter((sig) =>
+          sig.includes(selector)
+        ).length;
+        expect([selector, declarations]).toEqual([selector, 1]);
+      }
+      expect(
+        countOf(output, 'BeAroundSDK.shared.registerBackgroundTasks()')
+      ).toBe(1);
+    });
+
+    it('still injects everything the host does NOT own', () => {
+      expect(output).toContain('BeAroundSDK.shared.setPushToken(token)');
+      expect(output).toContain(
+        'BeAroundSDK.shared.performBackgroundBLERefreshAndSync'
+      );
+      expect(output).toContain(
+        'BeAroundSDK.shared.handleBackgroundURLSessionEvents'
+      );
+    });
+
+    it('keeps the host implementation untouched', () => {
+      expect(output).toContain('    completionHandler(.noData)');
+    });
+
+    it('stays idempotent on a host-owned file', () => {
+      expect(withBearoundAppDelegate(output, () => {})).toBe(output);
+    });
   });
 });

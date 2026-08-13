@@ -45,13 +45,23 @@ const DID_FINISH_LAUNCHING_BLOCK = `    ${START}
     ${END}
 `;
 
-const METHODS_BLOCK = `  ${START}
-  // MARK: - Bearound background integration
+const METHODS_HEADER = `  // MARK: - Bearound background integration
   //
   // Every method below is an override of ExpoAppDelegate and calls super, so the
   // other Expo modules (expo-notifications, expo-background-task, …) keep
   // receiving the same callbacks. Never drop the super call.
+`;
 
+/**
+ * One entry per injected method. `selector` is what we look for in the host's own
+ * code: if the AppDelegate already implements it by hand — or another config
+ * plugin injected it — we skip that method instead of emitting a duplicate, which
+ * Swift rejects as `invalid redeclaration`.
+ */
+const METHODS = [
+  {
+    selector: 'performFetchWithCompletionHandler',
+    code: `
   public override func application(
     _ application: UIApplication,
     performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
@@ -62,6 +72,11 @@ const METHODS_BLOCK = `  ${START}
     // Separate no-op handler: the system handler above may only be called once.
     super.application(application, performFetchWithCompletionHandler: { _ in })
   }
+`,
+  },
+  {
+    selector: 'didRegisterForRemoteNotificationsWithDeviceToken',
+    code: `
 
   public override func application(
     _ application: UIApplication,
@@ -74,6 +89,11 @@ const METHODS_BLOCK = `  ${START}
     BeAroundSDK.shared.setPushToken(token)
     super.application(application, didRegisterForRemoteNotificationsWithDeviceToken: deviceToken)
   }
+`,
+  },
+  {
+    selector: 'didFailToRegisterForRemoteNotificationsWithError',
+    code: `
 
   public override func application(
     _ application: UIApplication,
@@ -83,6 +103,11 @@ const METHODS_BLOCK = `  ${START}
     NSLog("[Bearound] APNs registration failed: %@", error.localizedDescription)
     super.application(application, didFailToRegisterForRemoteNotificationsWithError: error)
   }
+`,
+  },
+  {
+    selector: 'didReceiveRemoteNotification',
+    code: `
 
   public override func application(
     _ application: UIApplication,
@@ -108,6 +133,11 @@ const METHODS_BLOCK = `  ${START}
       completionHandler(success ? .newData : .noData)
     }
   }
+`,
+  },
+  {
+    selector: 'handleEventsForBackgroundURLSession',
+    code: `
 
   public override func application(
     _ application: UIApplication,
@@ -130,8 +160,9 @@ const METHODS_BLOCK = `  ${START}
       completionHandler: completionHandler
     )
   }
-  ${END}
-`;
+`,
+  },
+];
 
 /** Removes a previously generated block so the plugin is idempotent. */
 function stripGenerated(contents) {
@@ -169,8 +200,12 @@ function stripGenerated(contents) {
  * @returns {string} the transformed contents
  * @throws {Error} when the file does not look like the Expo AppDelegate template
  */
-function withBearoundAppDelegate(original) {
+function withBearoundAppDelegate(original, onSkip = defaultOnSkip) {
   let contents = stripGenerated(original);
+  // Everything the host owns, with our previous output removed. Anything found
+  // here was written by the app or by another config plugin, and must not be
+  // duplicated: Swift rejects a second declaration outright.
+  const hostOwned = contents;
 
   // 1. Imports — anchored on the last existing import at the top of the file.
   const importLines = contents.split('\n');
@@ -212,24 +247,53 @@ function withBearoundAppDelegate(original) {
       '[bearound] could not find the React Native bootstrap in didFinishLaunchingWithOptions'
     );
   }
-  contents = contents.replace(
-    bootstrapAnchor,
-    `${DID_FINISH_LAUNCHING_BLOCK}\n${bootstrapMatch[0]}`
-  );
-
-  // 3. Methods — inserted just before the closing brace of the AppDelegate class.
-  const classIndex = contents.search(
-    /^(?:final )?(?:open |public )?class AppDelegate\b/m
-  );
-  if (classIndex === -1) {
-    throw new Error(
-      '[bearound] no `class AppDelegate` found in AppDelegate.swift'
+  if (hostOwned.includes('BeAroundSDK.shared.registerBackgroundTasks()')) {
+    // The app already arms the SDK on launch (hand-wired integration).
+    onSkip('didFinishLaunchingWithOptions');
+  } else {
+    contents = contents.replace(
+      bootstrapAnchor,
+      `${DID_FINISH_LAUNCHING_BLOCK}\n${bootstrapMatch[0]}`
     );
   }
-  const closing = findClassClosingBrace(contents, classIndex);
-  contents = `${contents.slice(0, closing)}\n${METHODS_BLOCK}${contents.slice(closing)}`;
+
+  // 3. Methods — inserted just before the closing brace of the AppDelegate class,
+  //    skipping any the host already implements.
+  const methods = METHODS.filter((m) => {
+    if (!hostOwned.includes(m.selector)) return true;
+    onSkip(m.selector);
+    return false;
+  });
+
+  if (methods.length) {
+    const classIndex = contents.search(
+      /^(?:final )?(?:open |public )?class AppDelegate\b/m
+    );
+    if (classIndex === -1) {
+      throw new Error(
+        '[bearound] no `class AppDelegate` found in AppDelegate.swift'
+      );
+    }
+    const block = `  ${START}\n${METHODS_HEADER}${methods
+      .map((m) => m.code)
+      .join('')}  ${END}\n`;
+    const closing = findClassClosingBrace(contents, classIndex);
+    contents = `${contents.slice(0, closing)}\n${block}${contents.slice(closing)}`;
+  }
 
   return contents;
+}
+
+/**
+ * Skipping is never silent: a host that already owns one of these keeps its own
+ * implementation, and must know the SDK call is now its responsibility.
+ */
+function defaultOnSkip(what) {
+  console.warn(
+    `[bearound] AppDelegate.swift already implements \`${what}\` — leaving it alone. ` +
+      'Make sure it carries the Bearound call for that method (see the README, ' +
+      '"iOS Background Integration"), or background detection degrades silently.'
+  );
 }
 
 /**
@@ -255,4 +319,10 @@ function findClassClosingBrace(contents, classIndex) {
   throw new Error('[bearound] malformed AppDelegate.swift: unbalanced braces');
 }
 
-module.exports = { withBearoundAppDelegate, stripGenerated, START, END };
+module.exports = {
+  withBearoundAppDelegate,
+  stripGenerated,
+  METHODS,
+  START,
+  END,
+};
