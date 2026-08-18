@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [3.8.2]
 
 ### Added
 - **Expo config plugin.** `["@bearound/react-native-sdk", { … }]` in `app.json` now applies the
@@ -23,6 +23,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `apsEnvironment`, `appDelegate`.
 
 ### Fixed
+
+- **The iOS Bluetooth alert no longer pops up over other apps** (BearoundSDK 3.8.2). Both
+  `CBCentralManager` instances in the native iOS SDK were created without
+  `CBCentralManagerOptionShowPowerAlertKey`, which defaults to `true`: with the radio off or
+  the Bluetooth permission denied, iOS answered that instantiation with its own alert. Because
+  the SDK wakes in the **background**, the alert surfaced on top of whatever app the user had
+  open — the host app's name showing up in an alert while the user was somewhere else. Nothing
+  changes functionally: scanning was already gated on the radio being powered on, so a user
+  with Bluetooth off simply doesn't scan — now silently. The first-time authorization prompt
+  is a different mechanism and is unaffected.
 - **iOS build on React Native 0.86** (the version Expo SDK 57 ships). RN 0.86 delivers
   React-Core as a prebuilt framework whose umbrella header pulls in non-modular headers, and
   compiling this pod's generated `-Swift.h` against it failed with *"include of non-modular
