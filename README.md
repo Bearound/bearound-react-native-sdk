@@ -27,6 +27,7 @@ Aligned with Bearound native SDKs **3.8.0** (exact pins live in `android/build.g
 * [Wi-Fi observations](#wi-fi-observations)
 * [Presence heartbeat](#presence-heartbeat)
 * [Advertising identifier (IDFA / AAID)](#advertising-identifier-idfa--aaid)
+* [Controlling what the SDK collects](#controlling-what-the-sdk-collects)
 * [Scan modes (Android)](#scan-modes-android)
 * [iOS Background Integration (required)](#ios-background-integration-required)
 * [Quick Start](#quick-start)
@@ -384,7 +385,8 @@ BeAround.configure({
 Two things it does **not** do. It never throttles **scanning** — only the upload, so
 detection latency is untouched. And it sends nothing when there is neither a location fix
 nor an access point to report: an app that grants no permissions keeps sending exactly what
-it sent before.
+it sent before — and so does one that turned both signals off in
+[`configure`](#controlling-what-the-sdk-collects).
 
 ## Advertising identifier (IDFA / AAID)
 
@@ -424,6 +426,53 @@ implementation 'com.google.android.gms:play-services-ads-identifier:18.2.0'
 > declare **Tracking** in your App Store privacy label; the `AD_ID` permission obliges you to
 > tick **"Device or other IDs"** in the Play Data Safety form. Apps for children must strip
 > `AD_ID` (Play Families policy).
+
+If your app collects the advertising identifier for its own purposes but you do not want it
+sent to Bearound, pass `collectAdvertisingId: false` — see
+[Controlling what the SDK collects](#controlling-what-the-sdk-collects).
+
+## Controlling what the SDK collects
+
+Three of the signals in the payload describe the **person**, not the sighting: the
+advertising identifier (IDFA on iOS, AAID on Android), the device's own coordinates, and the
+Wi-Fi access points around it. Your app may collect them for its own purposes and still not
+want to share them with Bearound — a different legal basis, a store declaration you do not
+want to extend, or a client policy that simply says no.
+
+Each one has a switch in `configure(...)`, on both platforms:
+
+```ts
+await configure({
+  businessToken: 'your-business-token-here',
+  collectAdvertisingId: false, // default: true — my app collects the IDFA/AAID, but don't send it
+  collectLocation: false,      // default: true — don't send the device's coordinates
+  collectWifi: true,           // default: true
+});
+```
+
+**All three default to `true`**, so an integration that does not mention them keeps behaving
+exactly as it does today.
+
+A switch turned off means **collect nothing**, not "collect and withhold": the value is never
+read from the platform in the first place.
+
+| Switch | What disappears from the payload | Also |
+|--------|----------------------------------|------|
+| `collectAdvertisingId: false` | `device.permissions.advertisingId`, plus `trackingAuthorization` (iOS) / `limitAdTracking` (Android) | iOS never raises the App Tracking Transparency prompt — not on start, and `requestTrackingAuthorization()` just reports the current status. Android never queries Play Services for the id |
+| `collectLocation: false` | the top-level `location` block | `device.permissions.location` / `locationAccuracy` **stay** — they report the authorisation the user granted, not where they are |
+| `collectWifi: false` | the top-level `wifis` array, `device.network.apId`, `device.network.wifiSSID` | No Wi-Fi read is issued at all |
+
+**Beacon detection is never affected.** On iOS region monitoring is the background wake-up
+mechanism, not a data source; on Android the location permission BLE scanning requires is
+about radio access. With `collectLocation: false` the SDK still wakes, still detects and
+still reports beacons — it just stops saying *where* the device was.
+
+What it does affect is the [presence heartbeat](#presence-heartbeat): a scan that found
+nothing only reports in when it has a location or an access point to carry. Turn both off and
+there is nothing left to report, so the heartbeat stops firing — by design.
+
+The choice is persisted with the rest of the configuration, so it survives the background
+relaunches both systems perform on the SDK's behalf.
 
 ## Scan modes (Android)
 
@@ -938,6 +987,14 @@ export type SdkConfig = {
   // iOS only: shows the App Tracking Transparency prompt when scanning starts, which is
   // what unlocks the IDFA. Android has no such prompt and ignores this.
   requestTrackingOnStart?: boolean; // default: true
+
+  // What the SDK may collect at all. Each switch turned off means the value is never
+  // READ from the platform, not just withheld — and collectAdvertisingId: false also
+  // keeps iOS from ever raising the ATT prompt. Beacon detection is unaffected by
+  // collectLocation: false. See "Controlling what the SDK collects".
+  collectAdvertisingId?: boolean; // default: true
+  collectLocation?: boolean; // default: true
+  collectWifi?: boolean; // default: true
 };
 
 export type UserProperties = {

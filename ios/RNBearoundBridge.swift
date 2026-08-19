@@ -72,7 +72,10 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
     periodicReconciliationIntervalMs: Double,
     periodicScanDurationMs: Double,
     presenceHeartbeatIntervalMs: Double,
-    requestTrackingOnStart: Bool
+    requestTrackingOnStart: Bool,
+    collectAdvertisingId: Bool,
+    collectLocation: Bool,
+    collectWifi: Bool
   ) {
     DispatchQueue.main.async {
       let precision = self.mapToScanPrecision(scanPrecision)
@@ -94,7 +97,10 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
         periodicReconciliationInterval: periodicReconciliationIntervalMs / 1000.0,
         periodicScanDuration: periodicScanDurationMs / 1000.0,
         requestTrackingOnStart: requestTrackingOnStart,
-        presenceHeartbeatInterval: presenceHeartbeatIntervalMs / 1000.0
+        presenceHeartbeatInterval: presenceHeartbeatIntervalMs / 1000.0,
+        collectAdvertisingId: collectAdvertisingId,
+        collectLocation: collectLocation,
+        collectWifi: collectWifi
       )
       self.sdk.delegate = self
       self.configured = true

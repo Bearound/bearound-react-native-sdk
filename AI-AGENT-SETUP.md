@@ -90,6 +90,14 @@ EXPO ROUTE (replaces steps 1, 2 and 3):
    Include NSUserTrackingUsageDescription: without that key iOS never shows the App
    Tracking Transparency prompt, so the SDK reports no advertising identifier — and
    nothing errors, the field is simply never there.
+   If this app collects the advertising identifier for ITS OWN purposes but must NOT
+   share it with Bearound, pass configure({ collectAdvertisingId: false }): the SDK
+   then never reads it and iOS never raises the prompt, whatever the plist says. Same
+   switch shape for the other two personal signals: collectLocation: false drops the
+   device's coordinates from the payload (beacon detection is UNAFFECTED on both
+   platforms) and collectWifi: false drops the access points. All three default to
+   true; ASK ME before turning any of them off — it is a data decision, not a
+   technical one.
 
 4. JS — configure, THEN request permissions, THEN scan (order matters; follow the
    README Quick Start): on root-component mount call
