@@ -106,6 +106,9 @@ describe('Bearound SDK Core Functions', () => {
         20 * 60 * 1000,
         12_000,
         5 * 60 * 1000,
+        true,
+        true,
+        true,
         true
       );
     });
@@ -126,6 +129,9 @@ describe('Bearound SDK Core Functions', () => {
         20 * 60 * 1000,
         12_000,
         5 * 60 * 1000,
+        true,
+        true,
+        true,
         true
       );
     });
@@ -146,6 +152,9 @@ describe('Bearound SDK Core Functions', () => {
         periodicScanDurationMs: 8_000,
         presenceHeartbeatIntervalMs: 10 * 60 * 1000,
         requestTrackingOnStart: false,
+        collectAdvertisingId: false,
+        collectLocation: false,
+        collectWifi: false,
       });
 
       expect(mockNativeModule.configure).toHaveBeenCalledWith(
@@ -156,7 +165,35 @@ describe('Bearound SDK Core Functions', () => {
         60 * 60 * 1000,
         8_000,
         10 * 60 * 1000,
+        false,
+        false,
+        false,
         false
+      );
+    });
+
+    it('should forward each data-collection switch independently', async () => {
+      const { configure } = require('../index');
+
+      await configure({
+        businessToken: 'test-token',
+        collectAdvertisingId: false,
+      });
+
+      // Only the advertising id goes off; a copy/paste slip in the positional
+      // argument list would otherwise take location and Wi-Fi down with it.
+      expect(mockNativeModule.configure).toHaveBeenCalledWith(
+        'test-token',
+        'high',
+        100,
+        true,
+        20 * 60 * 1000,
+        12_000,
+        5 * 60 * 1000,
+        true,
+        false,
+        true,
+        true
       );
     });
 
@@ -173,6 +210,9 @@ describe('Bearound SDK Core Functions', () => {
         20 * 60 * 1000,
         12_000,
         5 * 60 * 1000,
+        true,
+        true,
+        true,
         true
       );
     });

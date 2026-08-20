@@ -10,7 +10,10 @@ export interface Spec extends TurboModule {
     periodicReconciliationIntervalMs: number,
     periodicScanDurationMs: number,
     presenceHeartbeatIntervalMs: number,
-    requestTrackingOnStart: boolean
+    requestTrackingOnStart: boolean,
+    collectAdvertisingId: boolean,
+    collectLocation: boolean,
+    collectWifi: boolean
   ): Promise<void>;
 
   startScanning(): Promise<void>;

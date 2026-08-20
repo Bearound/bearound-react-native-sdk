@@ -70,6 +70,40 @@ export type SdkConfig = {
    * Ignored on Android.
    */
   requestTrackingOnStart?: boolean;
+  /**
+   * Whether the SDK may read and report the advertising identifier (IDFA on iOS,
+   * AAID on Android). Default: true.
+   *
+   * `false` means it is never read and never leaves the device:
+   * `device.permissions.advertisingId` (plus `trackingAuthorization` / `limitAdTracking`)
+   * is absent from every payload, iOS never raises the App Tracking Transparency prompt —
+   * not on start, and `requestTrackingAuthorization()` only reports the current status —
+   * and Android never queries Play Services for the id.
+   *
+   * For an app that collects the identifier for its own purposes but does not want to
+   * share it with Bearound.
+   */
+  collectAdvertisingId?: boolean;
+  /**
+   * Whether the SDK may report the device's own location. Default: true.
+   *
+   * `false` means the cached/last-known fix is never read and the top-level `location`
+   * block is absent from every payload. `device.permissions.location` /
+   * `locationAccuracy` stay — they describe the authorisation, not the position.
+   *
+   * Beacon detection is NOT affected: on iOS region monitoring is the background wake-up
+   * mechanism, on Android the location permission BLE scanning needs is about radio
+   * access. The SDK keeps detecting and reporting beacons; it just stops saying where the
+   * device was.
+   */
+  collectLocation?: boolean;
+  /**
+   * Whether the SDK may report the Wi-Fi access points around the device. Default: true.
+   *
+   * `false` means no Wi-Fi read is issued and the top-level `wifis` array plus
+   * `device.network.apId` / `device.network.wifiSSID` are absent from every payload.
+   */
+  collectWifi?: boolean;
 };
 
 /**
@@ -430,6 +464,11 @@ export async function configure(config: SdkConfig) {
     periodicScanDurationMs = 12_000,
     presenceHeartbeatIntervalMs = 5 * 60 * 1000,
     requestTrackingOnStart = true,
+    // Data-collection switches default ON: an integration that never mentions them keeps
+    // sending exactly what it sends today.
+    collectAdvertisingId = true,
+    collectLocation = true,
+    collectWifi = true,
   } = config;
 
   if (!businessToken || businessToken.trim().length === 0) {
@@ -451,7 +490,10 @@ export async function configure(config: SdkConfig) {
     periodicReconciliationIntervalMs,
     periodicScanDurationMs,
     presenceHeartbeatIntervalMs,
-    requestTrackingOnStart
+    requestTrackingOnStart,
+    collectAdvertisingId,
+    collectLocation,
+    collectWifi
   );
 }
 

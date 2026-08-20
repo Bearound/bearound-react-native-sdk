@@ -127,6 +127,9 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     // Part of the cross-platform signature (the codegen spec is shared), but App
     // Tracking Transparency is iOS-only — read and dropped here on purpose.
     requestTrackingOnStart: Boolean,
+    collectAdvertisingId: Boolean,
+    collectLocation: Boolean,
+    collectWifi: Boolean,
     promise: Promise
   ) {
     try {
@@ -154,7 +157,10 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
         periodicReconciliationEnabled = periodicReconciliationEnabled,
         periodicReconciliationIntervalMillis = periodicReconciliationIntervalMs.toLong(),
         periodicScanDurationMillis = periodicScanDurationMs.toLong(),
-        presenceHeartbeatIntervalMillis = presenceHeartbeatIntervalMs.toLong()
+        presenceHeartbeatIntervalMillis = presenceHeartbeatIntervalMs.toLong(),
+        collectAdvertisingId = collectAdvertisingId,
+        collectLocation = collectLocation,
+        collectWifi = collectWifi
       )
 
       if (wasScanning) {

@@ -21,6 +21,9 @@ periodicReconciliationIntervalMs:(double)periodicReconciliationIntervalMs
 periodicScanDurationMs:(double)periodicScanDurationMs
 presenceHeartbeatIntervalMs:(double)presenceHeartbeatIntervalMs
 requestTrackingOnStart:(BOOL)requestTrackingOnStart
+collectAdvertisingId:(BOOL)collectAdvertisingId
+   collectLocation:(BOOL)collectLocation
+       collectWifi:(BOOL)collectWifi
           resolve:(RCTPromiseResolveBlock)resolve
            reject:(RCTPromiseRejectBlock)reject
 {
@@ -40,7 +43,10 @@ requestTrackingOnStart:(BOOL)requestTrackingOnStart
       periodicReconciliationIntervalMs:periodicReconciliationIntervalMs
                 periodicScanDurationMs:periodicScanDurationMs
            presenceHeartbeatIntervalMs:presenceHeartbeatIntervalMs
-                requestTrackingOnStart:requestTrackingOnStart];
+                requestTrackingOnStart:requestTrackingOnStart
+                  collectAdvertisingId:collectAdvertisingId
+                       collectLocation:collectLocation
+                           collectWifi:collectWifi];
   resolve(nil);
 }
 

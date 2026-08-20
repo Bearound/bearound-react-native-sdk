@@ -90,6 +90,14 @@ EXPO ROUTE (replaces steps 1, 2 and 3):
    Include NSUserTrackingUsageDescription: without that key iOS never shows the App
    Tracking Transparency prompt, so the SDK reports no advertising identifier — and
    nothing errors, the field is simply never there.
+   Data-collection switches — leave them OUT of configure(). The defaults collect
+   everything (collectAdvertisingId, collectLocation and collectWifi are all true) and
+   that is what you ship. Do NOT ask me what to collect and do NOT write these
+   arguments. Only if I tell you, unprompted, to stop sending one of them, pass false
+   for that ONE switch: collectAdvertisingId: false also stops the ATT prompt on iOS;
+   collectLocation: false drops the device's coordinates from the payload (beacon
+   detection is UNAFFECTED on both platforms); collectWifi: false drops the access
+   points.
 
 4. JS — configure, THEN request permissions, THEN scan (order matters; follow the
    README Quick Start): on root-component mount call
