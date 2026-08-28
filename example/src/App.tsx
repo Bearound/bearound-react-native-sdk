@@ -182,6 +182,7 @@ export default function App() {
     useState<BluetoothState>('unknown');
   const [permissionStatus, setPermissionStatus] = useState({
     location: 'Verificando...',
+    backgroundLocation: 'Verificando...',
     notifications: 'Verificando...',
   });
   const [statusMessage, setStatusMessage] = useState('Pronto');
@@ -347,6 +348,12 @@ export default function App() {
         : 'Quando em uso'
       : 'Negada (só o olho Bluetooth funcionará)';
 
+    // Reported, never requested: it is only grantable from system Settings, and
+    // neither the SDK nor this example navigates there. Beacons don't need it.
+    const backgroundStatus = status.backgroundLocation
+      ? 'Sempre — Wi-Fi também em background'
+      : 'Negada — Wi-Fi só com o app na tela';
+
     const notificationStatus =
       Platform.OS === 'android'
         ? status.notifications
@@ -356,6 +363,7 @@ export default function App() {
 
     setPermissionStatus({
       location: locationStatus,
+      backgroundLocation: backgroundStatus,
       notifications: notificationStatus,
     });
 
@@ -385,7 +393,9 @@ export default function App() {
         }
       );
     }
-    const status = await ensurePermissions({ askBackground: true });
+    // No background opt-in here: this runs on launch, and the permission is only
+    // grantable from system Settings. Host apps opt in from their own explicit UI.
+    const status = await ensurePermissions();
     updatePermissionStatus(status);
 
     // NOTE: push is app-level now — the SDK no longer owns notifications, so the
@@ -739,6 +749,29 @@ export default function App() {
               ]}
             >
               {permissionStatus.location}
+            </Text>
+          </View>
+          <View style={styles.permissionRow}>
+            <View style={styles.permissionLabel}>
+              <View
+                style={[
+                  styles.statusDot,
+                  {
+                    backgroundColor: permissionColor(
+                      permissionStatus.backgroundLocation
+                    ),
+                  },
+                ]}
+              />
+              <Text style={styles.permissionText}>Loc. background</Text>
+            </View>
+            <Text
+              style={[
+                styles.permissionValue,
+                { color: permissionColor(permissionStatus.backgroundLocation) },
+              ]}
+            >
+              {permissionStatus.backgroundLocation}
             </Text>
           </View>
           <View style={styles.permissionRow}>

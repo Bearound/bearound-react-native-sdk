@@ -40,6 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Fixa os SDKs nativos **3.9.0** (CocoaPods e JitPack), que carregam os interruptores.
 
+### Fixed
+- **O app de exemplo não pede mais `ACCESS_BACKGROUND_LOCATION` no launch**, permissão que só
+  se concede na tela de Ajustes do sistema. Agora ele apenas informa o estado numa nova linha
+  *"Loc. background"*; um teste impede que a lib e o exemplo abram os Ajustes por conta própria.
+
 ## [3.8.2]
 
 ### Added
