@@ -38,8 +38,7 @@ import Native from './NativeBearoundReactSdk';
  * @property {boolean} btScan - Bluetooth scan permission status (Android 12+)
  * @property {boolean} btConnect - Bluetooth connect permission status (Android 12+)
  * @property {boolean} btAdvertise - Bluetooth advertise permission status (Android 12+).
- *   Not required to scan — it is what makes this device visible to other hosts'
- *   scans (the other half of the Encounter Mesh). Without it the device only sees.
+ *   Not needed to scan; it makes this device discoverable by other scanners.
  * @property {boolean} notifications - Post notifications permission status (Android 13+)
  * @property {boolean} backgroundLocation - Background location permission status (Android 10+)
  */
@@ -224,13 +223,8 @@ export async function requestForegroundPermissions(): Promise<PermissionResult> 
       'Permissão de Conexão Bluetooth',
       'Necessário para interagir com dispositivos BLE.'
     );
-    // BLUETOOTH_ADVERTISE is what makes THIS device discoverable by other
-    // hosts' scans — the SDK never requested it, so devices were seen but
-    // never seen (one-way Encounter Mesh). Request it in the same batch as
-    // BLUETOOTH_SCAN/CONNECT — all three share the "Nearby devices" runtime
-    // permission group, so the system shows one dialog, not three. Splitting
-    // this into a separate later call would not add safety, only a chance of
-    // a second (redundant) prompt if the OS ever stops coalescing them.
+    // Makes this device discoverable by other scanners. Must stay in the same
+    // batch as SCAN/CONNECT — same "Nearby devices" group, so a single dialog.
     await req(
       PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADVERTISE,
       'Permissão de Anúncio Bluetooth',

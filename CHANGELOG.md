@@ -41,19 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixa os SDKs nativos **3.9.0** (CocoaPods e JitPack), que carregam os interruptores.
 
 ### Fixed
-- **O app de exemplo não sequestra mais a navegação do usuário.** Ele inicia o scan sozinho
-  no launch, e esse caminho automático chamava `ensurePermissions({ askBackground: true })` —
-  ou seja, pedia `ACCESS_BACKGROUND_LOCATION` que ninguém solicitou, uma permissão que do
-  Android 11 em diante **não** se concede por diálogo, só na tela de Ajustes do sistema (e que
-  o manifest do exemplo sequer declara, então resolvia direto para `NEVER_ASK_AGAIN`). Na
-  prática: o usuário concedia as permissões, o app abria e imediatamente o jogava para fora.
-  O exemplo agora **informa o estado e o custo** em vez de navegar — nova linha
-  *"Loc. background: Negada — Wi-Fi só com o app na tela"*. A detecção de beacon não depende
-  dessa permissão em nenhuma versão. A biblioteca já estava correta desde a 3.4.5
-  (`requestBackgroundLocation()` nunca abre os Ajustes; `askBackground` é opt-in explícito do
-  app host) — o defeito era só do exemplo. `src/__tests__/noSettingsNavigation.test.ts` trava
-  as duas metades: nem lib nem exemplo podem chamar `Linking.openSettings()`/`app-settings:`,
-  e o exemplo não pode pedir background location por conta própria.
+- **O app de exemplo não pede mais `ACCESS_BACKGROUND_LOCATION` no launch**, permissão que só
+  se concede na tela de Ajustes do sistema. Agora ele apenas informa o estado numa nova linha
+  *"Loc. background"*; um teste impede que a lib e o exemplo abram os Ajustes por conta própria.
 
 ## [3.8.2]
 

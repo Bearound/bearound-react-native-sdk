@@ -1,21 +1,7 @@
 /**
- * @fileoverview One-way ratchet: neither the SDK nor the sample app may take the
- * user out of the app.
- *
- * **The cost of violating this.** The library learned it in 3.4.5, when
- * `requestBackgroundLocation()` called `Linking.openSettings()` on a permanent
- * denial. The example app re-learned it on its own: it auto-started on launch,
- * and the auto-start asked for `ACCESS_BACKGROUND_LOCATION` — a permission that
- * from Android 11 on cannot be granted from a dialog at all, only on the system
- * Settings screen. The user granted the permissions, the app opened, and the app
- * immediately threw them into Android's location settings. Reporting the state is
- * the SDK's job; hijacking the user's navigation is not.
- *
- * Explicit, user-initiated navigation is a different thing and is allowed: a
- * button whose label says where it goes, or a host app acting on the boolean
- * `requestBackgroundLocation()` returns. This test guards the *automatic* paths
- * only, which is why it forbids the calls in the shipped library and the sample
- * app rather than in host code we do not own.
+ * @fileoverview One-way ratchet: neither the SDK nor the sample app may send the
+ * user to the system Settings, or ask for background location, on its own.
+ * Explicit, user-initiated navigation by a host app is allowed.
  */
 
 import { readFileSync } from 'fs';
