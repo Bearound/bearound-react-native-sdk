@@ -18,6 +18,7 @@ const mockPermissionsAndroid = {
     ACCESS_BACKGROUND_LOCATION: 'android.permission.ACCESS_BACKGROUND_LOCATION',
     BLUETOOTH_SCAN: 'android.permission.BLUETOOTH_SCAN',
     BLUETOOTH_CONNECT: 'android.permission.BLUETOOTH_CONNECT',
+    BLUETOOTH_ADVERTISE: 'android.permission.BLUETOOTH_ADVERTISE',
     POST_NOTIFICATIONS: 'android.permission.POST_NOTIFICATIONS',
   },
   RESULTS: {
@@ -101,6 +102,7 @@ describe('Permission Management', () => {
           fineLocation: true,
           btScan: true,
           btConnect: true,
+          btAdvertise: true,
           notifications: true,
           backgroundLocation: true,
         });
@@ -190,6 +192,7 @@ describe('Permission Management', () => {
 
         expect(result.btScan).toBe(true);
         expect(result.btConnect).toBe(true);
+        expect(result.btAdvertise).toBe(true);
       });
 
       it('should return backgroundLocation true on Android < 29', async () => {
@@ -277,6 +280,7 @@ describe('Permission Management', () => {
           fineLocation: true,
           btScan: true,
           btConnect: true,
+          btAdvertise: true,
           notifications: true,
           backgroundLocation: true,
         });
@@ -296,6 +300,7 @@ describe('Permission Management', () => {
           fineLocation: false,
           btScan: false,
           btConnect: false,
+          btAdvertise: false,
           notifications: false,
           backgroundLocation: false,
         });
@@ -360,6 +365,18 @@ describe('Permission Management', () => {
         // On 12+ the scan is unlocked by BLUETOOTH_SCAN (neverForLocation).
         expect(requested).toContain('android.permission.BLUETOOTH_SCAN');
         expect(requested).toContain('android.permission.BLUETOOTH_CONNECT');
+        // BLUETOOTH_ADVERTISE makes this device visible to other hosts' scans
+        // (the other half of the Encounter Mesh) and must be requested in the
+        // same foreground batch as BLUETOOTH_SCAN — same "Nearby devices"
+        // group, so the OS coalesces them into a single dialog.
+        expect(requested).toContain('android.permission.BLUETOOTH_ADVERTISE');
+        const scanIndex = requested.indexOf(
+          'android.permission.BLUETOOTH_SCAN'
+        );
+        const advertiseIndex = requested.indexOf(
+          'android.permission.BLUETOOTH_ADVERTISE'
+        );
+        expect(advertiseIndex).toBeGreaterThan(scanIndex);
         // Location must NOT be requested — asking for it only risks a Play flag.
         expect(requested).not.toContain(
           'android.permission.ACCESS_FINE_LOCATION'
@@ -371,6 +388,46 @@ describe('Permission Management', () => {
         expect(requested).not.toContain(
           'android.permission.ACCESS_BACKGROUND_LOCATION'
         );
+      });
+
+      it('should NOT request BLUETOOTH_ADVERTISE on Android < 31', async () => {
+        jest.resetModules();
+        jest.doMock('react-native', () => ({
+          get Platform() {
+            return {
+              get OS() {
+                return 'android';
+              },
+              get Version() {
+                return 30;
+              },
+            };
+          },
+          NativeModules: { BearoundReactSdk: {} },
+          NativeEventEmitter: jest.fn(() => ({
+            addListener: jest.fn(() => ({ remove: jest.fn() })),
+          })),
+          PermissionsAndroid: mockPermissionsAndroid,
+          Linking: mockLinking,
+          TurboModuleRegistry: {
+            getEnforcing: jest.fn(() => mockNativeModule),
+          },
+        }));
+        jest.doMock('../NativeBearoundReactSdk', () => ({
+          __esModule: true,
+          default: mockNativeModule,
+        }));
+
+        const { requestForegroundPermissions } = require('../permissions');
+        await requestForegroundPermissions();
+
+        const requested = mockPermissionsAndroid.request.mock.calls.map(
+          (c: unknown[]) => c[0]
+        );
+        expect(requested).not.toContain(
+          'android.permission.BLUETOOTH_ADVERTISE'
+        );
+        expect(requested).not.toContain('android.permission.BLUETOOTH_SCAN');
       });
 
       it('should request POST_NOTIFICATIONS on Android 13+', async () => {
@@ -496,6 +553,7 @@ describe('Permission Management', () => {
         expect(result).toHaveProperty('fineLocation');
         expect(result).toHaveProperty('btScan');
         expect(result).toHaveProperty('btConnect');
+        expect(result).toHaveProperty('btAdvertise');
         expect(result).toHaveProperty('notifications');
         expect(result).toHaveProperty('backgroundLocation');
       });
@@ -533,6 +591,7 @@ describe('Permission Management', () => {
 
         expect(result.btScan).toBe(true);
         expect(result.btConnect).toBe(true);
+        expect(result.btAdvertise).toBe(true);
       });
     });
 
@@ -585,6 +644,7 @@ describe('Permission Management', () => {
           fineLocation: true,
           btScan: true,
           btConnect: true,
+          btAdvertise: true,
           notifications: true,
           backgroundLocation: true,
         });
@@ -984,6 +1044,7 @@ describe('Permission Management', () => {
         expect(result).toHaveProperty('fineLocation');
         expect(result).toHaveProperty('btScan');
         expect(result).toHaveProperty('btConnect');
+        expect(result).toHaveProperty('btAdvertise');
         expect(result).toHaveProperty('notifications');
         expect(result).toHaveProperty('backgroundLocation');
       });
@@ -1040,6 +1101,7 @@ describe('Permission Management', () => {
           fineLocation: true,
           btScan: true,
           btConnect: true,
+          btAdvertise: true,
           notifications: true,
           backgroundLocation: true,
         });

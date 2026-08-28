@@ -37,6 +37,9 @@ import Native from './NativeBearoundReactSdk';
  * @property {boolean} fineLocation - Fine or coarse location permission status
  * @property {boolean} btScan - Bluetooth scan permission status (Android 12+)
  * @property {boolean} btConnect - Bluetooth connect permission status (Android 12+)
+ * @property {boolean} btAdvertise - Bluetooth advertise permission status (Android 12+).
+ *   Not required to scan — it is what makes this device visible to other hosts'
+ *   scans (the other half of the Encounter Mesh). Without it the device only sees.
  * @property {boolean} notifications - Post notifications permission status (Android 13+)
  * @property {boolean} backgroundLocation - Background location permission status (Android 10+)
  */
@@ -44,6 +47,7 @@ export type PermissionResult = {
   fineLocation: boolean;
   btScan: boolean;
   btConnect: boolean;
+  btAdvertise: boolean;
   notifications: boolean;
   backgroundLocation: boolean;
 };
@@ -68,7 +72,7 @@ const has = async (p?: Permission) =>
  *
  * **Android Version Requirements:**
  * - Location: All versions
- * - Bluetooth scan/connect: Android 12+ (API 31+)
+ * - Bluetooth scan/connect/advertise: Android 12+ (API 31+)
  * - Notifications: Android 13+ (API 33+)
  * - Background location: Android 10+ (API 29+)
  *
@@ -97,6 +101,7 @@ export async function checkPermissions(): Promise<PermissionResult> {
       fineLocation: granted,
       btScan: granted,
       btConnect: granted,
+      btAdvertise: granted,
       notifications,
       // Only authorizedAlways counts — When-In-Use does not allow the
       // terminated-app wake-up that "background location" implies.
@@ -122,6 +127,11 @@ export async function checkPermissions(): Promise<PermissionResult> {
       ? await has(PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT)
       : true;
 
+  const btAdvertise =
+    SDK_INT >= 31
+      ? await has(PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADVERTISE)
+      : true;
+
   const notifications =
     SDK_INT >= 33
       ? await has(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS)
@@ -136,6 +146,7 @@ export async function checkPermissions(): Promise<PermissionResult> {
     fineLocation: fineOrCoarse,
     btScan,
     btConnect,
+    btAdvertise,
     notifications,
     backgroundLocation,
   };
@@ -149,7 +160,7 @@ export async function checkPermissions(): Promise<PermissionResult> {
  * - **iOS**: Requests location permission via native helper
  *
  * **Permissions Requested (Android only), gated by API level:**
- * - **Android 12+ (API 31+):** `BLUETOOTH_SCAN` (+ `BLUETOOTH_CONNECT`) and,
+ * - **Android 12+ (API 31+):** `BLUETOOTH_SCAN` (+ `BLUETOOTH_CONNECT` + `BLUETOOTH_ADVERTISE`) and,
  *   on 13+, the optional `POST_NOTIFICATIONS`. Location is **not** requested —
  *   the SDK declares `BLUETOOTH_SCAN` with `neverForLocation`, so location does
  *   not unlock the BLE scan and asking for it only risks a Play review flag.
@@ -184,6 +195,7 @@ export async function requestForegroundPermissions(): Promise<PermissionResult> 
       fineLocation: granted,
       btScan: granted,
       btConnect: granted,
+      btAdvertise: granted,
       notifications,
       backgroundLocation: authStatus === 'always',
     };
@@ -201,7 +213,7 @@ export async function requestForegroundPermissions(): Promise<PermissionResult> 
 
   if (SDK_INT >= 31) {
     // Android 12+: the scan is unlocked by BLUETOOTH_SCAN (neverForLocation),
-    // not by location. Request only Bluetooth (+ optional notifications).
+    // not by location. Request Bluetooth scan/connect/advertise (+ optional notifications).
     await req(
       PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
       'Permissão de Bluetooth',
@@ -211,6 +223,18 @@ export async function requestForegroundPermissions(): Promise<PermissionResult> 
       PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
       'Permissão de Conexão Bluetooth',
       'Necessário para interagir com dispositivos BLE.'
+    );
+    // BLUETOOTH_ADVERTISE is what makes THIS device discoverable by other
+    // hosts' scans — the SDK never requested it, so devices were seen but
+    // never seen (one-way Encounter Mesh). Request it in the same batch as
+    // BLUETOOTH_SCAN/CONNECT — all three share the "Nearby devices" runtime
+    // permission group, so the system shows one dialog, not three. Splitting
+    // this into a separate later call would not add safety, only a chance of
+    // a second (redundant) prompt if the OS ever stops coalescing them.
+    await req(
+      PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADVERTISE,
+      'Permissão de Anúncio Bluetooth',
+      'Necessário para que outros dispositivos possam detectar este aparelho via Bluetooth.'
     );
     if (SDK_INT >= 33) {
       await req(
