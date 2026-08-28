@@ -182,6 +182,7 @@ export default function App() {
     useState<BluetoothState>('unknown');
   const [permissionStatus, setPermissionStatus] = useState({
     location: 'Verificando...',
+    backgroundLocation: 'Verificando...',
     notifications: 'Verificando...',
   });
   const [statusMessage, setStatusMessage] = useState('Pronto');
@@ -347,6 +348,16 @@ export default function App() {
         : 'Quando em uso'
       : 'Negada (só o olho Bluetooth funcionará)';
 
+    // Background location is REPORTED, never chased. Granting it is impossible
+    // from a dialog on Android 11+ (and on iOS it means "Always") — the only
+    // path is the system Settings screen, and neither the SDK nor this example
+    // navigates the user there on its own. So we state the cost instead:
+    // without it the Wi-Fi observations stop the moment the app leaves the
+    // screen. Beacon detection is unaffected either way.
+    const backgroundStatus = status.backgroundLocation
+      ? 'Sempre — Wi-Fi também em background'
+      : 'Negada — Wi-Fi só com o app na tela';
+
     const notificationStatus =
       Platform.OS === 'android'
         ? status.notifications
@@ -356,6 +367,7 @@ export default function App() {
 
     setPermissionStatus({
       location: locationStatus,
+      backgroundLocation: backgroundStatus,
       notifications: notificationStatus,
     });
 
@@ -385,7 +397,17 @@ export default function App() {
         }
       );
     }
-    const status = await ensurePermissions({ askBackground: true });
+    // NO askBackground here. This runs on launch (see the auto-start effect),
+    // so `{ askBackground: true }` meant the app asked for
+    // ACCESS_BACKGROUND_LOCATION nobody requested — a permission that on
+    // Android 11+ cannot be granted from a dialog at all, only on the system
+    // Settings screen. This example's manifest does not even declare it, so
+    // the request resolved straight to NEVER_ASK_AGAIN. The state is shown in
+    // the "Loc. background" row instead: report the cost, never hijack the
+    // user's navigation. A host app that truly needs it declares the
+    // permission and calls ensurePermissions({ askBackground: true }) from its
+    // own explicit UI.
+    const status = await ensurePermissions();
     updatePermissionStatus(status);
 
     // NOTE: push is app-level now — the SDK no longer owns notifications, so the
@@ -739,6 +761,29 @@ export default function App() {
               ]}
             >
               {permissionStatus.location}
+            </Text>
+          </View>
+          <View style={styles.permissionRow}>
+            <View style={styles.permissionLabel}>
+              <View
+                style={[
+                  styles.statusDot,
+                  {
+                    backgroundColor: permissionColor(
+                      permissionStatus.backgroundLocation
+                    ),
+                  },
+                ]}
+              />
+              <Text style={styles.permissionText}>Loc. background</Text>
+            </View>
+            <Text
+              style={[
+                styles.permissionValue,
+                { color: permissionColor(permissionStatus.backgroundLocation) },
+              ]}
+            >
+              {permissionStatus.backgroundLocation}
             </Text>
           </View>
           <View style={styles.permissionRow}>
