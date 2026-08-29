@@ -79,5 +79,5 @@ dependencies {
   // v3.6.2 adds the persisted detection log with app-state tagging
   // (getDetectionLogJson/clearDetectionLog, 1:1 with iOS), on top of the 3.6.x
   // line (telemetry handoff, ghost-beacon fixes, scan watchdog).
-  implementation 'com.github.Bearound:bearound-android-sdk:3.9.0'
+  implementation 'com.github.Bearound:bearound-android-sdk:3.9.1'
 }
