@@ -29,6 +29,8 @@ import {
   getBluetoothState,
   checkPermissions,
   ensurePermissions,
+  getTrackingAuthorizationStatus,
+  requestTrackingAuthorization,
   ScanPrecision,
   MaxQueuedPayloads,
   type Beacon,
@@ -168,6 +170,16 @@ const formatAge = (ms: number) => {
   return `${Math.floor(sec / 3600)}h ${Math.floor((sec % 3600) / 60)}min atrás`;
 };
 
+// The SDK never raises the App Tracking Transparency prompt: the app owns it.
+// Asked after the other dialogs and again whenever the app becomes active,
+// because iOS silently drops the request while another system dialog is on
+// screen. Once answered, the status is no longer notDetermined and nothing shows.
+async function requestTrackingIfNeeded(): Promise<void> {
+  if (Platform.OS !== 'ios') return;
+  if ((await getTrackingAuthorizationStatus()) !== 'notDetermined') return;
+  await requestTrackingAuthorization();
+}
+
 export default function App() {
   const [scanPrecision, setScanPrecision] = useState(ScanPrecision.HIGH);
   const [maxQueuedPayloads, setMaxQueuedPayloads] = useState(
@@ -268,7 +280,10 @@ export default function App() {
     refreshLog();
     const sub = AppState.addEventListener('change', (s) => {
       appStateBucketRef.current = map(s);
-      if (s === 'active') refreshLog();
+      if (s === 'active') {
+        refreshLog();
+        requestTrackingIfNeeded();
+      }
     });
     return () => sub.remove();
   }, [refreshLog]);
@@ -405,6 +420,8 @@ export default function App() {
     // Refresh the Bluetooth eye state (also prompts the BT permission on iOS).
     const bt = await getBluetoothState();
     setBluetoothState(bt);
+
+    await requestTrackingIfNeeded();
 
     // anyOf: the SDK works with either eye. Only warn if NEITHER is available.
     const ok = status.fineLocation || bt === 'poweredOn';
