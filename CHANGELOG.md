@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.13.0] - 2026-09-29
+
+Fixa os SDKs nativos 3.13.0 (CocoaPods e JitPack), que desenham o push rico.
+
+### Added
+- **Push rico: imagem, duas imagens, carrossel e play.** Quem desenha são os SDKs nativos; o
+  bridge não ganha API JS nem lógica de renderização. O que muda é a integração do app,
+  descrita na seção "Rich push (images, carousel, play)" do README:
+  - **Android:** nada novo além de encaminhar a mensagem ao SDK. O push rico chega como
+    mensagem FCM só de dados e o SDK monta a notificação dentro do `handleRemoteMessage`.
+    Encaminhe também em foreground (`messaging().onMessage`), não só no
+    `setBackgroundMessageHandler`: sem isso, um push rico recebido com o app aberto não
+    aparece.
+  - **iOS:** dois targets de extensão no app (Notification Service e Notification Content),
+    com `pod 'BearoundSDK/NotificationService'` e `pod 'BearoundSDK/NotificationContent'`.
+    Se o Podfile usa `use_frameworks!` (por exemplo via `USE_FRAMEWORKS` ou por causa do
+    Firebase), os dois blocos de extensão levam `use_frameworks! :linkage => :static`; sem
+    isso os frameworks colidem. Cada extensão é uma subclasse de uma linha
+    (`BearoundNotificationService`, `BearoundNotificationViewController`) e o Info.plist da
+    Content Extension declara as categorias `BEAROUND_IMAGE`, `BEAROUND_TWO_IMAGES`,
+    `BEAROUND_CAROUSEL` e `BEAROUND_PLAY`. O config plugin do Expo não cria esses targets.
+    Sem as extensões o aparelho continua recebendo a notificação padrão (título e texto).
+- **O registro do push token passa a informar a versão do SDK nativo** (nas duas
+  plataformas), para o backend saber quais aparelhos desenham push rico. Depois de atualizar
+  o SDK, o token é reenviado uma vez mesmo sem ter mudado.
+
 ## [3.12.0] - 2026-09-28
 
 Fixa os SDKs nativos 3.12.0 (CocoaPods e JitPack). A 3.11.0 do bridge não foi publicada; o
