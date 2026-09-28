@@ -17,6 +17,7 @@ import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReadableMap
+import com.facebook.react.bridge.ReadableType
 import com.facebook.react.bridge.WritableArray
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule
@@ -249,6 +250,30 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
       promise.resolve(sdk.handleRemoteMessage(map))
     } catch (t: Throwable) {
       promise.reject("HANDLE_REMOTE_MESSAGE_ERROR", t)
+    }
+  }
+
+  // Push open reported by the app (the SDK also detects taps from the launched
+  // activity's intent). Values are stringified: FCM data is string-only.
+  override fun trackNotificationOpened(data: ReadableMap, promise: Promise) {
+    try {
+      // FCM data is string-only; a nested map (the marker as an object) is passed
+      // as JSON so the SDK can still parse it; other types are skipped.
+      val map = HashMap<String, String>()
+      val iterator = data.keySetIterator()
+      while (iterator.hasNextKey()) {
+        val key = iterator.nextKey()
+        when (data.getType(key)) {
+          ReadableType.String -> map[key] = data.getString(key) ?: ""
+          ReadableType.Map -> map[key] = org.json.JSONObject(data.getMap(key)?.toHashMap() ?: emptyMap<String, Any>()).toString()
+          ReadableType.Null -> Unit
+          else -> Unit // FCM data never carries numbers, booleans or arrays
+        }
+      }
+      sdk.trackNotificationOpened(map)
+      promise.resolve(null)
+    } catch (t: Throwable) {
+      promise.reject("TRACK_NOTIFICATION_OPENED_ERROR", t)
     }
   }
 

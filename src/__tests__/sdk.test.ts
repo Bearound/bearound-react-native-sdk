@@ -361,3 +361,18 @@ describe('SDK Exports', () => {
     expect(SDK).toBeDefined();
   });
 });
+
+describe('push open', () => {
+  it('forwards trackNotificationOpened data untouched to the native module', async () => {
+    const SDK = require('../index');
+    const data = {
+      bearound:
+        '{"t":"cold_campaign","sid":"s1","d":"ctx","tr":"https://track.bearound.io"}',
+      campaign_id: 'c1',
+    };
+
+    await SDK.trackNotificationOpened(data);
+
+    expect(mockNativeModule.trackNotificationOpened).toHaveBeenCalledWith(data);
+  });
+});
