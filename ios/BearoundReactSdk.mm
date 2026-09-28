@@ -254,6 +254,14 @@ collectAdvertisingId:(BOOL)collectAdvertisingId
   resolve(@(handled));
 }
 
+- (void)trackNotificationOpened:(NSDictionary *)data
+                        resolve:(RCTPromiseResolveBlock)resolve
+                         reject:(RCTPromiseRejectBlock)reject
+{
+  [[RNBearoundBridge shared] trackNotificationOpened:data ?: @{}];
+  resolve(nil);
+}
+
 - (void)isIgnoringBatteryOptimizations:(RCTPromiseResolveBlock)resolve
                                 reject:(RCTPromiseRejectBlock)reject
 {

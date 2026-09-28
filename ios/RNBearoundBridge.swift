@@ -322,6 +322,8 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
   // is a Bearound wake, and ignores anything else.
   public func handleRemoteMessage(_ data: [String: Any]) -> Bool {
     guard data["bearound"] != nil else { return false }
+    // Reports receipt for measurable sends (sid, d, tr); a no-op otherwise.
+    sdk.trackNotificationReceived(userInfo: data)
     DispatchQueue.main.async {
       self.sdk.performBackgroundBLERefreshAndSync(
         bleScanDuration: 10,
@@ -329,6 +331,12 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
       ) { _ in }
     }
     return true
+  }
+
+  // Push open reported by the app; the SDK ignores anything without a measurable
+  // `bearound` marker and reports each push once.
+  public func trackNotificationOpened(_ data: [String: Any]) {
+    sdk.trackNotificationOpened(userInfo: data)
   }
 
   public func checkPermissions() -> Bool {

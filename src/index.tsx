@@ -569,6 +569,22 @@ export async function handleRemoteMessage(data: {
   return Native.handleRemoteMessage(data);
 }
 
+/**
+ * Reports that the user opened (tapped) a Bearound push. Pass the message
+ * `data` (for example from `@react-native-firebase/messaging`
+ * `onNotificationOpenedApp` / `getInitialNotification`). A push without a
+ * measurable `bearound` marker is ignored.
+ *
+ * Usually not needed: the native SDK detects taps on its own (iOS through the
+ * notification-center delegate, Android through the intent of the launched
+ * activity). Calling it anyway is harmless, since each push is reported once.
+ */
+export async function trackNotificationOpened(data: {
+  [key: string]: unknown;
+}): Promise<void> {
+  await Native.trackNotificationOpened(data);
+}
+
 // --- Diagnostic / state accessors (parity with native public API) ---
 
 export type AuthorizationStatus =

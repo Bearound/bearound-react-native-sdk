@@ -38,6 +38,7 @@ export const mockNativeModule = {
   isForegroundScanningEnabled: jest.fn(() => Promise.resolve(false)),
   setForegroundNotificationContent: jest.fn(() => Promise.resolve()),
   isIgnoringBatteryOptimizations: jest.fn(() => Promise.resolve(true)),
+  trackNotificationOpened: jest.fn(() => Promise.resolve()),
   openBatteryOptimizationSettings: jest.fn(() => Promise.resolve(true)),
   isAutostartManageable: jest.fn(() => Promise.resolve(false)),
   openManufacturerAutostartSettings: jest.fn(() => Promise.resolve(false)),

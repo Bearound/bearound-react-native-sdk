@@ -252,6 +252,23 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     }
   }
 
+  // Push open reported by the app (the SDK also detects taps from the launched
+  // activity's intent). Values are stringified: FCM data is string-only.
+  override fun trackNotificationOpened(data: ReadableMap, promise: Promise) {
+    try {
+      val map = HashMap<String, String>()
+      val iterator = data.keySetIterator()
+      while (iterator.hasNextKey()) {
+        val key = iterator.nextKey()
+        map[key] = data.getString(key) ?: ""
+      }
+      sdk.trackNotificationOpened(map)
+      promise.resolve(null)
+    } catch (t: Throwable) {
+      promise.reject("TRACK_NOTIFICATION_OPENED_ERROR", t)
+    }
+  }
+
   override fun checkPermissions(promise: Promise) {
     promise.resolve(true)
   }

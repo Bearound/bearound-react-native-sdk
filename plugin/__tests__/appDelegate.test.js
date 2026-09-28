@@ -186,6 +186,9 @@ describe('withBearoundAppDelegate', () => {
     it('still injects everything the host does NOT own', () => {
       expect(output).toContain('BeAroundSDK.shared.setPushToken(token)');
       expect(output).toContain(
+        'BeAroundSDK.shared.trackNotificationReceived(userInfo: userInfo)'
+      );
+      expect(output).toContain(
         'BeAroundSDK.shared.performBackgroundBLERefreshAndSync'
       );
       expect(output).toContain(

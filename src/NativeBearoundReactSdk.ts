@@ -33,6 +33,10 @@ export interface Spec extends TurboModule {
   // the silent push and this resolves false for non-Bearound payloads.
   handleRemoteMessage(data: Object): Promise<boolean>;
 
+  // Push open (tap) reported by the app, for hosts that consume the tap before the
+  // native SDK sees it. The native SDK detects taps on its own otherwise.
+  trackNotificationOpened(data: Object): Promise<void>;
+
   checkPermissions(): Promise<boolean>;
   requestPermissions(): Promise<boolean>;
 

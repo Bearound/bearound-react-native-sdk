@@ -125,7 +125,9 @@ const METHODS = [
       )
       return
     }
-    NSLog("[Bearound] Silent push received — BLE refresh + sync")
+    NSLog("[Bearound] Bearound push received, BLE refresh + sync")
+    // Reports receipt for measurable sends (sid, d, tr); a no-op otherwise.
+    BeAroundSDK.shared.trackNotificationReceived(userInfo: userInfo)
     BeAroundSDK.shared.performBackgroundBLERefreshAndSync(
       bleScanDuration: 10,
       trigger: "silent_push"
