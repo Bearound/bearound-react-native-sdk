@@ -13,7 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   notificações (iOS) e do intent da activity aberta pelo toque (Android); o recebimento vem
   do `handleRemoteMessage` e, no Expo, do `didReceiveRemoteNotification` injetado pelo
   plugin. Novo `trackNotificationOpened(data)` para apps que tratam o toque antes do SDK;
-  chamar a mais é inofensivo, cada push conta uma vez.
+  chamar a mais é inofensivo, cada push conta uma vez. No Android, chame-o também com
+  `getInitialNotification()`: no cold start o `configure()` do JS roda depois da activity aberta
+  pelo toque.
 
 ## [3.10.0] - 2026-09-28
 
