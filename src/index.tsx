@@ -61,13 +61,8 @@ export type SdkConfig = {
    */
   presenceHeartbeatIntervalMs?: number;
   /**
-   * iOS only. Lets the SDK raise the App Tracking Transparency prompt by itself
-   * shortly after `configure()`. Default: true.
-   *
-   * Pass `false` to own the moment — show your own explainer first, or prompt
-   * deeper into onboarding — and call `requestTrackingAuthorization()` yourself.
-   * Nothing is shown unless the app declares `NSUserTrackingUsageDescription`.
-   * Ignored on Android.
+   * @deprecated Ignored. The SDK never shows the App Tracking Transparency prompt
+   * by itself: call `requestTrackingAuthorization()` at the moment your app chooses.
    */
   requestTrackingOnStart?: boolean;
   /**
@@ -76,9 +71,9 @@ export type SdkConfig = {
    *
    * `false` means it is never read and never leaves the device:
    * `device.permissions.advertisingId` (plus `trackingAuthorization` / `limitAdTracking`)
-   * is absent from every payload, iOS never raises the App Tracking Transparency prompt —
-   * not on start, and `requestTrackingAuthorization()` only reports the current status —
-   * and Android never queries Play Services for the id.
+   * is absent from every payload, `requestTrackingAuthorization()` does not show the iOS
+   * App Tracking Transparency prompt (it only reports the current status), and Android
+   * never queries Play Services for the id.
    *
    * For an app that collects the identifier for its own purposes but does not want to
    * share it with Bearound.
@@ -463,7 +458,6 @@ export async function configure(config: SdkConfig) {
     periodicReconciliationIntervalMs = 20 * 60 * 1000,
     periodicScanDurationMs = 12_000,
     presenceHeartbeatIntervalMs = 5 * 60 * 1000,
-    requestTrackingOnStart = true,
     // Data-collection switches default ON: an integration that never mentions them keeps
     // sending exactly what it sends today.
     collectAdvertisingId = true,
@@ -490,7 +484,9 @@ export async function configure(config: SdkConfig) {
     periodicReconciliationIntervalMs,
     periodicScanDurationMs,
     presenceHeartbeatIntervalMs,
-    requestTrackingOnStart,
+    // requestTrackingOnStart: kept in the codegen signature, always false. The
+    // native SDKs no longer raise the ATT prompt on their own.
+    false,
     collectAdvertisingId,
     collectLocation,
     collectWifi
