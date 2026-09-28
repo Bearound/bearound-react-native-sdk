@@ -106,7 +106,7 @@ describe('Bearound SDK Core Functions', () => {
         20 * 60 * 1000,
         12_000,
         5 * 60 * 1000,
-        true,
+        false,
         true,
         true,
         true
@@ -129,7 +129,7 @@ describe('Bearound SDK Core Functions', () => {
         20 * 60 * 1000,
         12_000,
         5 * 60 * 1000,
-        true,
+        false,
         true,
         true,
         true
@@ -151,7 +151,8 @@ describe('Bearound SDK Core Functions', () => {
         periodicReconciliationIntervalMs: 60 * 60 * 1000,
         periodicScanDurationMs: 8_000,
         presenceHeartbeatIntervalMs: 10 * 60 * 1000,
-        requestTrackingOnStart: false,
+        // Deprecated and ignored: always forwarded as false.
+        requestTrackingOnStart: true,
         collectAdvertisingId: false,
         collectLocation: false,
         collectWifi: false,
@@ -190,7 +191,7 @@ describe('Bearound SDK Core Functions', () => {
         20 * 60 * 1000,
         12_000,
         5 * 60 * 1000,
-        true,
+        false,
         false,
         true,
         true
@@ -210,7 +211,7 @@ describe('Bearound SDK Core Functions', () => {
         20 * 60 * 1000,
         12_000,
         5 * 60 * 1000,
-        true,
+        false,
         true,
         true,
         true

@@ -167,7 +167,7 @@ Waking on beacon entry, BGTasks, the silent-push wake and the background upload 
 
 > **This still costs you something concrete: your field test goes blind.** The 3-state test in [§6](#6-verify-it-works) uses a local notification as the proof that the app woke up in background. On Expo, install `expo-notifications`, request permission and set a handler — otherwise background detection may be working perfectly and you will have no way to see it.
 
-One more difference to know: `NSUserTrackingUsageDescription` is in the reference apps but is written **only if you pass `trackingUsageDescription`**. Without it there is no ATT prompt, so no advertising identifier — silently.
+One more difference to know: `NSUserTrackingUsageDescription` is in the reference apps but is written **only if you pass `trackingUsageDescription`**. The key alone shows nothing: the SDK never raises the ATT prompt by itself, so your app must also call `requestTrackingAuthorization()` (see [Advertising identifier](#advertising-identifier-idfa--aaid)).
 
 ### Plugin options
 
@@ -176,7 +176,7 @@ All optional.
 | Prop | Default | What it does |
 |---|---|---|
 | `usageDescriptions` | generic copy | Overrides the `NS…UsageDescription` strings your users read in the iOS dialogs. Apple reviews this wording against what your app really does — write your own. |
-| `trackingUsageDescription` | *(unset)* | Adds `NSUserTrackingUsageDescription`. Without it iOS never shows the App Tracking Transparency prompt, so the SDK reports **no advertising identifier** — silently, nothing errors. |
+| `trackingUsageDescription` | *(unset)* | Adds `NSUserTrackingUsageDescription`, required for the App Tracking Transparency prompt your app shows with `requestTrackingAuthorization()`. Without it the SDK reports **no advertising identifier**, silently. |
 | `backgroundWifi` | `false` | Declares `ACCESS_BACKGROUND_LOCATION` on Android. Only needed to keep [Wi-Fi observations](#wi-fi-observations) coming while the app is in the background — beacon detection never needs it, and it costs a Play policy review. |
 | `wifiInfo` | `true` | Adds the iOS Access WiFi Information entitlement. |
 | `apsEnvironment` | `"development"` | The `aps-environment` entitlement. EAS Build sets `production` for release builds; pass `false` to manage it yourself. |
@@ -414,18 +414,22 @@ Without the key iOS shows **no dialog at all** and the status stays `notDetermin
 Answering is a one-time event per install, so it is safe to call on every launch. To read the
 state without prompting, use `getTrackingAuthorizationStatus()`.
 
-**Android — nothing to ask.** There is no prompt: the user's choice lives in system settings
-and the platform enforces it (opting out zeroes the id and the SDK reports none). To receive
-an id at all, your app needs Play Services on the classpath:
+**Android: you opt in from your app.** The SDK does not declare the `AD_ID` permission. To
+share the id, add Play Services to your app module:
 
 ```gradle
 implementation 'com.google.android.gms:play-services-ads-identifier:18.2.0'
 ```
 
+Version 18.x also declares `com.google.android.gms.permission.AD_ID` in its own manifest. If
+your app gets Play Services another way, declare the permission in your own manifest instead.
+Without `AD_ID`, from `targetSdk` 33 the platform returns a zeroed id and the SDK reports
+none. There is no runtime prompt: the user's choice lives in system settings.
+
 > **Store obligations follow the feature, not the SDK:** prompting for tracking obliges you to
 > declare **Tracking** in your App Store privacy label; the `AD_ID` permission obliges you to
-> tick **"Device or other IDs"** in the Play Data Safety form. Apps for children must strip
-> `AD_ID` (Play Families policy).
+> tick **"Device or other IDs"** in the Play Data Safety form. Apps for children must not
+> carry `AD_ID` (Play Families policy).
 
 If your app collects the advertising identifier for its own purposes but you do not want it
 sent to Bearound, pass `collectAdvertisingId: false` — see
@@ -458,7 +462,7 @@ read from the platform in the first place.
 
 | Switch | What disappears from the payload | Also |
 |--------|----------------------------------|------|
-| `collectAdvertisingId: false` | `device.permissions.advertisingId`, plus `trackingAuthorization` (iOS) / `limitAdTracking` (Android) | iOS never raises the App Tracking Transparency prompt — not on start, and `requestTrackingAuthorization()` just reports the current status. Android never queries Play Services for the id |
+| `collectAdvertisingId: false` | `device.permissions.advertisingId`, plus `trackingAuthorization` (iOS) / `limitAdTracking` (Android) | iOS: `requestTrackingAuthorization()` does not show the App Tracking Transparency prompt and just reports the current status. Android never queries Play Services for the id |
 | `collectLocation: false` | the top-level `location` block | `device.permissions.location` / `locationAccuracy` **stay** — they report the authorisation the user granted, not where they are |
 | `collectWifi: false` | the top-level `wifis` array, `device.network.apId`, `device.network.wifiSSID` | No Wi-Fi read is issued at all |
 
@@ -984,13 +988,13 @@ export type SdkConfig = {
   // See "Presence heartbeat".
   presenceHeartbeatIntervalMs?: number; // default: 5 * 60 * 1000 (5 min)
 
-  // iOS only: shows the App Tracking Transparency prompt when scanning starts, which is
-  // what unlocks the IDFA. Android has no such prompt and ignores this.
-  requestTrackingOnStart?: boolean; // default: true
+  // Deprecated and ignored: the SDK never shows the App Tracking Transparency prompt by
+  // itself. Call requestTrackingAuthorization() when your app is ready.
+  requestTrackingOnStart?: boolean;
 
   // What the SDK may collect at all. Each switch turned off means the value is never
-  // READ from the platform, not just withheld — and collectAdvertisingId: false also
-  // keeps iOS from ever raising the ATT prompt. Beacon detection is unaffected by
+  // READ from the platform, not just withheld; collectAdvertisingId: false also
+  // makes requestTrackingAuthorization() skip the ATT prompt. Beacon detection is unaffected by
   // collectLocation: false. See "Controlling what the SDK collects".
   collectAdvertisingId?: boolean; // default: true
   collectLocation?: boolean; // default: true

@@ -72,7 +72,7 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
     periodicReconciliationIntervalMs: Double,
     periodicScanDurationMs: Double,
     presenceHeartbeatIntervalMs: Double,
-    requestTrackingOnStart: Bool,
+    requestTrackingOnStart _: Bool,
     collectAdvertisingId: Bool,
     collectLocation: Bool,
     collectWifi: Bool
@@ -96,7 +96,6 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
         periodicReconciliationEnabled: periodicReconciliationEnabled,
         periodicReconciliationInterval: periodicReconciliationIntervalMs / 1000.0,
         periodicScanDuration: periodicScanDurationMs / 1000.0,
-        requestTrackingOnStart: requestTrackingOnStart,
         presenceHeartbeatInterval: presenceHeartbeatIntervalMs / 1000.0,
         collectAdvertisingId: collectAdvertisingId,
         collectLocation: collectLocation,

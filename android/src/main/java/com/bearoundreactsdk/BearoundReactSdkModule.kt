@@ -124,8 +124,7 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     periodicReconciliationIntervalMs: Double,
     periodicScanDurationMs: Double,
     presenceHeartbeatIntervalMs: Double,
-    // Part of the cross-platform signature (the codegen spec is shared), but App
-    // Tracking Transparency is iOS-only — read and dropped here on purpose.
+    // Kept in the shared codegen signature only; deprecated and ignored.
     requestTrackingOnStart: Boolean,
     collectAdvertisingId: Boolean,
     collectLocation: Boolean,

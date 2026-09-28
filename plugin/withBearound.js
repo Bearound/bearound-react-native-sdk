@@ -86,18 +86,18 @@ const withBearoundInfoPlist = (config, props) =>
       if (!plist[key]) plist[key] = value;
     }
 
-    // Without this key iOS never shows the App Tracking Transparency prompt, so
-    // the SDK reports no advertising identifier — silently, with no error.
+    // The ATT prompt the app raises with requestTrackingAuthorization() needs this
+    // key; without it the SDK reports no advertising identifier, silently.
     if (props.trackingUsageDescription) {
       plist.NSUserTrackingUsageDescription = props.trackingUsageDescription;
     } else if (!plist.NSUserTrackingUsageDescription) {
       // The reference apps ship this key. Its absence costs the advertising
-      // identifier and reports nothing — measured on device:
-      // "IDFA: NSUserTrackingUsageDescription ausente — prompt não exibido".
+      // identifier and reports nothing.
       warn(
         'no NSUserTrackingUsageDescription — iOS will not show the App Tracking ' +
           'Transparency prompt, so payloads carry no advertising identifier. ' +
-          'Pass the `trackingUsageDescription` prop with copy describing YOUR use, ' +
+          'Pass the `trackingUsageDescription` prop with copy describing YOUR use ' +
+          '(and call requestTrackingAuthorization() in the app), ' +
           'or ignore this if the app deliberately does not use the IDFA.'
       );
     }

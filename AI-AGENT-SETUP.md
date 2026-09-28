@@ -87,9 +87,11 @@ EXPO ROUTE (replaces steps 1, 2 and 3):
    (io.bearound.sdk.sync, io.bearound.sdk.processing), and the NS…UsageDescription
    strings — write a user-facing rationale that matches what THIS app actually does (no
    internal jargon). Then run `plutil -lint` and confirm OK.
-   Include NSUserTrackingUsageDescription: without that key iOS never shows the App
-   Tracking Transparency prompt, so the SDK reports no advertising identifier — and
-   nothing errors, the field is simply never there.
+   Include NSUserTrackingUsageDescription, but the key alone shows nothing: the SDK NEVER
+   raises the App Tracking Transparency prompt by itself. ASK ME where in the app flow the
+   prompt belongs, then call requestTrackingAuthorization() there, with the app in the
+   foreground. Without the key and that call, the SDK reports no advertising identifier
+   and nothing errors.
    Data-collection switches — leave them OUT of configure(). The defaults collect
    everything (collectAdvertisingId, collectLocation and collectWifi are all true) and
    that is what you ship. Do NOT ask me what to collect and do NOT write these
