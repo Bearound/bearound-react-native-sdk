@@ -1,7 +1,7 @@
 # 🐻 Bearound React Native SDK
 
 Official SDK to integrate **Bearound's** secure BLE beacon detection into **React Native** apps (Android and iOS).
-Aligned with Bearound native SDKs **3.12.0** (exact pins live in `android/build.gradle` and `BearoundReactSdk.podspec`, kept in lockstep by `scripts/check-native-versions.mjs`).
+Aligned with Bearound native SDKs **3.13.0** (exact pins live in `android/build.gradle` and `BearoundReactSdk.podspec`, kept in lockstep by `scripts/check-native-versions.mjs`).
 
 > ✅ Compatible with **New Architecture** (TurboModules) and also compatible with classic architecture.
 
@@ -877,7 +877,7 @@ Foreground detection working is **not** proof that background/terminated detecti
 
 ## Rich push (images, carousel, play)
 
-From 3.12.0 a Bearound push can carry images in four formats: one image (`IMAGE`), two
+From 3.13.0 a Bearound push can carry images in four formats: one image (`IMAGE`), two
 side-by-side cards (`TWO_IMAGES`), a paged carousel of 2 to 5 cards (`CAROUSEL`) and a cover
 with a play button that opens a video URL (`PLAY`). The **native SDKs draw them**: this
 package adds no JS API and no rendering of its own. What your app has to do differs per
