@@ -7,9 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.12.0] - 2026-09-28
+
+Fixa os SDKs nativos 3.12.0 (CocoaPods e JitPack). A 3.11.0 do bridge não foi publicada; o
+conteúdo dela sai nesta versão.
+
 ### Added
-- **Medição de recebimento e abertura de push** via SDKs nativos 3.11.0 (agora fixados nas
-  duas plataformas). O nativo reporta sozinho: o toque vem do delegate da central de
+- **Detecção de visita por GPS** via SDKs nativos 3.12.0. O nativo passa a detectar paradas
+  também fora do alcance de beacon e envia dois eventos por parada (chegada e saída) com o
+  horário real do fix. Não há API nova no JS: a detecção liga sozinha, o backend pode
+  desligá-la por conta, e ela para com `collectLocation: false`. Requisitos no aparelho:
+  - **iOS:** autorização `Sempre` e precisão total (o mesmo par que o despertador por região
+    já exige). Para visita o SDK usa no máximo 11 regiões (10 ambientes e a cerca de
+    atualização), além da região de beacon, e sempre deixa 5 das 20 do iOS livres para o
+    app; o prefixo `bearound.visit.` é reservado a ele.
+  - **Android:** com `ACCESS_BACKGROUND_LOCATION` declarada pelo app e concedida pelo
+    usuário, usa geofence nativa e detecta com o app fechado. Sem ela, só detecta com o app
+    aberto (o Android não entrega localização em background sem essa permissão). O SDK não
+    declara a permissão: a decisão, e a revisão da Play Store que vem com ela, é do app.
+  - **Android:** nova dependência transitiva `com.google.android.gms:play-services-location:21.3.0`.
+- **O retry mantém o contexto capturado** (nativos 3.12.0): lotes guardados offline carregam
+  a localização, o Wi-Fi e o gatilho do momento da captura, em vez de remontá-los na hora do
+  reenvio.
+- **Medição de recebimento e abertura de push** via SDKs nativos 3.11.0 (incluídos na
+  3.12.0). O nativo reporta sozinho: o toque vem do delegate da central de
   notificações (iOS) e do intent da activity aberta pelo toque (Android); o recebimento vem
   do `handleRemoteMessage` e, no Expo, do `didReceiveRemoteNotification` injetado pelo
   plugin. Novo `trackNotificationOpened(data)` para apps que tratam o toque antes do SDK;
