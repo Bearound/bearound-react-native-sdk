@@ -336,7 +336,7 @@ feature behaves the same.
 >
 > That is why `requestPermissions()` deliberately does **not** ask for background location:
 > unlike Wi-Fi collection itself, it is a *dangerous* permission with a Google Play policy
-> review and a demonstration video attached. If your app contributes to the access-point map,
+> review and a demonstration video attached. If your app needs Wi-Fi observations in background,
 > ask for it explicitly:
 >
 > ```typescript
