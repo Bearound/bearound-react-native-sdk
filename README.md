@@ -1,7 +1,7 @@
 # 🐻 Bearound React Native SDK
 
 Official SDK to integrate **Bearound's** secure BLE beacon detection into **React Native** apps (Android and iOS).
-Aligned with Bearound native SDKs **3.13.0** (exact pins live in `android/build.gradle` and `BearoundReactSdk.podspec`, kept in lockstep by `scripts/check-native-versions.mjs`).
+Aligned with Bearound native SDKs **3.14.0** (exact pins live in `android/build.gradle` and `BearoundReactSdk.podspec`, kept in lockstep by `scripts/check-native-versions.mjs`).
 
 > ✅ Compatible with **New Architecture** (TurboModules) and also compatible with classic architecture.
 
@@ -298,8 +298,6 @@ _These four `NS…UsageDescription` strings appear in **your** users' iOS permis
 ## Wi-Fi observations
 
 Alongside each beacon sighting the SDK reports the **access points visible at that moment**.
-An access point seen repeatedly next to a known beacon gets a position of its own, and from
-then on it can place a device even where no beacon reaches.
 
 **No network name is used as identity.** What travels is `apId` — a one-way hash of the
 access point's hardware address, canonicalised so the same router yields the same identifier
@@ -323,28 +321,22 @@ feature behaves the same.
 >
 > - **Android:** from Android 10 on, a backgrounded app without `ACCESS_BACKGROUND_LOCATION`
 >   gets an empty scan list and the placeholder BSSID `02:00:00:00:00:00`. No error, no
->   exception: the SDK discards the placeholder and `wifis[]` simply arrives empty. Measured
->   in production — **25 access points dropped to zero the instant the app was backgrounded**,
->   with every permission it had asked for granted.
+>   exception: the SDK discards the placeholder and `wifis[]` simply arrives empty as soon as
+>   the app is backgrounded, even with every other permission granted.
 > - **iOS:** with `.whenInUse` the system stops revealing the access point in the background
 >   and returns `nil`. `.always` is what the SDK asks for — but do not count on it keeping
->   collection alive. In a field run on **iPhone 17 Pro Max / iOS 27 with
->   `location: authorized_always` granted**, over 300 payloads sent while the app sat in
->   the background arrived with `wifis: null` and `location: null`, while foreground
->   payloads carried both. The one background payload that *did* carry them was the
->   **cold relaunch** — the app resurrected by iOS reported an access point and a fix
->   88 ms into its life, then went quiet again. So treat iOS background Wi-Fi as
->   *opportunistic, not guaranteed*, and verify on your target OS version.
+>   collection alive: even with `authorized_always`, background payloads can arrive with
+>   `wifis: null` and `location: null`. Treat iOS background Wi-Fi as *opportunistic, not
+>   guaranteed*, and verify on your target OS version.
 >
-> A fleet spends nearly all its time in the background, so "foreground only" means **almost
-> never** in practice — while a hand test with the app open passes perfectly.
+> A hand test with the app open passes perfectly, while background collection stays empty.
 >
 > Beacon detection is **not** affected either way: on Android 12+ the scan runs on
 > `BLUETOOTH_SCAN` (`neverForLocation`), with no location permission at all.
 >
 > That is why `requestPermissions()` deliberately does **not** ask for background location:
 > unlike Wi-Fi collection itself, it is a *dangerous* permission with a Google Play policy
-> review and a demonstration video attached. If your app contributes to the access-point map,
+> review and a demonstration video attached. If your app needs Wi-Fi observations in background,
 > ask for it explicitly:
 >
 > ```typescript
@@ -391,8 +383,8 @@ it sent before — and so does one that turned both signals off in
 
 ## Advertising identifier (IDFA / AAID)
 
-The SDK can report the advertising identifier — what makes audiences built from beacon visits
-usable in ad platforms.
+The SDK can report the advertising identifier, the resettable, user-controlled identifier used
+for advertising.
 
 **iOS — you must ask.** Add to your `Info.plist`:
 
@@ -489,7 +481,7 @@ The SDK ships **two background-scan strategies** — **you pick per app**. Both 
 
 | | 🪶 Opportunistic *(default)* | 🛡️ Foreground service |
 |---|---|---|
-| **Best for** | casual presence, battery-first apps | real-time footfall, mission-critical presence |
+| **Best for** | casual presence, battery-first apps | real-time, mission-critical presence |
 | **You gain** | zero setup · **no Play video** · lowest battery | reliable detection that **survives app-kill & aggressive OEMs** |
 | **You accept** | unpredictable latency · misses in deep background | persistent notification + Play demo video |
 
@@ -514,7 +506,7 @@ To fully drop the Play video, also remove the FGS permission the native SDK inje
 
 ### Mode 2 — Foreground service (`connectedDevice`)
 
-**What you gain:** continuous, low-latency detection that **survives app-kill and aggressive OEMs** (Xiaomi/Huawei/Samsung) — the reliable path for footfall/presence.
+**What you gain:** continuous, low-latency detection that **survives app-kill and aggressive OEMs** (Xiaomi/Huawei/Samsung): the reliable path for continuous presence.
 
 ```ts
 import { startScanning, enableForegroundScanning } from '@bearound/react-native-sdk';
@@ -978,18 +970,18 @@ target 'YourApp' do
 end
 
 target 'NotificationService' do
-  pod 'BearoundSDKNotificationExtensions', '3.13.0'
+  pod 'BearoundSDKNotificationExtensions', '3.14.0'
 end
 
 target 'NotificationContent' do
-  pod 'BearoundSDKNotificationExtensions', '3.13.0'
+  pod 'BearoundSDKNotificationExtensions', '3.14.0'
 end
 ```
 
 Then run `cd ios && pod install`. The extensions ship as a **separate pod**,
 `BearoundSDKNotificationExtensions`, with its own module, so it can never overwrite the app's
 `BearoundSDK.framework`. Pin it to the same version as the native SDK this package uses
-(`3.13.0`). It does **not** include the core SDK (no Bluetooth, location or background modes
+(`3.14.0`). It does **not** include the core SDK (no Bluetooth, location or background modes
 inside an extension) and only uses extension-safe APIs.
 
 > Dynamic `use_frameworks!` and `use_frameworks! :linkage => :static` both work in the
