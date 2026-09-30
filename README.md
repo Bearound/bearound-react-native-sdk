@@ -1,7 +1,7 @@
 # 🐻 Bearound React Native SDK
 
 Official SDK to integrate **Bearound's** secure BLE beacon detection into **React Native** apps (Android and iOS).
-Aligned with Bearound native SDKs **3.8.0** (exact pins live in `android/build.gradle` and `BearoundReactSdk.podspec`, kept in lockstep by `scripts/check-native-versions.mjs`).
+Aligned with Bearound native SDKs **3.13.0** (exact pins live in `android/build.gradle` and `BearoundReactSdk.podspec`, kept in lockstep by `scripts/check-native-versions.mjs`).
 
 > ✅ Compatible with **New Architecture** (TurboModules) and also compatible with classic architecture.
 
@@ -30,6 +30,7 @@ Aligned with Bearound native SDKs **3.8.0** (exact pins live in `android/build.g
 * [Controlling what the SDK collects](#controlling-what-the-sdk-collects)
 * [Scan modes (Android)](#scan-modes-android)
 * [iOS Background Integration (required)](#ios-background-integration-required)
+* [Rich push (images, carousel, play)](#rich-push-images-carousel-play)
 * [Quick Start](#quick-start)
 * [API](#api)
   * [Types](#types)
@@ -871,6 +872,183 @@ Foreground detection working is **not** proof that background/terminated detecti
 * **Foreground:** walk near a real Bearound beacon — beacons appear in the list and a banner shows (proves `willPresent`).
 * **Background:** background the app, walk into range — the "App reactivated" local notification fires.
 * **Terminated:** force-quit the app (swipe up in the app switcher), then either walk into a beacon region **or** have the backend send the `bearound` silent push. Expect the "App reactivated" notification and, on next foreground, `getPersistedLog()` entries written while the app wasn't running, with `getPendingBatchCount()` draining to `0` (proves the background URLSession upload finalized via `handleEventsForBackgroundURLSession`).
+
+---
+
+## Rich push (images, carousel, play)
+
+From 3.13.0 a Bearound push can carry images in four formats: one image (`IMAGE`), two
+side-by-side cards (`TWO_IMAGES`), a paged carousel of 2 to 5 cards (`CAROUSEL`) and a real
+video (`PLAY`, an MP4 up to 15 MB and 30 s, with a poster image). The **native SDKs draw
+them**: this package adds no JS API and no rendering of its own. What your app has to do
+differs per platform.
+
+**`PLAY` is a real video on both platforms:**
+
+- **iOS:** the Notification Service Extension downloads the MP4 and attaches it, so expanding
+  the notification plays it in the system player. If the video fails or is over 15 MB, the
+  poster image is attached instead.
+- **Android:** a notification cannot host a video player, so the expanded notification shows
+  frames of the video itself, advancing on their own. A tap opens the SDK's own full-screen
+  player, which plays the video with sound (never a browser). On a metered network or with
+  Data Saver on, the SDK does not download the video up front: the notification shows the
+  poster and the video plays when the user taps it.
+
+**On a tap**, a card with an `http(s)` link opens it (the click is measured per card), a
+card with a deep link (`yourapp://...`) opens it directly, and a card without a link opens
+your app like a regular notification. A `PLAY` tap opens the SDK's player on Android and your
+app on iOS (the video already played in the expanded notification). Opens keep being
+measured as before.
+
+### Android: forward the message, the SDK draws it
+
+A rich push reaches Android as a **data-only** FCM message (no `notification` block), so the
+OS shows nothing by itself: the notification appears only when the message reaches
+`handleRemoteMessage`, which builds and posts it. That is the same forwarding the
+[silent-push wake-up](#silent-push-wake-up-android) already asks for, plus the foreground
+case, which `@react-native-firebase/messaging` delivers to `onMessage` instead of the
+background handler:
+
+```js
+// index.js
+import messaging from '@react-native-firebase/messaging';
+import { handleRemoteMessage } from '@bearound/react-native-sdk';
+
+// Background and killed (the handler from "Silent-push wake-up").
+messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+  await handleRemoteMessage(remoteMessage.data);
+});
+
+// Foreground: forward too, or a rich push received with the app open never shows.
+messaging().onMessage(async (remoteMessage) => {
+  await handleRemoteMessage(remoteMessage.data);
+});
+```
+
+With another push library, forward the message `data` to `handleRemoteMessage` wherever
+that library hands you data messages, in both states. If your app has its own
+`FirebaseMessagingService` in Kotlin, forward from `onMessageReceived` with
+`BeAroundSDK.getInstance(this).handleRemoteMessage(message.data)`.
+
+- **Notification permission:** on Android 13+ the app must hold `POST_NOTIFICATIONS`, like
+  for any notification.
+- **Channel and icon:** the SDK uses your FCM default channel
+  (`com.google.firebase.messaging.default_notification_channel_id`) and default icon
+  (`com.google.firebase.messaging.default_notification_icon`) when the manifest declares
+  them; otherwise its own "Promotions" channel and the app icon. Declare a monochrome
+  default icon if you have not already.
+- If an image cannot be downloaded, the notification falls back to title and body.
+
+### iOS: add two extension targets
+
+iOS only draws images through **app extensions that your app ships**. The native SDK
+provides the two classes; you add two small targets to your Xcode workspace.
+
+**Without these extensions nothing breaks:** the device still gets a standard notification
+(title and body). The image and the rich layouts appear once the extensions are in.
+
+> **Expo:** the config plugin does **not** create these targets. Add them with a config
+> plugin that creates app extension targets, or keep them in `ios/` if you do not regenerate
+> it with `expo prebuild`. Prebuild regenerates the `Podfile` too, so the two extension
+> blocks from step 2 are lost along with the targets: whatever creates the targets must also
+> add those Podfile blocks.
+
+#### 1. Create the targets
+
+In Xcode, open `ios/<YourApp>.xcworkspace` and use **File > New > Target** twice:
+
+- **Notification Service Extension**, named e.g. `NotificationService`: downloads the image
+  and attaches it to the notification. For `PLAY` it downloads the MP4 and attaches the
+  video, so expanding the notification plays it in the system player.
+- **Notification Content Extension**, named e.g. `NotificationContent`: draws the image,
+  two-card and carousel layouts when the user expands the notification. It does not handle
+  `PLAY`: the video relies only on the Service Extension attachment.
+
+Set both targets to iOS 13.0 or later.
+
+#### 2. Add the pods per target
+
+Add two top-level blocks to `ios/Podfile`, next to your app's target:
+
+```ruby
+target 'YourApp' do
+  config = use_native_modules!
+  use_react_native!(:path => config[:reactNativePath])
+  # ...
+end
+
+target 'NotificationService' do
+  pod 'BearoundSDKNotificationExtensions', '3.13.0'
+end
+
+target 'NotificationContent' do
+  pod 'BearoundSDKNotificationExtensions', '3.13.0'
+end
+```
+
+Then run `cd ios && pod install`. The extensions ship as a **separate pod**,
+`BearoundSDKNotificationExtensions`, with its own module, so it can never overwrite the app's
+`BearoundSDK.framework`. Pin it to the same version as the native SDK this package uses
+(`3.13.0`). It does **not** include the core SDK (no Bluetooth, location or background modes
+inside an extension) and only uses extension-safe APIs.
+
+> Dynamic `use_frameworks!` and `use_frameworks! :linkage => :static` both work in the
+> extension targets. Import `BearoundSDKNotificationExtensions` (not `BearoundSDK`) in the two
+> extension files.
+
+#### 3. Subclass the two classes
+
+`NotificationService/NotificationService.swift`, the whole file:
+
+```swift
+import BearoundSDKNotificationExtensions
+
+class NotificationService: BearoundNotificationService {}
+```
+
+`NotificationContent/NotificationViewController.swift`, the whole file:
+
+```swift
+import BearoundSDKNotificationExtensions
+
+class NotificationViewController: BearoundNotificationViewController {}
+```
+
+Delete the storyboard Xcode generated for the content extension (the view is drawn in
+code), and in its Info.plist replace `NSExtensionMainStoryboard` with
+`NSExtensionPrincipalClass` = `$(PRODUCT_MODULE_NAME).NotificationViewController`.
+
+#### 4. Declare the categories in the content extension's Info.plist
+
+```xml
+<key>NSExtension</key>
+<dict>
+    <key>NSExtensionAttributes</key>
+    <dict>
+        <key>UNNotificationExtensionCategory</key>
+        <array>
+            <string>BEAROUND_IMAGE</string>
+            <string>BEAROUND_TWO_IMAGES</string>
+            <string>BEAROUND_CAROUSEL</string>
+        </array>
+        <key>UNNotificationExtensionInitialContentSizeRatio</key>
+        <real>0.75</real>
+        <key>UNNotificationExtensionUserInteractionEnabled</key>
+        <true/>
+    </dict>
+    <key>NSExtensionPointIdentifier</key>
+    <string>com.apple.usernotifications.content-extension</string>
+    <key>NSExtensionPrincipalClass</key>
+    <string>$(PRODUCT_MODULE_NAME).NotificationViewController</string>
+</dict>
+```
+
+`UNNotificationExtensionUserInteractionEnabled` is what makes the cards tappable. No JS code
+is involved on iOS: the push arrives through the `AppDelegate` wiring you already have.
+
+**Do not add `BEAROUND_PLAY` here.** A content extension that claims a category replaces
+the system view of that notification, and for `PLAY` the system view is the video player.
+Left out, the notification shows the attached video with the native player controls.
 
 ---
 
