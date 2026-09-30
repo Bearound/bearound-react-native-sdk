@@ -19,8 +19,7 @@
  *   observations coming once the app is backgrounded. Without it, from Android 10 on, a
  *   backgrounded app gets an empty scan list and the placeholder BSSID
  *   `02:00:00:00:00:00`; the SDK discards the placeholder, so `wifis[]` and
- *   `network.apId` simply arrive empty, with no error anywhere. Measured in production:
- *   25 access points dropped to zero the instant the app was backgrounded. Requested
+ *   `network.apId` simply arrive empty, with no error anywhere. Requested
  *   only via the explicit {@link requestBackgroundLocation} opt-in — see its docs before
  *   deciding.
  *
