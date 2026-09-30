@@ -26,10 +26,9 @@ Fixa os SDKs nativos 3.13.0 (CocoaPods e JitPack), que desenham o push rico.
     `setBackgroundMessageHandler`: sem isso, um push rico recebido com o app aberto não
     aparece.
   - **iOS:** dois targets de extensão no app (Notification Service e Notification Content),
-    com `pod 'BearoundSDK/NotificationService'` e `pod 'BearoundSDK/NotificationContent'`.
-    Se o Podfile usa `use_frameworks!` (por exemplo via `USE_FRAMEWORKS` ou por causa do
-    Firebase), os dois blocos de extensão levam `use_frameworks! :linkage => :static`; sem
-    isso os frameworks colidem. Cada extensão é uma subclasse de uma linha
+    com `pod 'BearoundSDKNotificationExtensions'` nos dois. É um pod separado, com módulo
+    próprio, então funciona com ou sem `use_frameworks!` sem colidir com o `BearoundSDK` do
+    app. Cada extensão é uma subclasse de uma linha
     (`BearoundNotificationService`, `BearoundNotificationViewController`) e o Info.plist da
     Content Extension declara as categorias `BEAROUND_IMAGE`, `BEAROUND_TWO_IMAGES` e
     `BEAROUND_CAROUSEL`. A Content Extension desenha só a imagem, as duas imagens e o
