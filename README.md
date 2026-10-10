@@ -31,6 +31,7 @@ Aligned with Bearound native SDKs **3.15.0** (exact pins live in `android/build.
 * [Scan modes (Android)](#scan-modes-android)
 * [iOS Background Integration (required)](#ios-background-integration-required)
 * [Rich push (images, carousel, play)](#rich-push-images-carousel-play)
+* [App presence (opt-in, local only)](#app-presence-opt-in-local-only)
 * [Quick Start](#quick-start)
 * [API](#api)
   * [Types](#types)
@@ -1044,6 +1045,155 @@ Left out, the notification shows the attached video with the native player contr
 
 ---
 
+## App presence (opt-in, local only)
+
+Checks whether specific apps, chosen by you and declared in your app's build, are present on
+the device. It is **off by default**, shows no UI, asks for no permission, and its results go
+**only to your JavaScript listener**: the SDK never adds them to beacon payloads, retry queues,
+error telemetry or any other upload.
+
+> **Native requirement.** This API needs native Bearound SDKs that ship app presence. A
+> wrapper build whose native dependencies predate it cannot call these methods. Align the
+> native versions before you rely on it.
+
+### Store policies first
+
+The requested purpose of this feature is commercial. A check that works technically is **not**
+a publication approval, and nothing in this package bypasses store review.
+
+- **Apple App Store**: guideline 5.1.2(iv) forbids using installed-app information for
+  analytics, advertising or marketing.
+- **Google Play**: package visibility must be tied to core, user-facing functionality of your
+  app, and the inventory must not be sold or shared for analytics or ads monetization. Declare
+  it as required by the Data safety form.
+- **Consent is not an exception**: user consent or an ATT prompt does not make a forbidden
+  purpose acceptable, and another product on the market advertising similar detection is not
+  evidence of authorization. Limiting the number of checked apps does not change the policies.
+- The absence of UI does not remove the transparency and privacy disclosures that apply to
+  your app.
+
+### 1. Declare the targets in your build
+
+**iOS**: list each target scheme in your app's `Info.plist`. An undeclared scheme is never
+queried and returns `unknown` / `not_declared`.
+
+```xml
+<key>LSApplicationQueriesSchemes</key>
+<array>
+    <string>bearound-presence-fixture</string>
+</array>
+```
+
+The scheme list is a **budget shared with your whole app**, not only with SDK targets: the
+SDK applies a conservative ceiling of **25** entries to the full list (50 only with the build
+evidence produced by the native iOS SDK's verifier for apps linked against an SDK older than
+iOS 27). Above the ceiling, **every** iOS target returns `unknown` / `scheme_budget_exceeded`.
+
+**Android**: add each target package to the `<queries>` of your app's manifest
+(`android/app/src/main/AndroidManifest.xml`). The SDK never requests `QUERY_ALL_PACKAGES` and
+never enumerates installed apps.
+
+```xml
+<queries>
+    <package android:name="io.bearound.fixture.presence" />
+</queries>
+```
+
+Android only answers "absent" when the SDK can prove the package is declared in your
+**final** merged manifest. Apply `scripts/app-presence-evidence.gradle` from the native
+Android SDK in `android/app/build.gradle` and wire its verification task into your release
+build and CI, as described in the native Android SDK README. Without valid evidence every
+Android target returns `unknown` / `declaration_unverified`.
+
+### 2. Configure and listen
+
+```ts
+import {
+  addAppPresenceListener,
+  configureAppPresence,
+  getLastAppPresenceSnapshot,
+  startScanning,
+} from '@bearound/react-native-sdk';
+
+// Independent of configure(); can be called before or after it.
+await configureAppPresence({
+  enabled: true,
+  targets: [
+    {
+      id: 'fixture', // ASCII [A-Za-z0-9._-], 1-64 chars, unique; at most 50 targets
+      iosScheme: 'bearound-presence-fixture',
+      androidPackageName: 'io.bearound.fixture.presence',
+    },
+  ],
+});
+
+const sub = addAppPresenceListener((snapshot) => {
+  for (const result of snapshot.results) {
+    // result.state: 'present' | 'absent' | 'unknown'
+    // result.present: true | false | null    result.reason: null or why it is unknown
+  }
+});
+
+await startScanning(); // rounds start here, never in configure
+
+// Last compatible snapshot (cached === true) or null; never queries.
+const last = await getLastAppPresenceSnapshot();
+
+sub.remove();
+```
+
+### What a result means
+
+| `state` | `present` | `reason` | Meaning |
+|---|---|---|---|
+| `present` | `true` | `null` | iOS: some installed app handles the scheme (identity not verified). Android: the package is installed. |
+| `absent` | `false` | `null` | No handler / package for a declared target. |
+| `unknown` | `null` | `not_declared` | The target is not in your build declarations. |
+| `unknown` | `null` | `declaration_unverified` | Android: build evidence missing, malformed or for another app. |
+| `unknown` | `null` | `scheme_budget_exceeded` | iOS: your scheme list exceeds the validated ceiling. |
+| `unknown` | `null` | `unsupported_platform` | The target has no identifier for this platform. |
+| `unknown` | `null` | `query_failed` | The platform lookup failed. |
+
+`unknown` is never turned into `false`. Every round delivers a **complete** snapshot, even
+when nothing changed: each target once, in the configured order, with a new `snapshotId`,
+the `configurationFingerprint` and `checkedAt` (ISO 8601 UTC with milliseconds, kept as a
+string); each result carries its own `checkedAt` and `detectionMethod`.
+
+### Delivery, replay and errors
+
+- Subscribing replays the last compatible snapshot with `cached === true` and its original
+  `snapshotId` / `checkedAt`, so a JS runtime that starts late still gets the latest round.
+  A `snapshotId` reaches the same subscription **at most once**, whether it arrives as a live
+  event or as the replay. Each subscription gets its own replay.
+- `remove()` stops all deliveries to that subscription, including a replay still in flight.
+- An exception thrown by your listener is contained and does not stop later deliveries.
+- Deliveries need the JS runtime: there is no headless delivery and no queue while the bridge
+  is gone. The native SDK keeps only the latest snapshot per business token (no history).
+- An invalid configuration (duplicated or malformed ids, malformed scheme or package name,
+  `http`/`https` schemes, more than 50 targets) **rejects** `configureAppPresence` with
+  `code === 'app_presence_invalid_configuration'` (exported as
+  `APP_PRESENCE_INVALID_CONFIGURATION`). Only this feature is disabled and its cached snapshot
+  dropped; beacon detection keeps running. Once `configure()` has run, the native SDK also
+  reports it to `addErrorListener`.
+- If the device storage cannot hold the hourly reservation, the round is cancelled before
+  any app is checked and `addErrorListener` receives a storage-unavailable error.
+
+### When it runs
+
+- The first eligible round runs on `startScanning()`, before the Bluetooth and location
+  checks: it needs neither permissions, nor a beacon, nor network. `configure()` and
+  `configureAppPresence()` alone never query.
+- Later rounds are at least **3600 s apart** per app and business token, triggered when the
+  app comes to the foreground or by the SDK's active-scanning timer. There is no background
+  task, worker, silent push or extra wake-up for this feature: hourly updates are **not**
+  guaranteed while the app is suspended or terminated.
+- `stopScanning()` pauses the feature and drops pending deliveries; a new `startScanning()`
+  respects the running window. `enabled: false`, an empty list or new targets delete the
+  cached snapshot but **keep** the cooldown; restarting the app does not bring the next round
+  forward.
+
+---
+
 ## Quick Start
 
 Three rules the snippet below follows — all come from how the SDK actually works:
@@ -1348,6 +1498,11 @@ requestForegroundPermissions(): Promise<{
 
 // Request background location permission (Android)
 requestBackgroundLocation(): Promise<boolean>;
+
+// App presence (opt-in, local only). See "App presence" above.
+configureAppPresence(configuration: AppPresenceConfiguration): Promise<void>;
+getLastAppPresenceSnapshot(): Promise<AppPresenceSnapshot | null>;
+addAppPresenceListener(listener: (snapshot: AppPresenceSnapshot) => void): { remove(): void };
 ```
 
 > **`PermissionResult` semantics on iOS:** the iOS bridge checks a single thing —
@@ -1437,6 +1592,7 @@ Available listeners:
 * `addBluetoothZoneListener` — **iOS-only**: fires on Bluetooth-zone enter/exit (the "Bluetooth eye", backed by CBCentralManager, independent of CoreLocation). On Android the listener registers but never fires.
 * `addBluetoothScanModeListener` — **iOS-only**: fires when the BLE scanner duty-cycle mode changes (`idle` ↔ `active`, with `nextIdleScanAt` when idle). On Android the listener registers but never fires.
 * `addBluetoothStateListener` — fires on Bluetooth adapter state changes (`poweredOn`/`poweredOff`/`unauthorized`/...) on **both platforms** — use it to gate the Bluetooth eye independently of location. **iOS:** it only starts emitting after the first `getBluetoothState()` call in the process (which creates the underlying `CBCentralManager` and may show the Bluetooth permission prompt); call it once on mount if you rely on this listener.
+* `addAppPresenceListener`: fires with one complete app presence snapshot per round, plus a replay of the last one on subscribe (see [App presence](#app-presence-opt-in-local-only)); returns `{ remove() }`.
 
 ```ts
 import {

@@ -22,8 +22,14 @@ import com.facebook.react.bridge.WritableArray
 import com.facebook.react.bridge.WritableMap
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.facebook.react.module.annotations.ReactModule
+import org.json.JSONArray
+import org.json.JSONException
+import org.json.JSONObject
 import io.bearound.sdk.BeAroundSDK
 import io.bearound.sdk.interfaces.BeAroundSDKListener
+import io.bearound.sdk.models.AppPresenceConfiguration
+import io.bearound.sdk.models.AppPresenceConfigurationException
+import io.bearound.sdk.models.AppPresenceSnapshot
 import io.bearound.sdk.models.Beacon
 import io.bearound.sdk.models.BeaconMetadata
 import io.bearound.sdk.models.ForegroundScanConfig
@@ -48,6 +54,7 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     private const val EVENT_BEACON_REGION = "bearound:beaconRegion"
     private const val EVENT_ACTIVE_SCAN = "bearound:activeScan"
     private const val EVENT_BLUETOOTH_STATE = "bearound:bluetoothState"
+    private const val EVENT_APP_PRESENCE = "bearound:appPresence"
   }
 
   private val mainHandler = Handler(Looper.getMainLooper())
@@ -459,6 +466,46 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     )
   }
 
+  // App presence (opt-in, local only). The native SDK owns validation, scheduling,
+  // cache and replay; the bridge only converts JSON and maps errors to the promise.
+  override fun configureAppPresence(configurationJson: String, promise: Promise) {
+    try {
+      val configuration = try {
+        AppPresenceConfiguration.fromJson(configurationJson)
+      } catch (_: IllegalArgumentException) {
+        null
+      } catch (_: JSONException) {
+        null
+      }
+      if (configuration == null) {
+        // Wrong shape: disable only this feature (drops its cached snapshot, keeps the
+        // cooldown), like any other invalid configuration.
+        sdk.configureAppPresence(AppPresenceConfiguration.DISABLED)
+        promise.reject(
+          AppPresenceConfigurationException.CODE,
+          "${AppPresenceConfigurationException.CODE}: configuration is not a valid app presence object"
+        )
+        return
+      }
+      // The SDK also rejects it (feature disabled, onError fired); the promise mirrors it.
+      val error = configuration.validationError()
+      sdk.configureAppPresence(configuration)
+      if (error != null) {
+        promise.reject(error.code, error.message, error)
+      } else {
+        promise.resolve(null)
+      }
+    } catch (t: Throwable) {
+      promise.reject("APP_PRESENCE_ERROR", t)
+    }
+  }
+
+  override fun getLastAppPresenceSnapshot(promise: Promise) {
+    guarded(promise, "APP_PRESENCE_ERROR") {
+      promise.resolve(sdk.getLastAppPresenceSnapshot()?.toJson()?.toString() ?: "null")
+    }
+  }
+
   override fun addListener(eventName: String) {
     // Required for NativeEventEmitter; events are emitted from the SDK delegate.
   }
@@ -536,6 +583,16 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     val payload = Arguments.createMap()
     payload.putBoolean("isActive", isActive)
     sendEvent(EVENT_ACTIVE_SCAN, payload)
+  }
+
+  // Live rounds and the native replay on listener assignment. A serialization failure
+  // drops only this delivery; the JS side dedupes snapshotId per subscription.
+  override fun onAppPresenceUpdated(snapshot: AppPresenceSnapshot) {
+    try {
+      sendEvent(EVENT_APP_PRESENCE, jsonToWritableMap(snapshot.toJson()))
+    } catch (_: Throwable) {
+      // Never crash the host for a local delivery.
+    }
   }
 
   private fun mapUserProperties(args: ReadableMap): UserProperties {
@@ -620,6 +677,43 @@ class BearoundReactSdkModule(private val ctx: ReactApplicationContext) :
     metadata.rssiFromBLE?.let { map.putInt("rssiFromBLE", it) }
     metadata.isConnectable?.let { map.putBoolean("isConnectable", it) }
     return map
+  }
+
+  // Explicit nulls are kept (present/reason are null for unknown results).
+  private fun jsonToWritableMap(json: JSONObject): WritableMap {
+    val map = Arguments.createMap()
+    val keys = json.keys()
+    while (keys.hasNext()) {
+      val key = keys.next()
+      when (val value = json.opt(key)) {
+        null, JSONObject.NULL -> map.putNull(key)
+        is Boolean -> map.putBoolean(key, value)
+        is Int -> map.putInt(key, value)
+        is Number -> map.putDouble(key, value.toDouble())
+        is String -> map.putString(key, value)
+        is JSONObject -> map.putMap(key, jsonToWritableMap(value))
+        is JSONArray -> map.putArray(key, jsonToWritableArray(value))
+        else -> map.putString(key, value.toString())
+      }
+    }
+    return map
+  }
+
+  private fun jsonToWritableArray(json: JSONArray): WritableArray {
+    val array = Arguments.createArray()
+    for (index in 0 until json.length()) {
+      when (val value = json.opt(index)) {
+        null, JSONObject.NULL -> array.pushNull()
+        is Boolean -> array.pushBoolean(value)
+        is Int -> array.pushInt(value)
+        is Number -> array.pushDouble(value.toDouble())
+        is String -> array.pushString(value)
+        is JSONObject -> array.pushMap(jsonToWritableMap(value))
+        is JSONArray -> array.pushArray(jsonToWritableArray(value))
+        else -> array.pushString(value.toString())
+      }
+    }
+    return array
   }
 
   // NEVER-CRASH-THE-HOST: beacon callbacks arrive from the native SDK's background

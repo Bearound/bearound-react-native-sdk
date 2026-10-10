@@ -96,6 +96,12 @@ const EVENT_CATALOG: Array<{
     event: 'bearound:bluetoothState',
     platform: 'both',
   },
+  // App presence snapshots (opt-in, local only): both platforms
+  {
+    listener: 'addAppPresenceListener',
+    event: 'bearound:appPresence',
+    platform: 'both',
+  },
 ];
 
 describe('Event catalog contract', () => {
