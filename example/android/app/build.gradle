@@ -129,3 +129,11 @@ dependencies {
         implementation files(bearoundNativeAar)
     }
 }
+
+// App presence build evidence (device E2E, opt-in): applies the native SDK's evidence script so
+// the declared <queries> packages can be reported as present/absent. Set by
+// e2e/app-presence/run.sh; without it the example builds exactly as before.
+def appPresenceEvidenceScript = System.getenv("BEAROUND_APP_PRESENCE_EVIDENCE_SCRIPT")
+if (appPresenceEvidenceScript) {
+    apply from: new File(appPresenceEvidenceScript)
+}
