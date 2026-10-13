@@ -82,6 +82,13 @@ export interface Spec extends TurboModule {
 
   addListener(eventName: string): void;
   removeListeners(count: number): void;
+
+  // App presence (opt-in, local only). Additive: needs a native SDK that ships the
+  // app presence API. The configuration travels as a JSON object string; an invalid
+  // one rejects with code "app_presence_invalid_configuration". The getter resolves
+  // the snapshot as a JSON object string, or the literal "null", and never queries.
+  configureAppPresence(configurationJson: string): Promise<void>;
+  getLastAppPresenceSnapshot(): Promise<string>;
 }
 
 export default TurboModuleRegistry.getEnforcing<Spec>('BearoundReactSdk');

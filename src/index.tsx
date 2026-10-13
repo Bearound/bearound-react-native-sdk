@@ -238,6 +238,7 @@ const EVENT_ACTIVE_SCAN = 'bearound:activeScan';
 const EVENT_BLUETOOTH_ZONE = 'bearound:bluetoothZone';
 const EVENT_BLUETOOTH_SCAN_MODE = 'bearound:bluetoothScanMode';
 const EVENT_BLUETOOTH_STATE = 'bearound:bluetoothState';
+const EVENT_APP_PRESENCE = 'bearound:appPresence';
 
 const BLUETOOTH_STATES: BluetoothState[] = [
   'poweredOn',
@@ -966,6 +967,297 @@ export function addBluetoothStateListener(
   return eventEmitter.addListener(EVENT_BLUETOOTH_STATE, (event) => {
     listener(parseBluetoothState(event));
   });
+}
+
+// --- App presence (opt-in, local only) ---
+
+/**
+ * One app to check for. `id` is yours: ASCII `[A-Za-z0-9._-]`, 1 to 64 characters,
+ * unique in the configuration. A target without the identifier of the running
+ * platform is reported as `unknown` / `unsupported_platform`.
+ */
+export type AppPresenceTarget = {
+  id: string;
+  /** URL scheme queried on iOS (scheme name only, no `://`; `http`/`https` rejected). */
+  iosScheme?: string;
+  /** Package name queried on Android. */
+  androidPackageName?: string;
+};
+
+export type AppPresenceConfiguration = {
+  /** Default: `false`. Nothing is queried until this is `true`. */
+  enabled: boolean;
+  /** Default: `[]`. At most 50 targets; results keep this order. */
+  targets: AppPresenceTarget[];
+};
+
+export type AppPresenceState = 'present' | 'absent' | 'unknown';
+
+export type AppPresenceReason =
+  | 'not_declared'
+  | 'declaration_unverified'
+  | 'scheme_budget_exceeded'
+  | 'unsupported_platform'
+  | 'query_failed';
+
+export type AppPresenceDetectionMethod =
+  | 'ios_url_scheme'
+  | 'android_package'
+  | 'none';
+
+export type AppPresenceResult = {
+  targetId: string;
+  state: AppPresenceState;
+  /** `true` for present, `false` for absent, `null` for unknown (never coerced). */
+  present: boolean | null;
+  /** Why the result is `unknown`; `null` otherwise. */
+  reason: AppPresenceReason | null;
+  /** Moment of the decision for this target, ISO 8601 UTC with milliseconds. */
+  checkedAt: string;
+  detectionMethod: AppPresenceDetectionMethod;
+};
+
+export type AppPresenceSnapshot = {
+  schemaVersion: 1;
+  /** Generated once per completed round; kept by cached replays. */
+  snapshotId: string;
+  configurationFingerprint: string;
+  /** Moment the round completed, ISO 8601 UTC with milliseconds. */
+  checkedAt: string;
+  /** `true` when delivered from the native cache (replay), not from a new round. */
+  cached: boolean;
+  /** Every configured target exactly once, in the configured order. */
+  results: AppPresenceResult[];
+};
+
+export type AppPresenceSubscription = {
+  remove(): void;
+};
+
+/** Error code of a rejected app presence configuration (Promise rejection `code`). */
+export const APP_PRESENCE_INVALID_CONFIGURATION =
+  'app_presence_invalid_configuration';
+
+const APP_PRESENCE_STATES: AppPresenceState[] = [
+  'present',
+  'absent',
+  'unknown',
+];
+const APP_PRESENCE_REASONS: AppPresenceReason[] = [
+  'not_declared',
+  'declaration_unverified',
+  'scheme_budget_exceeded',
+  'unsupported_platform',
+  'query_failed',
+];
+const APP_PRESENCE_DETECTION_METHODS: AppPresenceDetectionMethod[] = [
+  'ios_url_scheme',
+  'android_package',
+  'none',
+];
+
+const oneOf = <T extends string>(
+  allowed: readonly T[],
+  value: unknown
+): T | null =>
+  typeof value === 'string' && (allowed as readonly string[]).includes(value)
+    ? (value as T)
+    : null;
+
+const isUtcTime = (value: unknown): value is string =>
+  typeof value === 'string' && !Number.isNaN(Date.parse(value));
+
+/** A nullable field: absent or `null` is `null`; anything else must be a valid value. */
+const nullableOneOf = <T extends string>(
+  allowed: readonly T[],
+  value: unknown
+): T | null | undefined =>
+  value === undefined || value === null
+    ? null
+    : (oneOf(allowed, value) ?? undefined);
+
+/** `undefined` when the result breaks the native contract (wrong type, unknown enum). */
+const parseAppPresenceResult = (
+  value: unknown
+): AppPresenceResult | undefined => {
+  const raw = asMap(value);
+  const state = oneOf(APP_PRESENCE_STATES, raw.state);
+  const reason = nullableOneOf(APP_PRESENCE_REASONS, raw.reason);
+  const detectionMethod = oneOf(
+    APP_PRESENCE_DETECTION_METHODS,
+    raw.detectionMethod
+  );
+  const present =
+    raw.present === undefined || raw.present === null ? null : raw.present;
+  if (
+    typeof raw.targetId !== 'string' ||
+    state === null ||
+    reason === undefined ||
+    detectionMethod === null ||
+    (present !== null && typeof present !== 'boolean') ||
+    !isUtcTime(raw.checkedAt)
+  ) {
+    return undefined;
+  }
+  return {
+    targetId: raw.targetId,
+    state,
+    present,
+    reason,
+    checkedAt: raw.checkedAt,
+    detectionMethod,
+  };
+};
+
+/**
+ * Parses a native snapshot (object event or JSON string). Returns `null` for the
+ * literal "null", malformed JSON, an unsupported `schemaVersion` or any field that
+ * breaks the native contract (wrong type, unknown enum value, invalid time), so a
+ * broken delivery is dropped instead of reaching the host as a fabricated result.
+ * Same acceptance as the Flutter bridge.
+ */
+const parseAppPresenceSnapshot = (
+  value: unknown
+): AppPresenceSnapshot | null => {
+  let payload = value;
+  if (typeof value === 'string') {
+    try {
+      payload = JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return null;
+  }
+  const raw = payload as Record<string, unknown>;
+  if (
+    raw.schemaVersion !== 1 ||
+    typeof raw.snapshotId !== 'string' ||
+    raw.snapshotId.length === 0 ||
+    typeof raw.configurationFingerprint !== 'string' ||
+    !isUtcTime(raw.checkedAt) ||
+    typeof raw.cached !== 'boolean' ||
+    !Array.isArray(raw.results)
+  ) {
+    return null;
+  }
+  const results: AppPresenceResult[] = [];
+  for (const item of raw.results) {
+    const result = parseAppPresenceResult(item);
+    if (result === undefined) {
+      return null;
+    }
+    results.push(result);
+  }
+  return {
+    schemaVersion: 1,
+    snapshotId: raw.snapshotId,
+    configurationFingerprint: raw.configurationFingerprint,
+    checkedAt: raw.checkedAt,
+    cached: raw.cached,
+    results,
+  };
+};
+
+/**
+ * Configures the opt-in app presence check. Independent of {@link configure}: the
+ * beacon configuration never changes it, and this call never queries by itself
+ * (rounds start with {@link startScanning}, at most once per hour).
+ *
+ * Rejects with `code === 'app_presence_invalid_configuration'` when the configuration
+ * is invalid (duplicated or malformed ids, malformed scheme or package name, more
+ * than 50 targets). Only this feature is disabled and its cached snapshot dropped;
+ * the rest of the SDK keeps running. `enabled: false` or an empty list also deletes
+ * the cached snapshot but keeps the hourly cooldown.
+ *
+ * Needs a native SDK that ships the app presence API.
+ */
+export async function configureAppPresence(
+  configuration: AppPresenceConfiguration
+): Promise<void> {
+  await Native.configureAppPresence(
+    JSON.stringify({
+      enabled: configuration?.enabled ?? false,
+      targets: configuration?.targets ?? [],
+    })
+  );
+}
+
+/**
+ * The last snapshot compatible with the current configuration and business token,
+ * with `cached === true` and its original `snapshotId` / `checkedAt`, or `null`.
+ * Never queries any app.
+ */
+export async function getLastAppPresenceSnapshot(): Promise<AppPresenceSnapshot | null> {
+  return parseAppPresenceSnapshot(await Native.getLastAppPresenceSnapshot());
+}
+
+/**
+ * Subscribes to app presence snapshots: one complete snapshot per round, even when
+ * nothing changed, delivered only to this app (never uploaded).
+ *
+ * Right after subscribing, the last compatible snapshot (if any) is replayed with
+ * `cached === true`, so a JS runtime that starts late still gets the latest round.
+ * A given `snapshotId` reaches the same subscription at most once, whether it came
+ * from the live event or the replay, and the replay is dropped once a live snapshot
+ * arrived (it can only be the same round or an older one). An exception thrown by
+ * `listener` is contained here and does not stop later deliveries. Call `remove()`
+ * to unsubscribe.
+ */
+export function addAppPresenceListener(
+  listener: (snapshot: AppPresenceSnapshot) => void
+): AppPresenceSubscription {
+  const delivered = new Set<string>();
+  let active = true;
+  // The getter and the event travel on different bridge queues: a replay read before
+  // a round completed can resolve after that round's live event.
+  let liveReceived = false;
+
+  const deliver = (snapshot: AppPresenceSnapshot | null) => {
+    if (!active || snapshot === null || delivered.has(snapshot.snapshotId)) {
+      return;
+    }
+    delivered.add(snapshot.snapshotId);
+    try {
+      listener(snapshot);
+    } catch {
+      // Host callback failure: contained so later deliveries keep flowing. Never
+      // reported to telemetry (host errors and app presence data stay local).
+    }
+  };
+
+  // Event first, replay second: a round finishing in between is caught by the event
+  // and deduplicated against the replay by snapshotId.
+  const subscription = eventEmitter.addListener(EVENT_APP_PRESENCE, (event) => {
+    const snapshot = parseAppPresenceSnapshot(event);
+    if (snapshot !== null) {
+      liveReceived = true;
+    }
+    deliver(snapshot);
+  });
+
+  if (typeof Native.getLastAppPresenceSnapshot === 'function') {
+    Native.getLastAppPresenceSnapshot()
+      .then((raw) => {
+        if (!liveReceived) {
+          deliver(parseAppPresenceSnapshot(raw));
+        }
+      })
+      .catch(() => {
+        // No replay available (native not ready); live events still arrive.
+      });
+  }
+
+  return {
+    remove() {
+      if (!active) {
+        return;
+      }
+      active = false;
+      subscription.remove();
+    },
+  };
 }
 
 export * from './permissions';
