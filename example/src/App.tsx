@@ -184,17 +184,27 @@ async function requestTrackingIfNeeded(): Promise<void> {
 }
 
 /**
- * Deep link that switches the example into the app presence device E2E mode:
+ * Deep link that switches the example into the app presence device E2E mode on Android:
  * `bearound-rn-example://app-presence-e2e?client=<label>`. Each client label is its own
- * cooldown namespace.
+ * cooldown namespace. On iOS the AppDelegate passes the same switch as the `appPresenceE2E`
+ * root prop, read from the launch environment.
  */
 const APP_PRESENCE_E2E_URL = 'bearound-rn-example://app-presence-e2e';
 
-export default function App() {
-  const [mode, setMode] = useState<'pending' | 'e2e' | 'example'>('pending');
-  const [e2eClient, setE2EClient] = useState('R');
+type AppPresenceE2EProps = { client: string; step: string };
+
+export default function App({
+  appPresenceE2E,
+}: {
+  appPresenceE2E?: AppPresenceE2EProps;
+}) {
+  const [mode, setMode] = useState<'pending' | 'e2e' | 'example'>(
+    appPresenceE2E ? 'e2e' : 'pending'
+  );
+  const [e2eClient, setE2EClient] = useState(appPresenceE2E?.client ?? 'R');
 
   useEffect(() => {
+    if (appPresenceE2E) return;
     Linking.getInitialURL()
       .then((url) => {
         if (!url?.startsWith(APP_PRESENCE_E2E_URL)) {
@@ -206,11 +216,11 @@ export default function App() {
         setMode('e2e');
       })
       .catch(() => setMode('example'));
-  }, []);
+  }, [appPresenceE2E]);
 
   if (mode === 'pending') return null;
   return mode === 'e2e' ? (
-    <AppPresenceE2E client={e2eClient} />
+    <AppPresenceE2E client={e2eClient} step={appPresenceE2E?.step} />
   ) : (
     <ExampleApp />
   );
@@ -235,7 +245,8 @@ const emitE2E = (
   client: string,
   event: string,
   snapshot: AppPresenceSnapshot | null = null,
-  code?: string
+  code?: string,
+  step?: string
 ) => {
   const record = {
     host: 'rn',
@@ -244,6 +255,7 @@ const emitE2E = (
     event,
     snapshot,
     ...(code === undefined ? {} : { code }),
+    ...(step === undefined ? {} : { step, epochMs: Date.now() }),
   };
   console.log(`BEAROUND_E2E ${JSON.stringify(record)}`);
 };
@@ -255,10 +267,15 @@ const emitE2E = (
  * depend on either. The harness asserts the records
  * (e2e/app-presence/tests/test_device_results.py).
  */
-function AppPresenceE2E({ client }: { client: string }) {
+function AppPresenceE2E({ client, step }: { client: string; step?: string }) {
   const [status, setStatus] = useState('starting');
 
   useEffect(() => {
+    const emit = (
+      event: string,
+      snapshot: AppPresenceSnapshot | null = null,
+      code?: string
+    ) => emitE2E(client, event, snapshot, code, step);
     const removals: Array<() => void> = [];
     const timers: Array<ReturnType<typeof setTimeout>> = [];
     const sleep = (ms: number) =>
@@ -269,7 +286,7 @@ function AppPresenceE2E({ client }: { client: string }) {
     const run = async () => {
       try {
         const errors = addErrorListener((error) =>
-          emitE2E(client, 'error', null, error.message)
+          emit('error', null, error.message)
         );
         removals.push(() => errors.remove());
         await BeAround.configure({
@@ -282,35 +299,27 @@ function AppPresenceE2E({ client }: { client: string }) {
           enabled: true,
           targets: APP_PRESENCE_E2E_TARGETS,
         });
-        emitE2E(
-          client,
-          'getter_start',
-          await BeAround.getLastAppPresenceSnapshot()
-        );
+        emit('getter_start', await BeAround.getLastAppPresenceSnapshot());
         const live = BeAround.addAppPresenceListener((snapshot) =>
-          emitE2E(client, 'stream', snapshot)
+          emit('stream', snapshot)
         );
         removals.push(() => live.remove());
         await BeAround.startScanning();
-        emitE2E(client, 'started');
+        emit('started');
         // A late listener gets the cached snapshot as a replay, without a new round.
         await sleep(8000);
         const late = BeAround.addAppPresenceListener((snapshot) =>
-          emitE2E(client, 'stream_late', snapshot)
+          emit('stream_late', snapshot)
         );
         removals.push(() => late.remove());
         await sleep(12000);
-        emitE2E(
-          client,
-          'getter_end',
-          await BeAround.getLastAppPresenceSnapshot()
-        );
+        emit('getter_end', await BeAround.getLastAppPresenceSnapshot());
         await BeAround.stopScanning();
-        emitE2E(client, 'done');
+        emit('done');
         setStatus('done');
       } catch (error) {
         // The E2E driver itself broke (not an SDK onError): the harness stops the step.
-        emitE2E(client, 'failed', null, String(error));
+        emit('failed', null, String(error));
         setStatus('error');
       }
     };
@@ -320,7 +329,7 @@ function AppPresenceE2E({ client }: { client: string }) {
       timers.forEach(clearTimeout);
       removals.forEach((remove) => remove());
     };
-  }, [client]);
+  }, [client, step]);
 
   return (
     <SafeAreaView style={styles.safe}>
