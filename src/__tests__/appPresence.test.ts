@@ -352,6 +352,89 @@ describe('App presence', () => {
       );
     });
 
+    it.each<[string, Record<string, unknown>]>([
+      ['an unsupported schemaVersion', { schemaVersion: 2 }],
+      ['a missing schemaVersion', { schemaVersion: undefined }],
+      ['a non-string fingerprint', { configurationFingerprint: 42 }],
+      ['an invalid checkedAt', { checkedAt: 'yesterday' }],
+      ['a non-boolean cached', { cached: 'true' }],
+    ])(
+      'rejects a snapshot with %s, like the Flutter bridge',
+      async (_, overrides) => {
+        mockAppPresenceNative.getLastAppPresenceSnapshot.mockImplementation(
+          () => Promise.resolve(JSON.stringify(nativeSnapshot(overrides)))
+        );
+        const { getLastAppPresenceSnapshot } = load();
+        await expect(getLastAppPresenceSnapshot()).resolves.toBeNull();
+      }
+    );
+
+    it.each<[string, Record<string, unknown>]>([
+      ['an unknown reason', { reason: 'mystery' }],
+      ['an unknown detectionMethod', { detectionMethod: 'bluetooth' }],
+      ['a missing detectionMethod', { detectionMethod: undefined }],
+      ['a non-boolean present', { present: 'yes' }],
+      ['an invalid checkedAt', { checkedAt: 42 }],
+    ])('rejects a snapshot whose result has %s', async (_, overrides) => {
+      const [first, ...rest] = nativeSnapshot().results as Array<
+        Record<string, unknown>
+      >;
+      mockAppPresenceNative.getLastAppPresenceSnapshot.mockImplementation(() =>
+        Promise.resolve(
+          JSON.stringify(
+            nativeSnapshot({ results: [{ ...first, ...overrides }, ...rest] })
+          )
+        )
+      );
+      const { getLastAppPresenceSnapshot } = load();
+      await expect(getLastAppPresenceSnapshot()).resolves.toBeNull();
+    });
+
+    it('drops an older replay that resolves after a newer live round', async () => {
+      let resolveReplay: (value: string) => void = () => {};
+      mockAppPresenceNative.getLastAppPresenceSnapshot.mockImplementation(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveReplay = resolve;
+          })
+      );
+      const { addAppPresenceListener } = load();
+      const listener = jest.fn();
+      addAppPresenceListener(listener);
+
+      // The getter read the previous round; the new round's event wins the race.
+      emit(EVENT, nativeSnapshot({ snapshotId: 'new-round' }));
+      resolveReplay(
+        JSON.stringify(
+          nativeSnapshot({ snapshotId: 'old-round', cached: true })
+        )
+      );
+      await flush();
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(listener.mock.calls[0][0].snapshotId).toBe('new-round');
+    });
+
+    it('still replays when only a malformed live event arrived first', async () => {
+      let resolveReplay: (value: string) => void = () => {};
+      mockAppPresenceNative.getLastAppPresenceSnapshot.mockImplementation(
+        () =>
+          new Promise<string>((resolve) => {
+            resolveReplay = resolve;
+          })
+      );
+      const { addAppPresenceListener } = load();
+      const listener = jest.fn();
+      addAppPresenceListener(listener);
+
+      emit(EVENT, { results: [] });
+      resolveReplay(JSON.stringify(nativeSnapshot({ cached: true })));
+      await flush();
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(listener.mock.calls[0][0].cached).toBe(true);
+    });
+
     it('keeps live events when the replay read fails', async () => {
       mockAppPresenceNative.getLastAppPresenceSnapshot.mockImplementation(() =>
         Promise.reject(new Error('native not ready'))

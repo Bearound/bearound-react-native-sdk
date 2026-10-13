@@ -1064,27 +1064,57 @@ const oneOf = <T extends string>(
     ? (value as T)
     : null;
 
-const parseAppPresenceResult = (value: unknown): AppPresenceResult | null => {
+const isUtcTime = (value: unknown): value is string =>
+  typeof value === 'string' && !Number.isNaN(Date.parse(value));
+
+/** A nullable field: absent or `null` is `null`; anything else must be a valid value. */
+const nullableOneOf = <T extends string>(
+  allowed: readonly T[],
+  value: unknown
+): T | null | undefined =>
+  value === undefined || value === null
+    ? null
+    : (oneOf(allowed, value) ?? undefined);
+
+/** `undefined` when the result breaks the native contract (wrong type, unknown enum). */
+const parseAppPresenceResult = (
+  value: unknown
+): AppPresenceResult | undefined => {
   const raw = asMap(value);
   const state = oneOf(APP_PRESENCE_STATES, raw.state);
-  if (typeof raw.targetId !== 'string' || state === null) {
-    return null;
+  const reason = nullableOneOf(APP_PRESENCE_REASONS, raw.reason);
+  const detectionMethod = oneOf(
+    APP_PRESENCE_DETECTION_METHODS,
+    raw.detectionMethod
+  );
+  const present =
+    raw.present === undefined || raw.present === null ? null : raw.present;
+  if (
+    typeof raw.targetId !== 'string' ||
+    state === null ||
+    reason === undefined ||
+    detectionMethod === null ||
+    (present !== null && typeof present !== 'boolean') ||
+    !isUtcTime(raw.checkedAt)
+  ) {
+    return undefined;
   }
   return {
     targetId: raw.targetId,
     state,
-    present: typeof raw.present === 'boolean' ? raw.present : null,
-    reason: oneOf(APP_PRESENCE_REASONS, raw.reason),
-    checkedAt: String(raw.checkedAt ?? ''),
-    detectionMethod:
-      oneOf(APP_PRESENCE_DETECTION_METHODS, raw.detectionMethod) ?? 'none',
+    present,
+    reason,
+    checkedAt: raw.checkedAt,
+    detectionMethod,
   };
 };
 
 /**
  * Parses a native snapshot (object event or JSON string). Returns `null` for the
- * literal "null", malformed JSON or a payload without the snapshot identity, so a
+ * literal "null", malformed JSON, an unsupported `schemaVersion` or any field that
+ * breaks the native contract (wrong type, unknown enum value, invalid time), so a
  * broken delivery is dropped instead of reaching the host as a fabricated result.
+ * Same acceptance as the Flutter bridge.
  */
 const parseAppPresenceSnapshot = (
   value: unknown
@@ -1102,8 +1132,12 @@ const parseAppPresenceSnapshot = (
   }
   const raw = payload as Record<string, unknown>;
   if (
+    raw.schemaVersion !== 1 ||
     typeof raw.snapshotId !== 'string' ||
     raw.snapshotId.length === 0 ||
+    typeof raw.configurationFingerprint !== 'string' ||
+    !isUtcTime(raw.checkedAt) ||
+    typeof raw.cached !== 'boolean' ||
     !Array.isArray(raw.results)
   ) {
     return null;
@@ -1111,7 +1145,7 @@ const parseAppPresenceSnapshot = (
   const results: AppPresenceResult[] = [];
   for (const item of raw.results) {
     const result = parseAppPresenceResult(item);
-    if (result === null) {
+    if (result === undefined) {
       return null;
     }
     results.push(result);
@@ -1119,9 +1153,9 @@ const parseAppPresenceSnapshot = (
   return {
     schemaVersion: 1,
     snapshotId: raw.snapshotId,
-    configurationFingerprint: String(raw.configurationFingerprint ?? ''),
-    checkedAt: String(raw.checkedAt ?? ''),
-    cached: raw.cached === true,
+    configurationFingerprint: raw.configurationFingerprint,
+    checkedAt: raw.checkedAt,
+    cached: raw.cached,
     results,
   };
 };
@@ -1166,14 +1200,19 @@ export async function getLastAppPresenceSnapshot(): Promise<AppPresenceSnapshot 
  * Right after subscribing, the last compatible snapshot (if any) is replayed with
  * `cached === true`, so a JS runtime that starts late still gets the latest round.
  * A given `snapshotId` reaches the same subscription at most once, whether it came
- * from the live event or the replay. An exception thrown by `listener` is contained
- * here and does not stop later deliveries. Call `remove()` to unsubscribe.
+ * from the live event or the replay, and the replay is dropped once a live snapshot
+ * arrived (it can only be the same round or an older one). An exception thrown by
+ * `listener` is contained here and does not stop later deliveries. Call `remove()`
+ * to unsubscribe.
  */
 export function addAppPresenceListener(
   listener: (snapshot: AppPresenceSnapshot) => void
 ): AppPresenceSubscription {
   const delivered = new Set<string>();
   let active = true;
+  // The getter and the event travel on different bridge queues: a replay read before
+  // a round completed can resolve after that round's live event.
+  let liveReceived = false;
 
   const deliver = (snapshot: AppPresenceSnapshot | null) => {
     if (!active || snapshot === null || delivered.has(snapshot.snapshotId)) {
@@ -1191,12 +1230,20 @@ export function addAppPresenceListener(
   // Event first, replay second: a round finishing in between is caught by the event
   // and deduplicated against the replay by snapshotId.
   const subscription = eventEmitter.addListener(EVENT_APP_PRESENCE, (event) => {
-    deliver(parseAppPresenceSnapshot(event));
+    const snapshot = parseAppPresenceSnapshot(event);
+    if (snapshot !== null) {
+      liveReceived = true;
+    }
+    deliver(snapshot);
   });
 
   if (typeof Native.getLastAppPresenceSnapshot === 'function') {
     Native.getLastAppPresenceSnapshot()
-      .then((raw) => deliver(parseAppPresenceSnapshot(raw)))
+      .then((raw) => {
+        if (!liveReceived) {
+          deliver(parseAppPresenceSnapshot(raw));
+        }
+      })
       .catch(() => {
         // No replay available (native not ready); live events still arrive.
       });
