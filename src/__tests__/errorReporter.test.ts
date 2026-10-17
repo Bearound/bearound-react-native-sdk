@@ -154,28 +154,6 @@ describe('errorReporter', () => {
     });
   });
 
-  describe('invalid app presence configuration', () => {
-    it('is never reported, even with an SDK frame on top', async () => {
-      // Shape of an un-awaited configureAppPresence rejection; the native message
-      // names a target id.
-      const err = Object.assign(
-        sdkError('duplicate target id "secret-target"'),
-        {
-          code: 'app_presence_invalid_configuration',
-        }
-      );
-      report(err, 'async');
-      await flush();
-      expect(sent).toHaveLength(0);
-
-      // Control: the same stack without that code is still reported.
-      report(sdkError('other failure'), 'async');
-      await flush();
-      expect(sent).toHaveLength(1);
-      expect(sent[0]!.body).not.toContain('secret-target');
-    });
-  });
-
   describe('dedupe', () => {
     it('suppresses a duplicate error within the dedupe window', async () => {
       report(sdkError('dup'), 'uncaught');

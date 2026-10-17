@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- **App presence.** Saem do pacote, sem substituto, `configureAppPresence`,
+  `getLastAppPresenceSnapshot`, `addAppPresenceListener`, a constante
+  `APP_PRESENCE_INVALID_CONFIGURATION`, os tipos `AppPresenceConfiguration`,
+  `AppPresenceTarget`, `AppPresenceSnapshot`, `AppPresenceResult`, `AppPresenceState`,
+  `AppPresenceReason`, `AppPresenceDetectionMethod` e `AppPresenceSubscription`, o evento
+  `bearound:appPresence`, os dois métodos do TurboModule e o override local de artefatos nativos
+  (`BEAROUND_APP_PRESENCE_LOCAL`). Os pins nativos não mudam.
+
+  **Migração:** apague as chamadas a essas APIs e as referências a esses tipos; depois remova do
+  app as declarações acrescentadas só para o recurso: as entradas `<package>` em `<queries>` do
+  `AndroidManifest.xml` e os esquemas em `LSApplicationQueriesSchemes` do `Info.plist`. Mantenha
+  as que o app usa para outras finalidades.
+
 ## [3.16.0] - 2026-10-13
 
 Fixa os SDKs nativos 3.16.0 (CocoaPods e JitPack).
