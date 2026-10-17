@@ -1058,17 +1058,16 @@ error telemetry or any other upload.
 
 ### Store policies first
 
-The requested purpose of this feature is commercial. A check that works technically is **not**
-a publication approval, and nothing in this package bypasses store review.
+Both app stores regulate how apps query and use information about other installed apps.
+Before enabling this feature in a published app:
 
-- **Apple App Store**: guideline 5.1.2(iv) forbids using installed-app information for
-  analytics, advertising or marketing.
-- **Google Play**: package visibility must be tied to core, user-facing functionality of your
-  app, and the inventory must not be sold or shared for analytics or ads monetization. Declare
-  it as required by the Data safety form.
-- **Consent is not an exception**: user consent or an ATT prompt does not make a forbidden
-  purpose acceptable, and another product on the market advertising similar detection is not
-  evidence of authorization. Limiting the number of checked apps does not change the policies.
+- **Apple App Store**: review App Review Guideline 5.1.2 (Data Use and Sharing).
+- **Google Play**: review the package visibility policy (`<queries>` and
+  `QUERY_ALL_PACKAGES`) and the User Data policy, and declare the data in the Data safety
+  form as required.
+- A check that works technically is **not** a publication approval, and nothing in this
+  package bypasses store review. Whether and how your app uses the result is your decision
+  and responsibility.
 - The absence of UI does not remove the transparency and privacy disclosures that apply to
   your app.
 
