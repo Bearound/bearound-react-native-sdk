@@ -75,7 +75,23 @@ jobs:
         run: |
           npm install --no-audit --no-fund
           npm install --no-audit --no-fund "@bearound/react-native-sdk@file:$RUNNER_TEMP/bearound-sdk.tgz"
-          node -e "const fs = require('fs'); const app = JSON.parse(fs.readFileSync('app.json', 'utf8')); app.expo.plugins = ['@bearound/react-native-sdk']; app.expo.android = { ...app.expo.android, package: 'io.bearound.ciconsumer' }; fs.writeFileSync('app.json', JSON.stringify(app, null, 2));"
+          node <<'NODE'
+          const fs = require('fs');
+          const app = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+          app.expo.plugins = ['@bearound/react-native-sdk'];
+          app.expo.android = { ...app.expo.android, package: 'io.bearound.ciconsumer' };
+          fs.writeFileSync('app.json', JSON.stringify(app, null, 2));
+          fs.writeFileSync('App.tsx', [
+            "import { useEffect, useState } from 'react';",
+            "import { Text, View } from 'react-native';",
+            "import { getSdkVersion } from '@bearound/react-native-sdk';",
+            "export default function App() {",
+            "  const [status, setStatus] = useState('SDK_NATIVE_WAITING');",
+            "  useEffect(() => { getSdkVersion().then(version => setStatus('SDK_NATIVE_READY:' + version)).catch(() => setStatus('SDK_NATIVE_FAILED')); }, []);",
+            "  return <View><Text>{status}</Text></View>;",
+            "}",
+          ].join('\n'));
+          NODE
           npx expo prebuild --clean --platform android --no-install
       - name: Compile the autolinked SDK and generated Expo host
         working-directory: ${{ runner.temp }}/expo-sdk-consumer
@@ -93,4 +109,17 @@ jobs:
             adb install -r "$RUNNER_TEMP/expo-sdk-consumer/android/app/build/outputs/apk/release/app-release.apk"
             adb shell am start -W -n io.bearound.ciconsumer/.MainActivity
             sleep 10
+            adb logcat -b crash -d > "$RUNNER_TEMP/bearound-ci-crash.log"
+            adb shell uiautomator dump /sdcard/bearound-ci.xml
+            adb pull /sdcard/bearound-ci.xml "$RUNNER_TEMP/bearound-ci.xml"
             adb shell pidof io.bearound.ciconsumer
+            grep -q 'SDK_NATIVE_READY:' "$RUNNER_TEMP/bearound-ci.xml"
+            adb shell am force-stop io.bearound.ciconsumer
+            adb shell am start -W -n io.bearound.ciconsumer/.MainActivity
+            sleep 5
+            adb shell pidof io.bearound.ciconsumer
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: expo-android-startup
+          path: ${{ runner.temp }}/bearound-ci*
