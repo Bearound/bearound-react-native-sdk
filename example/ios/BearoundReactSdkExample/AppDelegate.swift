@@ -17,6 +17,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
   ) -> Bool {
+    // Mirror only test markers to stderr for Release device-console capture.
+    // React Native sends its default JS logs to unified logging instead.
+    let validationLog = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+      .appendingPathComponent("BeAroundValidation.log")
+    try? Data().write(to: validationLog)
+    RCTAddLogFunction { _, _, _, _, message in
+      let text = message ?? ""
+      if text.contains("[BearoundValidation]") {
+        NSLog("%@", text)
+        if let data = "\(Date().timeIntervalSince1970) \(text)\n".data(using: .utf8),
+           let file = try? FileHandle(forWritingTo: validationLog) {
+          defer { try? file.close() }
+          _ = try? file.seekToEnd()
+          try? file.write(contentsOf: data)
+        }
+      }
+    }
+
     // CRITICAL — terminated/background relaunch path:
     // When iOS relaunches the app from a beacon-region event, accessing
     // BeAroundSDK.shared runs its init, which auto-restores the saved config and
@@ -47,8 +65,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
       }
     }
 
-    // Register for remote (silent) push — the ONLY vector that wakes a
-    // user-force-quit app on iOS. This triggers APNs registration; the raw
+    // Register for remote background push when iOS permits delivery.
+    // User force-quit prevents automatic relaunch. The raw
     // token arrives in didRegisterForRemoteNotificationsWithDeviceToken below.
     // Requires the app target to have the Push Notifications capability
     // (the signed `aps-environment` entitlement) — no SDK can add it for you.

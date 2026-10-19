@@ -212,7 +212,7 @@ export default function App() {
   const syncStartRef = useRef<number | null>(null);
   const lastEnteredRegionRef = useRef<number | null>(null);
 
-  // v2.4 — Geofence Debug state
+  // v2.4, Geofence Debug state
   const [isInBeaconRegion, setIsInBeaconRegion] = useState(false);
   const [lastEnteredRegionAt, setLastEnteredRegionAt] = useState<number | null>(
     null
@@ -225,7 +225,7 @@ export default function App() {
     []
   );
 
-  // v2.5 — Two Eyes state (Bluetooth eye is iOS-only)
+  // v2.5, Two Eyes state (Bluetooth eye is iOS-only)
   const [locationEnterCount, setLocationEnterCount] = useState(0);
   const [isInBluetoothZone, setIsInBluetoothZone] = useState(false);
   const [lastBtEnterAt, setLastBtEnterAt] = useState<number | null>(null);
@@ -258,7 +258,7 @@ export default function App() {
     });
   }, []);
 
-  // Load the NATIVE persisted log — source of truth on both platforms
+  // Load the NATIVE persisted log, source of truth on both platforms
   // (Android since native SDK 3.6.2). Optimistic JS entries from pushLog are
   // replaced by the native log on every refresh, exactly like on iOS.
   const refreshLog = useCallback(async () => {
@@ -271,7 +271,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    // AppState only knows active/background/inactive — the native SDK is the
+    // AppState only knows active/background/inactive, the native SDK is the
     // source of truth for `backgroundLocked`/`terminated`. Local optimistic
     // log entries from JS only tag foreground vs background.
     const map = (s: string): AppStateBucket =>
@@ -298,7 +298,7 @@ export default function App() {
 
   const isIOS = Platform.OS === 'ios';
 
-  // anyOf: the SDK detects beacons with EITHER eye — location OR bluetooth.
+  // anyOf: the SDK detects beacons with EITHER eye, location OR bluetooth.
   const canScan = locationGranted || bluetoothState === 'poweredOn';
 
   const locationBeaconsNow = useMemo(
@@ -366,8 +366,8 @@ export default function App() {
     // Reported, never requested: it is only grantable from system Settings, and
     // neither the SDK nor this example navigates there. Beacons don't need it.
     const backgroundStatus = status.backgroundLocation
-      ? 'Sempre — Wi-Fi também em background'
-      : 'Negada — Wi-Fi só com o app na tela';
+      ? 'Sempre, Wi-Fi também em background'
+      : 'Negada, Wi-Fi só com o app na tela';
 
     const notificationStatus =
       Platform.OS === 'android'
@@ -392,7 +392,7 @@ export default function App() {
 
   const requestPermissions = useCallback(async () => {
     // Native BearoundScan architecture: the example asks for the THREE
-    // permission groups — location + nearby devices + notifications. The SDK's
+    // permission groups, location + nearby devices + notifications. The SDK's
     // ensurePermissions deliberately skips location on Android 12+ (Play-policy
     // stance for generic hosts), so the example requests it itself, exactly
     // like the native and Flutter samples do.
@@ -413,7 +413,7 @@ export default function App() {
     const status = await ensurePermissions();
     updatePermissionStatus(status);
 
-    // NOTE: push is app-level now — the SDK no longer owns notifications, so the
+    // NOTE: push is app-level now, the SDK no longer owns notifications, so the
     // example requests no notification permission via the bridge. POST_NOTIFICATIONS
     // (Android 13+) is still handled by ensurePermissions above.
 
@@ -452,6 +452,7 @@ export default function App() {
 
       try {
         await BeAround.configure(config);
+        console.info('[BearoundValidation] configured');
         setStatusMessage('Configurado');
       } catch (error) {
         const message =
@@ -466,15 +467,28 @@ export default function App() {
 
   const startScan = useCallback(async () => {
     setLastError(null);
-    // Prompt for permissions but DO NOT block — the iOS native SDK never gates
-    // scanning. Whichever eye is available (Location and/or Bluetooth) activates.
-    await requestPermissions();
-
     try {
       await configureSdk();
+      const available = await requestPermissions();
+      const permissions = await checkPermissions();
+      const allowed =
+        Platform.OS === 'android'
+          ? Number(Platform.Version) >= 31
+            ? permissions.btScan
+            : permissions.fineLocation
+          : available;
+      console.info(
+        '[BearoundValidation] permissions',
+        JSON.stringify(permissions)
+      );
+      if (!allowed) {
+        setStatusMessage('Scan permission required');
+        console.info('[BearoundValidation] scan blocked by permissions');
+        return;
+      }
       await BeAround.startScanning();
 
-      // NOTE: push is app-level now — the SDK no longer posts notifications.
+      // NOTE: push is app-level now, the SDK no longer posts notifications.
       // Android: keep the process alive in background via the foreground service.
       // No config: the notification shows just the app name (no subtitle).
       if (Platform.OS === 'android') {
@@ -485,7 +499,7 @@ export default function App() {
       setGeofenceEvents([]);
       setLastEnteredRegionAt(null);
       setLastExitedRegionAt(null);
-      // v2.5 — reset two-eyes session counters
+      // v2.5, reset two-eyes session counters
       setLocationEnterCount(0);
       setBtZoneEnterCount(0);
       setIsInBluetoothZone(false);
@@ -496,6 +510,7 @@ export default function App() {
 
       const scanning = await BeAround.isScanning();
       setIsScanning(scanning);
+      console.info('[BearoundValidation] scanning', scanning);
       setStatusMessage(scanning ? 'Scaneando...' : 'Parado');
     } catch (error) {
       const message =
@@ -509,6 +524,10 @@ export default function App() {
     setLastError(null);
     try {
       await BeAround.stopScanning();
+      console.info(
+        '[BearoundValidation] stopped',
+        !(await BeAround.isScanning())
+      );
       setIsScanning(false);
       setBeacons([]);
       setStatusMessage('Parado');
@@ -527,9 +546,10 @@ export default function App() {
 
     const beaconsSub = addBeaconsListener((items) => {
       setBeacons(items);
+      console.info('[BearoundValidation] beacon callback', items.length);
       setLastScanTime(new Date());
 
-      // v2.5 — accumulate unique beacon keys per eye (iOS discoverySources).
+      // v2.5, accumulate unique beacon keys per eye (iOS discoverySources).
       const locHits: string[] = [];
       const btHits: string[] = [];
       items.forEach((b) => {
@@ -562,6 +582,12 @@ export default function App() {
     });
 
     const syncLifecycleSub = addSyncLifecycleListener((event) => {
+      console.info(
+        '[BearoundValidation] sync',
+        event.type,
+        event.beaconCount,
+        event.success
+      );
       if (event.type === 'started') {
         syncStartRef.current = Date.now();
         setLastSyncCount(event.beaconCount);
@@ -583,7 +609,7 @@ export default function App() {
             : `${durationMs}ms`;
         const enteredLabel = enteredAt
           ? new Date(enteredAt).toLocaleTimeString('pt-BR', { hour12: false })
-          : '—';
+          : ',';
 
         if (event.success) {
           setLastError(null);
@@ -608,6 +634,7 @@ export default function App() {
 
     const scanningSub = addScanningListener((scanning) => {
       setIsScanning(scanning);
+      console.info('[BearoundValidation] scanning', scanning);
       setStatusMessage(scanning ? 'Scaneando...' : 'Parado');
       pushLog('Scan', scanning ? 'Iniciado' : 'Parado');
       if (!scanning) {
@@ -616,6 +643,7 @@ export default function App() {
     });
 
     const errorSub = addErrorListener((error) => {
+      console.error('[BearoundValidation] native error', error.message);
       setLastError(error.message);
       setStatusMessage(`Erro: ${error.message}`);
       pushLog('Erro', error.message);
@@ -640,7 +668,7 @@ export default function App() {
       }
     });
 
-    // v2.5 — Bluetooth "two eyes" zone (iOS-only; never fires on Android)
+    // v2.5, Bluetooth "two eyes" zone (iOS-only; never fires on Android)
     const btZoneSub = addBluetoothZoneListener((event) => {
       if (event.type === 'enter') {
         setIsInBluetoothZone(true);
@@ -664,7 +692,7 @@ export default function App() {
       setBtNextIdleScanAt(event.nextIdleScanAt ?? null);
     });
 
-    // Bluetooth eye availability — independent of location.
+    // Bluetooth eye availability, independent of location.
     getBluetoothState()
       .then(setBluetoothState)
       .catch(() => null);
@@ -676,12 +704,15 @@ export default function App() {
         event.isActive ? 'scan-active' : 'scan-paused',
         event.isActive
           ? 'Scan ativo (ranging + BLE) LIGADO'
-          : 'Scan ativo DESLIGADO — só monitoring de região'
+          : 'Scan ativo DESLIGADO, só monitoring de região'
       );
     });
 
     getSdkVersion()
-      .then(setSdkVersion)
+      .then((version) => {
+        setSdkVersion(version);
+        console.info('[BearoundValidation] native version', version);
+      })
       .catch(() => null);
 
     return () => {
@@ -715,6 +746,9 @@ export default function App() {
       <View style={styles.appBar}>
         <Text style={styles.appBarTitle}>BeAroundScan</Text>
         <Text style={styles.appBarSubtitle}>{statusMessage}</Text>
+        <Text style={styles.appBarSubtitle}>
+          Native SDK: {sdkVersion || 'Loading'}
+        </Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>

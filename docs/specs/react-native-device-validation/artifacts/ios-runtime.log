@@ -1,0 +1,9 @@
+2026-10-19 04:38:42.817 BearoundReactSdkExample[8264:2446913] '[BearoundValidation] native version', '3.18.0'
+2026-10-19 04:38:42.817 BearoundReactSdkExample[8264:2446913] [BearoundValidation] configured
+2026-10-19 04:38:42.858 BearoundReactSdkExample[8264:2446913] '[BearoundValidation] scanning', false
+2026-10-19 04:38:42.858 BearoundReactSdkExample[8264:2446913] '[BearoundValidation] scanning', true
+2026-10-19 04:38:42.858 BearoundReactSdkExample[8264:2446913] '[BearoundValidation] scanning', true
+2026-10-19 04:38:42.909 BearoundReactSdkExample[8264:2446913] '[BearoundValidation] permissions', '{"fineLocation":true,"btScan":true,"btConnect":true,"btAdvertise":true,"notifications":false,"backgroundLocation":true}'
+2026-10-19 04:38:42.930 BearoundReactSdkExample[8264:2446913] '[BearoundValidation] scanning', true
+2026-10-19 04:38:42.930 BearoundReactSdkExample[8264:2446913] '[BearoundValidation] scanning', true
+2026-10-19 04:38:43.748 BearoundReactSdkExample[8264:2446913] [BearoundValidation] lifecycle initial scan confirmed
