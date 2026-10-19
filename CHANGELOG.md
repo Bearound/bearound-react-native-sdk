@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve an absent sync error when the native bridge sends `null`, instead of
   exposing the misleading string `"null"` after a successful sync.
 
+- Finish iOS configuration before resolving its Promise, so immediate state queries
+  cannot observe an unfinished main-thread setup.
 - Require foreground location before requesting Android background location on
   every supported API level, including Android 12+.
 - Align the Wi-Fi manifest with the native SDK and document precise-location,
