@@ -761,41 +761,45 @@ describe('Permission Management', () => {
         expect(result).toBe(false);
       });
 
-      it('should return false if foreground location not granted on Android 29-30', async () => {
-        jest.resetModules();
-        jest.doMock('react-native', () => ({
-          get Platform() {
-            return {
-              get OS() {
-                return 'android';
-              },
-              get Version() {
-                return 30;
-              },
-            };
-          },
-          NativeModules: { BearoundReactSdk: {} },
-          NativeEventEmitter: jest.fn(() => ({
-            addListener: jest.fn(() => ({ remove: jest.fn() })),
-          })),
-          PermissionsAndroid: mockPermissionsAndroid,
-          Linking: mockLinking,
-          TurboModuleRegistry: {
-            getEnforcing: jest.fn(() => mockNativeModule),
-          },
-        }));
-        jest.doMock('../NativeBearoundReactSdk', () => ({
-          __esModule: true,
-          default: mockNativeModule,
-        }));
-        // Mock no fine/coarse location granted
-        mockPermissionsAndroid.check.mockResolvedValue(false);
+      it.each([29, 30, 31, 33, 36])(
+        'does not request background location without a foreground grant on API %i',
+        async (api) => {
+          jest.resetModules();
+          jest.doMock('react-native', () => ({
+            get Platform() {
+              return {
+                get OS() {
+                  return 'android';
+                },
+                get Version() {
+                  return api;
+                },
+              };
+            },
+            NativeModules: { BearoundReactSdk: {} },
+            NativeEventEmitter: jest.fn(() => ({
+              addListener: jest.fn(() => ({ remove: jest.fn() })),
+            })),
+            PermissionsAndroid: mockPermissionsAndroid,
+            Linking: mockLinking,
+            TurboModuleRegistry: {
+              getEnforcing: jest.fn(() => mockNativeModule),
+            },
+          }));
+          jest.doMock('../NativeBearoundReactSdk', () => ({
+            __esModule: true,
+            default: mockNativeModule,
+          }));
+          // Mock no fine/coarse location granted
+          mockPermissionsAndroid.check.mockResolvedValue(false);
 
-        const { requestBackgroundLocation } = require('../permissions');
-        const result = await requestBackgroundLocation();
+          const { requestBackgroundLocation } = require('../permissions');
+          const result = await requestBackgroundLocation();
 
-        expect(result).toBe(false);
-      });
+          expect(result).toBe(false);
+          expect(mockPermissionsAndroid.request).not.toHaveBeenCalled();
+        }
+      );
     });
 
     describe('iOS', () => {
@@ -836,6 +840,16 @@ describe('Permission Management', () => {
 
         expect(mockNativeModule.requestPermissions).toHaveBeenCalled();
       });
+
+      it.each(['whenInUse', 'denied', 'notDetermined'])(
+        'does not report iOS background access for %s',
+        async (status) => {
+          mockNativeModule.requestPermissions.mockResolvedValue(true);
+          mockNativeModule.getAuthorizationStatus.mockResolvedValue(status);
+          const { requestBackgroundLocation } = require('../permissions');
+          expect(await requestBackgroundLocation()).toBe(false);
+        }
+      );
 
       it('should return native result on iOS', async () => {
         mockNativeModule.requestPermissions.mockResolvedValue(false);

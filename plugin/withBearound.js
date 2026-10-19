@@ -24,8 +24,6 @@ const {
   withInfoPlist,
 } = require('@expo/config-plugins');
 
-const path = require('path');
-
 const { withBearoundAppDelegate } = require('./appDelegate');
 
 /** Prefixed so a prebuild log makes clear who is talking. */
@@ -105,34 +103,6 @@ const withBearoundInfoPlist = (config, props) =>
     return cfg;
   });
 
-/**
- * The plugin deliberately leaves every notification concern to the app —
- * expo-notifications owns the UNUserNotificationCenter delegate. Detection does
- * not depend on it, but the 3-state field test uses a local notification as its
- * only proof that the app woke up in background, so an app with no notification
- * stack can have background detection working and no way to see it.
- */
-const warnIfNoNotificationStack = (config) =>
-  withInfoPlist(config, (cfg) => {
-    try {
-      const appPkg = require(
-        path.join(cfg.modRequest.projectRoot, 'package.json')
-      );
-      const deps = { ...appPkg.dependencies, ...appPkg.devDependencies };
-      if (!deps['expo-notifications']) {
-        warn(
-          'expo-notifications is not installed. Beacon detection does not need ' +
-            'it — the SDK never posts notifications — but without it you cannot ' +
-            'see a background wake-up, which is how the 3-state field test is ' +
-            'verified. See the README, "Parity with the reference apps".'
-        );
-      }
-    } catch {
-      // No readable package.json: not worth failing a prebuild over.
-    }
-    return cfg;
-  });
-
 const withBearoundEntitlements = (config, props) =>
   withEntitlementsPlist(config, (cfg) => {
     // The connected access point is invisible to iOS apps without this entitlement.
@@ -141,7 +111,8 @@ const withBearoundEntitlements = (config, props) =>
       cfg.modResults['com.apple.developer.networking.wifi-info'] = true;
     }
 
-    // Silent push is the only vector that wakes a force-quit app. EAS Build
+    // Background push may wake a system-terminated app, not a user-force-quit app.
+    // EAS Build
     // rewrites the value to `production` for release builds; a bare
     // `expo run:ios` keeps `development` (sandbox APNs).
     if (props.apsEnvironment !== false) {
@@ -203,7 +174,6 @@ const withBearoundIosAppDelegate = (config, props) => {
  */
 const withBearound = (config, props = {}) => {
   config = withBearoundInfoPlist(config, props);
-  config = warnIfNoNotificationStack(config);
   config = withBearoundEntitlements(config, props);
   config = withBearoundIosAppDelegate(config, props);
   config = withBearoundAndroidPermissions(config, props);
