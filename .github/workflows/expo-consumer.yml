@@ -75,8 +75,22 @@ jobs:
         run: |
           npm install --no-audit --no-fund
           npm install --no-audit --no-fund "@bearound/react-native-sdk@file:$RUNNER_TEMP/bearound-sdk.tgz"
-          node -e "const fs = require('fs'); const app = JSON.parse(fs.readFileSync('app.json', 'utf8')); app.expo.plugins = ['@bearound/react-native-sdk']; fs.writeFileSync('app.json', JSON.stringify(app, null, 2));"
+          node -e "const fs = require('fs'); const app = JSON.parse(fs.readFileSync('app.json', 'utf8')); app.expo.plugins = ['@bearound/react-native-sdk']; app.expo.android = { ...app.expo.android, package: 'io.bearound.ciconsumer' }; fs.writeFileSync('app.json', JSON.stringify(app, null, 2));"
           npx expo prebuild --clean --platform android --no-install
       - name: Compile the autolinked SDK and generated Expo host
         working-directory: ${{ runner.temp }}/expo-sdk-consumer
-        run: ./android/gradlew -p android :app:assembleDebug -PreactNativeArchitectures=arm64-v8a
+        run: ./android/gradlew -p android :app:assembleDebug :app:assembleRelease -PreactNativeArchitectures=x86_64 -Dorg.gradle.jvmargs=-Xmx4g
+      - name: Enable KVM for the release startup check
+        run: sudo chmod 666 /dev/kvm
+      - name: Launch the minified consumer without Metro
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            adb install -r "$RUNNER_TEMP/expo-sdk-consumer/android/app/build/outputs/apk/release/app-release.apk"
+            adb shell am start -W -n io.bearound.ciconsumer/.MainActivity
+            sleep 10
+            adb shell pidof io.bearound.ciconsumer
