@@ -3,7 +3,7 @@
 Official SDK to integrate **Bearound's** secure BLE beacon detection into **React Native** apps (Android and iOS).
 Aligned with Bearound native SDKs **3.18.0** (exact pins live in `android/build.gradle` and `BearoundReactSdk.podspec`, kept in lockstep by `scripts/check-native-versions.mjs`).
 
-> ✅ Compatible with **New Architecture** (TurboModules) and also compatible with classic architecture.
+> Uses the **New Architecture** (TurboModules). Classic architecture is not covered by this release validation.
 
 > [!TIP]
 > **⚡ Set it up with an AI agent.** Don't wire the iOS/Android background integration by hand — hand [one prompt](./AI-AGENT-SETUP.md) to your AI coding agent (Claude Code, Cursor, Copilot) and let it pilot the whole install, pausing only for the few human-only steps. → [Set up with an AI agent](#set-up-with-an-ai-agent)
@@ -49,7 +49,7 @@ Aligned with Bearound native SDKs **3.18.0** (exact pins live in `android/build.
 * **React Native** ≥ 0.73
 * **Expo** SDK **53+** (with the [config plugin](#expo)) — dev client or EAS Build, **not** Expo Go
 * **Android**: minSdk **24+** (the library builds with `minSdkVersion 24`); Android 12+ requires the `BLUETOOTH_SCAN` runtime permission ("Nearby devices")
-* **iOS**: iOS **13+** (recommended 15+), Bluetooth and Location enabled
+* **iOS**: use the minimum supported by your React Native / Expo version and the native SDK. The podspec follows React Native's `min_ios_version_supported` (15.1 for RN 0.79). Bluetooth and Location must be enabled for their respective detection paths.
 
 > **Important:** The SDK **does not** work on iOS simulator for BLE (use physical device).
 
@@ -97,6 +97,10 @@ Two things to know before you start:
 * **Expo Go cannot run this SDK.** It bundles native code, and Expo Go only ships the modules Expo compiled into it. Use a [development build](https://docs.expo.dev/develop/development-builds/introduction/) (`npx expo run:ios` / `run:android`, or EAS Build).
 * **Under [CNG](https://docs.expo.dev/workflow/continuous-native-generation/), hand edits to `ios/` and `android/` do not survive.** `expo prebuild` regenerates those folders from your config, so anything you paste into `AppDelegate.swift` by hand is gone on the next prebuild — silently, and only background/terminated detection breaks. That is exactly what the plugin exists to prevent.
 
+The Expo consumer CI check installs a packed SDK into a fresh Expo 58 / React Native
+0.88 app and compiles its generated iOS project. Physical scan lifecycle validation
+uses a native Expo build; beacon detection still requires a compatible beacon.
+
 ### Config plugin
 
 ```bash
@@ -133,7 +137,7 @@ What it applies, on every prebuild:
 
 > **Expo's `AppDelegate` is not the bare React Native one.** It subclasses `ExpoAppDelegate`, which already implements the push, fetch and background-session callbacks and forwards them to the Expo modules in your app. So every method the plugin injects is an `override` that **calls `super`** — `expo-notifications`, `expo-background-task` and friends keep receiving everything they did before. The plugin also **never touches the `UNUserNotificationCenter` delegate**: `expo-notifications` owns it, and reassigning it would steal your app's push routing. To show notifications while the app is in the foreground, use `Notifications.setNotificationHandler()` in JS.
 
-The injected code sits between `// @generated begin bearound` / `// @generated end bearound` markers and is rewritten in place, so re-running prebuild never duplicates it. Verified against the `expo-template-bare-minimum` `AppDelegate` of **SDK 53, 54, 55, 56 and 57**.
+The injected code sits between `// @generated begin bearound` / `// @generated end bearound` markers and is rewritten in place, so re-running prebuild never duplicates it. Verified against the `expo-template-bare-minimum` `AppDelegate` of **SDK 53, 54, 55, 56, 57 and 58**.
 
 The JS side is the same as anywhere else — `configure()` on mount, then `ensurePermissions()`, then `startScanning()`: see [Quick Start](#quick-start). If your app pulls in Firebase or anything else that requires static frameworks, set `useFrameworks: "static"` via [`expo-build-properties`](https://docs.expo.dev/versions/latest/sdk/build-properties/); the SDK works either way.
 
@@ -166,7 +170,7 @@ The plugin was diffed against the two apps that are known to work in background 
 
 Waking on beacon entry, BGTasks, the silent-push wake and the background upload handoff are all driven by CoreLocation, BGTaskScheduler, APNs and `URLSession` — none of them go through `UNUserNotificationCenter`. The SDK never posts a notification; it only **reads** the authorization status for telemetry (so with no notification permission, that one telemetry field reports `denied`).
 
-> **This still costs you something concrete: your field test goes blind.** The 3-state test in [§6](#6-verify-it-works) uses a local notification as the proof that the app woke up in background. On Expo, install `expo-notifications`, request permission and set a handler — otherwise background detection may be working perfectly and you will have no way to see it.
+Use `getPersistedLog()` to inspect native background events and their app-state tags after reopening the app. `expo-notifications` is optional; install it only if the host app needs visible debug notifications. A notification alone does not prove beacon detection or server delivery.
 
 One more difference to know: `NSUserTrackingUsageDescription` is in the reference apps but is written **only if you pass `trackingUsageDescription`**. The key alone shows nothing: the SDK never raises the ATT prompt by itself, so your app must also call `requestTrackingAuthorization()` (see [Advertising identifier](#advertising-identifier-idfa--aaid)).
 
@@ -213,6 +217,8 @@ Instead of wiring the intricate iOS/Android background setup by hand, hand it to
 
 [![Agent setup prompt](https://img.shields.io/badge/Agent_setup_prompt-open_%26_copy-2563eb?style=for-the-badge)](./AI-AGENT-SETUP.md)
 
+The prompt is also included in the installed npm package as `AI-AGENT-SETUP.md`.
+
 Open [`AI-AGENT-SETUP.md`](./AI-AGENT-SETUP.md) and click the **copy icon** on its code block — GitHub shows one on every code block, and it drops the prompt on your clipboard. Then paste it into your agent with your app's repo open. Web-capable agents can fetch its [raw URL](https://raw.githubusercontent.com/Bearound/bearound-react-native-sdk/main/AI-AGENT-SETUP.md) directly.
 
 **The agent will pause for these human-only steps** — they need your Apple/Google accounts and a physical device, so no SDK or agent can do them:
@@ -244,9 +250,9 @@ For reference, the SDK declares:
 <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
     android:usesPermissionFlags="neverForLocation" tools:targetApi="s" />
 
-<!-- Location: legacy only (BLE scan on API <= 30); not requested on API 31+ -->
-<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
-<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="30" />
+<!-- Location gates BLE on API <= 30; precise location also unlocks Wi-Fi scan results. -->
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
 <!-- Foreground service: connectedDevice (BLE) on Android 14+ -->
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -289,7 +295,7 @@ _These four `NS…UsageDescription` strings appear in **your** users' iOS permis
 
 > **Important for terminated app detection:**
 > - Waking the app on beacon detection is done by **CoreLocation region monitoring** (the `location` background mode + "Always" permission) — `fetch` does **not** wake the app for beacons; it only grants periodic background windows the SDK uses to sync queued data
-> - `remote-notification` enables the **silent-push wake vector** — the only mechanism that resurrects a fully terminated app (see [iOS Background Integration](#ios-background-integration-required))
+> - `remote-notification` enables the **silent-push wake vector**, an OS-controlled wake vector after system termination, not user force-quit (see [iOS Background Integration](#ios-background-integration-required))
 > - User must grant "Always" location permission
 > - User must enable "Background App Refresh" in Settings > General > Background App Refresh
 
@@ -303,13 +309,29 @@ Alongside each beacon sighting the SDK reports the **access points visible at th
 access point's hardware address, canonicalised so the same router yields the same identifier
 on both platforms.
 
-**Collection is on by default and costs you nothing extra.** No separate dialog, no Play
-policy review, no demonstration video:
+**Collection is enabled by default, but data is available only when the host grants the required permissions.** Missing permissions can produce empty Wi-Fi observations without an error:
 
 | Platform | What it reports | What you must do |
 |---|---|---|
-| **Android** | The connected access point **and its neighbours**, with RSSI | Nothing — `requestPermissions()` already asks for `NEARBY_WIFI_DEVICES` on 13+, in the same "Nearby devices" group as Bluetooth, so usually no second dialog appears |
+| **Android** | The connected access point **and its neighbours**, with RSSI | For neighbouring results, explicitly request **precise foreground location** (`ACCESS_FINE_LOCATION`, with coarse requested alongside it on Android 12+) and enable system Location. `ensurePermissions()` does not request location on API 31+. `NEARBY_WIFI_DEVICES` alone does not unlock `WifiManager.getScanResults()` |
 | **iOS** | Only the **connected** access point, without RSSI (there is no public API for neighbours) | Add the **Access WiFi Information** capability — one checkbox in Xcode (Signing & Capabilities → + Capability), or automatic with the [Expo config plugin](#expo) |
+
+For neighbouring Wi-Fi observations on Android, the host can request precise location
+in its permission flow (separately from the Bluetooth-only helper):
+
+```ts
+import { PermissionsAndroid } from 'react-native';
+
+const grants = await PermissionsAndroid.requestMultiple([
+  PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+  PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+]);
+const precise = grants[PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION] ===
+  PermissionsAndroid.RESULTS.GRANTED;
+// If false, keep BLE available and report Wi-Fi observations as unavailable.
+```
+
+See [Android's Wi-Fi permission requirements](https://developer.android.com/develop/connectivity/wifi/wifi-permissions).
 
 Nothing degrades if you skip the iOS capability: the field is simply omitted and every other
 feature behaves the same.
@@ -343,7 +365,8 @@ feature behaves the same.
 > import { requestBackgroundLocation } from '@bearound/react-native-sdk';
 >
 > // only AFTER foreground location has been granted (Android 11+ refuses both
-> // in a single dialog). On iOS this resolves to the "Always" authorization.
+> // in a single dialog). On iOS only an actual Always grant resolves true;
+> // requestLocationAuthorization('always') handles an upgrade, then recheck status.
 > const ok = await requestBackgroundLocation();
 > ```
 >
@@ -506,7 +529,7 @@ To fully drop the Play video, also remove the FGS permission the native SDK inje
 
 ### Mode 2 — Foreground service (`connectedDevice`)
 
-**What you gain:** continuous, low-latency detection that **survives app-kill and aggressive OEMs** (Xiaomi/Huawei/Samsung): the reliable path for continuous presence.
+**What you gain:** improved background reliability through a visible foreground service. Android and OEM battery controls can still stop the process; this is not a guarantee of uninterrupted detection or survival after force-stop.
 
 ```ts
 import { startScanning, enableForegroundScanning } from '@bearound/react-native-sdk';
@@ -528,9 +551,9 @@ await enableForegroundScanning();
 | | 🪶 Opportunistic | 🛡️ Foreground service |
 |---|---|---|
 | App in foreground | continuous | continuous |
-| App in background | opportunistic, throttled | continuous |
-| App killed / swiped away | relaunched by OS (PendingIntent) | process kept alive |
-| Aggressive OEM (Xiaomi/Huawei) | ❌ killed | ✅ survives |
+| App in background | opportunistic, throttled | improved reliability, OS-dependent |
+| Process evicted | OS may deliver PendingIntent scan | service may restart, OS-dependent |
+| OEM battery controls / force-stop | may stop detection | may also stop detection |
 | Detection latency | unpredictable (s → min) | low (per scan precision) |
 | Presence accuracy | low / medium | **high** |
 | Battery | lower | higher |
@@ -540,7 +563,7 @@ await enableForegroundScanning();
 
 ### Advanced: WorkManager (client-side)
 
-The SDK doesn't bundle WorkManager. For a predictable low-frequency sweep without a foreground service, schedule your own periodic worker (minimum interval **15 min**) that calls `startScanning()` for a short window and then `stopScanning()`. Trades latency for battery and avoids the Play video — presence lags by up to the chosen period.
+The native SDK already schedules best-effort WorkManager reconciliation. Configure `periodicReconciliationEnabled`, `periodicReconciliationIntervalMs` and `periodicScanDurationMs` rather than adding a second worker that starts and stops the same scanner. WorkManager has a 15-minute minimum interval and does not promise exact execution times.
 
 ### Silent-push wake-up (Android)
 
@@ -578,7 +601,7 @@ The snippets below are the example app **verbatim**: §1 is the **complete** `Ap
 This is the **complete** `AppDelegate` from the proven-working example (`example/ios/BearoundReactSdkExample/AppDelegate.swift`) — **copy it as-is** (changing only the module name, marked below). Every method here is load-bearing for background/terminated detection; nothing is optional or Firebase-specific. Two rules make it work:
 
 - **Touch `BeAroundSDK.shared` synchronously** in `didFinishLaunchingWithOptions`, before the React Native bootstrap and before you `return`. Accessing it runs the SDK init, which auto-restores the saved config and **re-arms region monitoring** while the BLE state-restoration window is still open; the region-enter callback then fires asynchronously. The SDK delegate is a runtime object (not persisted), so it must be re-set **now** — deferring it to the async JS `configure()` path is too late and races the relaunch region event.
-- **The class conforms to `UNUserNotificationCenterDelegate`** and imports `UserNotifications`, so foreground banners, APNs registration, and the silent-push handler are wired **unconditionally** — not hidden behind a Firebase check. These push methods cover the **user-force-quit** resurrection vector — the one case CoreLocation region monitoring cannot wake: `registerForRemoteNotifications()` obtains the APNs token, `didRegisterForRemoteNotificationsWithDeviceToken` forwards it, and `didReceiveRemoteNotification` handles the cold-launch silent push that arrives *before* the JS swizzle installs. (Background/terminated wake on beacon **entry** is driven separately by CoreLocation region monitoring — see §2.)
+- **The class conforms to `UNUserNotificationCenterDelegate`** and imports `UserNotifications`, so foreground banners, APNs registration, and the silent-push handler are wired unconditionally. These methods handle background push when iOS permits delivery, including a cold launch after system termination. They do not guarantee relaunch after a user force-quits the app. Beacon entry uses CoreLocation region monitoring separately (see §2).
 
 ```swift
 import UIKit
@@ -629,8 +652,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
       }
     }
 
-    // Register for remote (silent) push — the ONLY vector that wakes a
-    // user-force-quit app on iOS. This triggers APNs registration; the raw
+    // Register for remote background push when iOS permits delivery.
+    // User force-quit prevents automatic relaunch. The raw
     // token arrives in didRegisterForRemoteNotificationsWithDeviceToken below.
     // Requires the app target to have the Push Notifications capability
     // (the signed `aps-environment` entitlement) — no SDK can add it for you.
@@ -810,7 +833,7 @@ Enable the **Push Notifications** capability on your app target in Xcode (Signin
 
 > **`development` vs `production` — the value matters.** `aps-environment` selects the APNs environment: `development` = **sandbox** (debug builds installed from Xcode / `devicectl`), `production` = **production** APNs. **TestFlight and App Store builds use the production environment**, so a distribution build needs `aps-environment` = `production` — a build shipped with `development` registers its token on the wrong server and the silent-push wake **silently fails in production only**. The robust setup drives the value **per build configuration** (`development` in Debug, `production` in Release) via a build-setting variable (`aps-environment = $(APS_ENVIRONMENT)`) or a separate Release entitlements file. The bundled example uses `development` because it is only ever run as a development build.
 
-Without it, the SDK's automatic APNs token capture silently gets **no token**, and the **silent-push wake vector — the only mechanism that resurrects a fully terminated app — never works**. Everything else still compiles and runs, which is exactly why this is easy to miss.
+Without it, the SDK's automatic APNs token capture silently gets **no token**, and the **silent-push wake vector, an OS-controlled wake vector after system termination, not user force-quit, never works**. Everything else still compiles and runs, which is exactly why this is easy to miss.
 
 The capability **by itself yields no token** — something must trigger APNs registration. That trigger is the `application.registerForRemoteNotifications()` call wired in §1; without it, enabling the capability produces no APNs token and the silent-push wake vector stays dead.
 
@@ -863,7 +886,7 @@ Foreground detection working is **not** proof that background/terminated detecti
 
 * **Foreground:** walk near a real Bearound beacon — beacons appear in the list and a banner shows (proves `willPresent`).
 * **Background:** background the app, walk into range — the "App reactivated" local notification fires.
-* **Terminated:** force-quit the app (swipe up in the app switcher), then either walk into a beacon region **or** have the backend send the `bearound` silent push. Expect the "App reactivated" notification and, on next foreground, `getPersistedLog()` entries written while the app wasn't running, with `getPendingBatchCount()` draining to `0` (proves the background URLSession upload finalized via `handleEventsForBackgroundURLSession`).
+* **System terminated:** background the app and test after system eviction or a device restart. Do not equate swiping it away with system termination. Record an actual region-entry or eligible background-push wake, native persisted logs and pending-queue changes before claiming success. A user-force-quit app is not automatically relaunched for a background notification; reopen it first. See [Apple's UIApplicationDelegate documentation](https://developer.apple.com/documentation/UIKit/UIApplicationDelegate/application(_:didReceiveRemoteNotification:fetchCompletionHandler:)).
 
 ---
 
@@ -1049,75 +1072,70 @@ Left out, the notification shows the attached video with the native player contr
 Three rules the snippet below follows — all come from how the SDK actually works:
 
 1. **`configure()` runs on mount** (in a `useEffect`), **not** behind a button. The SDK's push swizzle (automatic APNs token capture + silent-push handling) only installs once `configure()` runs in the process — see [§4 of iOS Background Integration](#4-call-configure-on-app-mount).
-2. **The Android permission gate depends on the OS version.** On Android 12+ the **only** permission that unlocks scanning is `BLUETOOTH_SCAN` ("Nearby devices") — location does **not** unlock BLE scan there (the SDK declares `neverForLocation`). On Android ≤ 11 it's the opposite: location is what unlocks scanning. Do **not** gate on `btConnect`/`backgroundLocation` — the SDK doesn't need them to scan, and on 12+ they can never all be granted (the location permissions are declared with `maxSdkVersion="30"`).
-3. **Android background needs the foreground service.** For reliable background detection, call `enableForegroundScanning()` after `startScanning()` — it's what the proven-working example does. The opportunistic default is throttled by the OS and killed outright by aggressive OEMs (Xiaomi/Huawei/Samsung). It shows a persistent notification and needs a Play Console declaration + demo video — see [Scan modes](#scan-modes-android).
+2. **The Android permission gate depends on the OS version.** On Android 12+ the **only** permission that unlocks scanning is `BLUETOOTH_SCAN` ("Nearby devices"), location does **not** unlock BLE scan there (the SDK declares `neverForLocation`). On Android ≤ 11 it's the opposite: location is what unlocks scanning. Do **not** gate on `btConnect`/`backgroundLocation`, the SDK doesn't need them to scan, and those fields may legitimately be false in a Bluetooth-only integration.
+3. **Choose the Android scan mode explicitly.** The default is opportunistic. If the product requires a foreground service, call `enableForegroundScanning()` after `startScanning()` and surface any failure. It shows a persistent notification; OS/OEM limits still apply. See [Scan modes](#scan-modes-android).
 
 ```tsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, Button, View, Platform } from 'react-native';
 import * as BeAround from '@bearound/react-native-sdk';
-import { ensurePermissions } from '@bearound/react-native-sdk';
+
+// Choose this with the product owner; the default is opportunistic scanning.
+const useForegroundService = false;
 
 export default function App() {
+  const [configured, setConfigured] = useState(false);
+
   useEffect(() => {
-    // On mount — installs the push swizzle in every process, including
-    // background relaunches where the user never taps anything.
-    BeAround.configure({
-      businessToken: 'your-business-token',
-      scanPrecision: BeAround.ScanPrecision.HIGH,
-      maxQueuedPayloads: BeAround.MaxQueuedPayloads.MEDIUM,
-    });
+    void BeAround.configure({ businessToken: 'your-business-token' })
+      .then(() => setConfigured(true))
+      .catch(error => Alert.alert('SDK configuration failed', String(error)));
   }, []);
 
   const start = async () => {
-    // askBackground: false — background location is NOT needed for scanning.
-    // Only pass true if your app declares ACCESS_BACKGROUND_LOCATION itself
-    // (the SDK doesn't); otherwise the request is auto-denied and the helper
-    // bounces the user to Settings.
-    const status = await ensurePermissions({ askBackground: false });
-
-    const ok =
-      Platform.OS === 'android'
-        ? Number(Platform.Version) >= 31
-          ? status.btScan // Android 12+: BLUETOOTH_SCAN is the only scan gate
-          : status.fineLocation // Android ≤ 11: location unlocks BLE scan
-        : true; // iOS: either eye works (Location OR Bluetooth) — don't hard-block
-
-    if (!ok) {
-      Alert.alert(
-        'Permissions',
-        Number(Platform.Version) >= 31
-          ? 'Allow "Nearby devices" to detect beacons.'
-          : 'Allow Location to detect beacons.'
-      );
-      return;
+    if (!configured) return;
+    try {
+      const status = await BeAround.ensurePermissions({ askBackground: false });
+      const allowed = Platform.OS !== 'android' ||
+        (Number(Platform.Version) >= 31 ? status.btScan : status.fineLocation);
+      if (!allowed) {
+        Alert.alert('Permissions', 'Grant the scan permission before starting.');
+        return;
+      }
+      if (Platform.OS === 'ios') {
+        await BeAround.requestLocationAuthorization('always');
+        if (await BeAround.getAuthorizationStatus() !== 'always') {
+          Alert.alert('Background access', 'Always location is not granted. Region wake remains unavailable.');
+        }
+      }
+      await BeAround.startScanning();
+      if (Platform.OS === 'android' && useForegroundService) {
+        await BeAround.enableForegroundScanning();
+      }
+      Alert.alert('Bearound', 'Scanning started. Detection still requires a compatible beacon.');
+    } catch (error) {
+      Alert.alert('SDK start failed', String(error));
     }
-
-    await BeAround.startScanning();
-    if (Platform.OS === 'android') {
-      // Reliable background detection on Android — the opportunistic default is
-      // throttled by the OS and killed by aggressive OEMs. Android 13+: also
-      // check status.notifications so the persistent notification is visible.
-      await BeAround.enableForegroundScanning().catch(() => null);
-    }
-    Alert.alert('Bearound', 'SDK started successfully');
   };
 
   const stop = async () => {
-    await BeAround.stopScanning();
-    Alert.alert('Bearound', 'SDK stopped');
+    try { await BeAround.stopScanning(); }
+    catch (error) { Alert.alert('SDK stop failed', String(error)); }
   };
 
-  return (
-    <View style={{ padding: 24 }}>
-      <Button title="Start SDK" onPress={start} />
-      <Button title="Stop SDK" onPress={stop} />
-    </View>
-  );
+  return <View style={{ padding: 24 }}>
+    <Button title="Start SDK" disabled={!configured} onPress={start} />
+    <Button title="Stop SDK" disabled={!configured} onPress={stop} />
+  </View>;
 }
 ```
 
 ---
+
+A resolved `startScanning()` means the native start request was accepted. Native
+stop/flush/restart transitions may settle asynchronously. Observe
+`addScanningListener()` and, when verifying transitions, wait for the expected
+`isScanning()` state with a bounded timeout. A scan state is not proof of detection.
 
 ## API
 
@@ -1350,28 +1368,20 @@ requestForegroundPermissions(): Promise<{
 requestBackgroundLocation(): Promise<boolean>;
 ```
 
-> **`PermissionResult` semantics on iOS:** the iOS bridge checks a single thing —
-> **location authorization** (`authorizedAlways` **or** `authorizedWhenInUse`).
-> `fineLocation`, `btScan`, `btConnect` and `backgroundLocation` all mirror that one
-> location boolean, and `notifications` is hardcoded `true` (never checked). In
-> particular:
->
-> * `btScan`/`btConnect` do **not** reflect the Bluetooth permission on iOS — use
->   [`getBluetoothState()`](#functions) instead (`'unauthorized'` means Bluetooth
->   permission was denied).
-> * `backgroundLocation: true` does **not** mean "Always" was granted — it is `true`
->   with only When-In-Use. Use `getAuthorizationStatus()` to distinguish `'always'`
->   from `'whenInUse'` (terminated-app wake-up requires **Always**).
-> * On iOS, `ensurePermissions`/`requestForegroundPermissions` trigger the system
->   location prompt (requesting Always) only while the status is `notDetermined`;
->   once denied they resolve `false` without prompting.
+> **`PermissionResult` semantics on iOS:** `fineLocation`, `btScan`, `btConnect`
+> and `btAdvertise` mirror the native location authorization boolean. They do not
+> report Bluetooth permission; use `getBluetoothState()` for that (`unauthorized`
+> means denied). `notifications` reads the actual notification authorization,
+> and `backgroundLocation` is true only when `getAuthorizationStatus()` is `always`.
+> A When-In-Use grant does not count as background authorization.
+> `ensurePermissions()` requests location while not determined. If the user grants
+> only When-In-Use, request `requestLocationAuthorization('always')` in context and
+> verify the resulting status; calling it does not prove the user granted Always.
 >
 > On Android each field reflects the real status of its permission
 > (`ACCESS_FINE_LOCATION`/`ACCESS_COARSE_LOCATION`, `BLUETOOTH_SCAN`,
 > `BLUETOOTH_CONNECT`, `POST_NOTIFICATIONS`, `ACCESS_BACKGROUND_LOCATION`), but note
-> the SDK manifest only declares the location permissions up to API 30 and does not
-> declare `ACCESS_BACKGROUND_LOCATION` — so on Android 12+ `fineLocation` and
-> `backgroundLocation` stay `false` unless your app declares them itself. Gate
+> the native SDK declares foreground location on all API levels but `ensurePermissions()` only requests it for BLE on API 30 and below. On API 31+, request precise foreground location separately for neighbouring Wi-Fi observations. `ACCESS_BACKGROUND_LOCATION` remains a host opt-in. Gate
 > scanning as shown in [Quick Start](#quick-start), not on "all fields true".
 
 > **`getBluetoothState()` on iOS — side effect:** the first call lazily creates the
@@ -1541,8 +1551,8 @@ bluetoothStateSub.remove();
 * **Physical device only** — BLE does not work on the iOS simulator.
 * Grant **Always** location: waking a terminated app on beacon entry relies on CoreLocation region monitoring, and Always is required. Check with `getAuthorizationStatus()` (must be `'always'`, not `'whenInUse'`).
 * Enable **Background App Refresh** (Settings → General → Background App Refresh, and per-app): without it the SDK's BGTasks (sync/processing) never get execution time.
-* The **silent-push wake vector** — the only mechanism that resurrects a fully terminated app — needs the Push Notifications capability and a delivered APNs token; see [iOS Background Integration](#ios-background-integration-required). If you use Firebase Messaging, forward the raw APNs token yourself via `setPushToken` (the swizzle won't fire).
-* Force-quit (swipe up in the app switcher) suspends the Bluetooth eye until the app is relaunched — by region entry (CoreLocation) or silent push.
+* The **silent-push wake vector**, an OS-controlled wake vector after system termination, not user force-quit, needs the Push Notifications capability and a delivered APNs token; see [iOS Background Integration](#ios-background-integration-required). If you use Firebase Messaging, forward the raw APNs token yourself via `setPushToken` (the swizzle won't fire).
+* After user force-quit, reopen the app before relying on background operation. Do not promise automatic relaunch from a region event or a silent push.
 * Complete the AppDelegate + Info.plist wiring (background modes, BGTask identifiers) — see [iOS Background Integration](#ios-background-integration-required).
 * **Foreground detects but background is completely dead?** Verify your app target's `Info.plist` actually contains all five `UIBackgroundModes` as a proper `<array>`. A truncated or malformed `Info.plist` (missing keys, or a partial file) still **builds and runs in the foreground**, but iOS silently drops the background modes — so scanning works while the app is open and stops the instant it's backgrounded. Confirm with `plutil -p ios/YourApp/Info.plist` (you must see `bluetooth-central`, `location`, `fetch`, `processing`, `remote-notification`) and `plutil -lint` (must print `OK`).
 

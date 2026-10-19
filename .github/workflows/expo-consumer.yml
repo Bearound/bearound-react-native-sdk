@@ -1,0 +1,125 @@
+name: Expo consumer
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      CI: 1
+      EXPO_NO_TELEMETRY: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: corepack enable
+      - run: yarn install --immutable
+      - name: Build the package a consumer installs
+        run: |
+          yarn prepare
+          yarn pack --out "$RUNNER_TEMP/bearound-sdk.tgz"
+      - name: Create a fresh pinned Expo app outside the SDK workspace
+        run: |
+          npx --yes create-expo-app@5.0.0 node_modules/expo-sdk-consumer --template expo-template-blank-typescript@58.0.24 --no-install --no-agents-md --yes
+          mv node_modules/expo-sdk-consumer "$RUNNER_TEMP/expo-sdk-consumer"
+      - name: Install the archive and generate native projects
+        working-directory: ${{ runner.temp }}/expo-sdk-consumer
+        run: |
+          npm install --no-audit --no-fund
+          npm install --no-audit --no-fund "@bearound/react-native-sdk@file:$RUNNER_TEMP/bearound-sdk.tgz"
+          node -e "const fs = require('fs'); const app = JSON.parse(fs.readFileSync('app.json', 'utf8')); app.expo.plugins = ['@bearound/react-native-sdk']; fs.writeFileSync('app.json', JSON.stringify(app, null, 2));"
+          node -p "require.resolve('@bearound/react-native-sdk/app.plugin.js')"
+          npx expo prebuild --clean --platform ios --no-install
+          cd ios
+          pod install --repo-update
+      - name: Compile the autolinked SDK and generated Expo host
+        working-directory: ${{ runner.temp }}/expo-sdk-consumer
+        run: |
+          workspace=$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)
+          test -n "$workspace"
+          scheme=$(basename "$workspace" .xcworkspace)
+          xcodebuild -workspace "$workspace" -scheme "$scheme" -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+
+  build-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: 1
+      EXPO_NO_TELEMETRY: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: corepack enable
+      - run: yarn install --immutable
+      - name: Build the package a consumer installs
+        run: |
+          yarn prepare
+          yarn pack --out "$RUNNER_TEMP/bearound-sdk.tgz"
+      - name: Create a fresh pinned Expo app outside the SDK workspace
+        run: |
+          npx --yes create-expo-app@5.0.0 node_modules/expo-sdk-consumer --template expo-template-blank-typescript@58.0.24 --no-install --no-agents-md --yes
+          mv node_modules/expo-sdk-consumer "$RUNNER_TEMP/expo-sdk-consumer"
+      - name: Install the archive and generate the Android project
+        working-directory: ${{ runner.temp }}/expo-sdk-consumer
+        run: |
+          npm install --no-audit --no-fund
+          npm install --no-audit --no-fund "@bearound/react-native-sdk@file:$RUNNER_TEMP/bearound-sdk.tgz"
+          node <<'NODE'
+          const fs = require('fs');
+          const app = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+          app.expo.plugins = ['@bearound/react-native-sdk'];
+          app.expo.android = { ...app.expo.android, package: 'io.bearound.ciconsumer' };
+          fs.writeFileSync('app.json', JSON.stringify(app, null, 2));
+          fs.writeFileSync('App.tsx', [
+            "import { useEffect, useState } from 'react';",
+            "import { Text, View } from 'react-native';",
+            "import { getSdkVersion } from '@bearound/react-native-sdk';",
+            "export default function App() {",
+            "  const [status, setStatus] = useState('SDK_NATIVE_WAITING');",
+            "  useEffect(() => { getSdkVersion().then(version => setStatus('SDK_NATIVE_READY:' + version)).catch(() => setStatus('SDK_NATIVE_FAILED')); }, []);",
+            "  return <View><Text>{status}</Text></View>;",
+            "}",
+          ].join('\n'));
+          NODE
+          npx expo prebuild --clean --platform android --no-install
+      - name: Compile the autolinked SDK and generated Expo host
+        working-directory: ${{ runner.temp }}/expo-sdk-consumer
+        run: ./android/gradlew -p android :app:assembleDebug :app:assembleRelease -PreactNativeArchitectures=x86_64 -Dorg.gradle.jvmargs=-Xmx4g
+      - name: Enable KVM for the release startup check
+        run: sudo chmod 666 /dev/kvm
+      - name: Launch the minified consumer without Metro
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            adb install -r "$RUNNER_TEMP/expo-sdk-consumer/android/app/build/outputs/apk/release/app-release.apk"
+            adb shell am start -W -n io.bearound.ciconsumer/.MainActivity
+            sleep 10
+            adb logcat -b crash -d > "$RUNNER_TEMP/bearound-ci-crash.log"
+            adb shell uiautomator dump /sdcard/bearound-ci.xml
+            adb pull /sdcard/bearound-ci.xml "$RUNNER_TEMP/bearound-ci.xml"
+            adb shell pidof io.bearound.ciconsumer
+            grep -q 'SDK_NATIVE_READY:' "$RUNNER_TEMP/bearound-ci.xml"
+            adb shell am force-stop io.bearound.ciconsumer
+            adb shell am start -W -n io.bearound.ciconsumer/.MainActivity
+            sleep 5
+            adb shell pidof io.bearound.ciconsumer
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: expo-android-startup
+          path: ${{ runner.temp }}/bearound-ci*

@@ -77,7 +77,7 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
     collectLocation: Bool,
     collectWifi: Bool
   ) {
-    DispatchQueue.main.async {
+    mainThreadSync {
       let precision = self.mapToScanPrecision(scanPrecision)
       let maxQueued = self.mapToMaxQueuedPayloads(Int(maxQueuedPayloads))
 
@@ -129,7 +129,7 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
   }
 
   public func isConfigured() -> Bool {
-    return configured
+    return mainThreadSync { self.configured }
   }
 
   public func isLocationAvailable() -> Bool {

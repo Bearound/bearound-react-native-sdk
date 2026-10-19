@@ -31,16 +31,16 @@ EXPO ROUTE (replaces steps 1, 2 and 3):
       silently absent. It applies the five UIBackgroundModes, both
       BGTaskSchedulerPermittedIdentifiers, the entitlements (aps-environment +
       Access WiFi Information) and the AppDelegate wiring on every prebuild.
-   c. Run `npx expo prebuild --clean`, then VERIFY: `plutil -p ios/*/Info.plist`
+   c. Before `prebuild --clean`, confirm native folders are generated and contain no
+      handwritten work to preserve. Run `npx expo prebuild --clean`, then VERIFY: `plutil -p ios/*/Info.plist`
       shows all five modes + both BGTask ids, and
       `grep -c "@generated begin bearound" ios/*/AppDelegate.swift` prints 2.
-   d. Do NOT reassign the UNUserNotificationCenter delegate anywhere: expo-notifications
-      owns it. The plugin leaves every notification concern to the app on purpose — the
-      SDK never posts notifications and detection does not go through them — but the
-      3-state field test uses a local notification as its ONLY proof that the app woke
-      up in background. So if the app has no notification stack yet, TELL ME, and wire
-      expo-notifications: requestPermissionsAsync() + setNotificationHandler() (banner in
-      foreground). Without it background detection can be working and be invisible.
+   d. Preserve the app's UNUserNotificationCenter delegate. If expo-notifications
+      owns it, do NOT reassign it. Beacon detection does not require notifications.
+      For background verification, inspect getPersistedLog() for actual native events
+      and app-state tags. If visible debug notifications are wanted, configure the
+      app's notification stack separately; do not make expo-notifications a prerequisite
+      for installing or running this SDK.
    e. Expo Go CANNOT run this SDK (native code). The app must run as a development
       build — `npx expo run:ios` / `run:android` or EAS Build. Say so explicitly if
       the project is currently Expo-Go-only.
@@ -87,11 +87,8 @@ EXPO ROUTE (replaces steps 1, 2 and 3):
    (io.bearound.sdk.sync, io.bearound.sdk.processing), and the NS…UsageDescription
    strings — write a user-facing rationale that matches what THIS app actually does (no
    internal jargon). Then run `plutil -lint` and confirm OK.
-   Include NSUserTrackingUsageDescription, but the key alone shows nothing: the SDK NEVER
-   raises the App Tracking Transparency prompt by itself. ASK ME where in the app flow the
-   prompt belongs, then call requestTrackingAuthorization() there, with the app in the
-   foreground. Without the key and that call, the SDK reports no advertising identifier
-   and nothing errors.
+   Include NSUserTrackingUsageDescription when advertising identifiers are used;
+   perform the common tracking setup in step 4 for BOTH bare and Expo apps.
    Data-collection switches — leave them OUT of configure(). The defaults collect
    everything (collectAdvertisingId, collectLocation and collectWifi are all true) and
    that is what you ship. Do NOT ask me what to collect and do NOT write these
@@ -110,14 +107,22 @@ EXPO ROUTE (replaces steps 1, 2 and 3):
    startScanning on the platform result — Android 12+: status.btScan; Android <=11:
    status.fineLocation; iOS: proceed. Only THEN `await startScanning()`. On Android,
    do NOT hard-code enableForegroundScanning() — ASK ME which scan mode to use: the
-   foreground-service mode (reliable background, survives OEM kills, but requires a
+   foreground-service mode (improved background reliability, still OS/OEM dependent, requires a
    Google Play connectedDevice declaration + demo video) or the opportunistic default
    (no Play video, lower battery). Call `await enableForegroundScanning()` ONLY if I
    choose the foreground service; if I do, also on Android 13+ read status.notifications
    and, if false, prompt me to enable notifications so the foreground-service
    notification is visible. Do NOT call startScanning unconditionally and do NOT skip
-   ensurePermissions — without it, iOS is foreground-only and Android 12+ detects
-   NOTHING.
+   ensurePermissions. On iOS read getAuthorizationStatus() after the request; if it
+   is not 'always', report region/background wake as unavailable. A permission request
+   is not evidence of a grant. Bluetooth foreground detection may still work.
+   Common tracking setup, including Expo: ASK ME where the ATT prompt belongs and
+   call requestTrackingAuthorization() there with the app active. The usage string
+   alone does not show the prompt. On Android, AAID additionally requires the host's
+   play-services-ads-identifier dependency and AD_ID permission (see README
+   "Advertising identifier"). For Expo/CNG add dependencies through a config plugin,
+   never by hand-editing generated Gradle. Verify the resolved dependency and merged
+   manifest; do not report an advertising identifier as available without evidence.
 
 5. Silent-push wake-up on Android (OPTIONAL — do this ONLY if the backend wakes the
    device by push; skip it otherwise). If the app uses `@react-native-firebase/messaging`,
@@ -170,12 +175,14 @@ Guardrails — follow strictly:
   On the EXPO ROUTE the first two are already written by the config plugin — what
   remains human-only there is the APNs push key (`eas credentials`, which also syncs
   the capabilities to the App ID), the on-device grants, and the Play declaration.
-- Wi-Fi collection itself is ON BY DEFAULT and costs nothing extra — no Play policy
-  review, no demonstration video. Keep it: ensurePermissions() already asks for
-  NEARBY_WIFI_DEVICES on Android 13+ inside the same "Nearby devices" group as
-  Bluetooth (usually no second dialog), and on iOS the Access WiFi Information
-  capability is one checkbox (automatic via the Expo plugin). Do not disable it and do
-  not treat it as a costly permission.
+- Wi-Fi collection is enabled by default, but permissions still govern what is
+  available. On Android 13+ ensurePermissions() asks for NEARBY_WIFI_DEVICES; that
+  alone does NOT unlock neighbouring WifiManager scan results. For Wi-Fi observations,
+  request ACCESS_FINE_LOCATION and ACCESS_COARSE_LOCATION together on Android 12+,
+  verify the precise grant and system Location, and keep BLE working if refused.
+  On iOS the Access WiFi Information entitlement is added by the Expo plugin; verify
+  location authorization too. Never promise nonempty Wi-Fi observations from a
+  successful Bluetooth permission request.
 - What DOES cost something is keeping Wi-Fi alive in the BACKGROUND, and its absence is
   INVISIBLE — the system returns empty instead of an error. Android: without
   ACCESS_BACKGROUND_LOCATION a backgrounded app gets an empty scan list and the
@@ -186,10 +193,26 @@ Guardrails — follow strictly:
   detection. So ASK ME whether background Wi-Fi matters for this app. If yes, declare
   ACCESS_BACKGROUND_LOCATION (Expo: the plugin's "backgroundWifi": true; bare: the app
   manifest — the SDK does not declare it) and call requestBackgroundLocation() AFTER
-  foreground location is granted (Android 11+ refuses both in one dialog), and use
+  precise foreground location is granted (Android 11+ refuses both in one dialog), and use
   .always on iOS. If no, leave it out — valid choice, just not a silent one. Verify
   either way in the payload: device.permissions.backgroundLocation.
 ```
 
 Web-capable agents can fetch this prompt directly from its raw URL:
 `https://raw.githubusercontent.com/Bearound/bearound-react-native-sdk/main/AI-AGENT-SETUP.md`
+
+## Verify a fresh Expo integration
+
+For an Expo consumer, install the SDK into a newly created Expo app and add its
+config plugin before prebuild. Confirm
+`require.resolve('@bearound/react-native-sdk/app.plugin.js')` succeeds. Generate
+native projects with `npx expo prebuild --clean`; do not copy the SDK example's
+AppDelegate or patch generated files to hide an integration failure. Use a native
+build because Expo Go cannot load this SDK.
+
+Record the installed Expo, React Native and SDK versions. Check native build,
+physical installation, configure, permission queries and scan start/stop separately.
+A successful scan-state query does not prove beacon detection or server delivery.
+Keep background/system-terminated wake and beacon detection unverified without
+their own observed evidence. User force-quit is different from system termination;
+background push does not automatically relaunch a user-force-quit app.

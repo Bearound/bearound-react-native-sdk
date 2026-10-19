@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Export the Expo config plugin entry point so Node can resolve
+  `@bearound/react-native-sdk/app.plugin.js` without Expo's legacy fallback.
+- Compile the iOS bridge with prebuilt React Native headers without forcing C++
+  modules, and explicitly import the Bluetooth/location types used by Swift.
+- Preserve an absent sync error when the native bridge sends `null`, instead of
+  exposing the misleading string `"null"` after a successful sync.
+
+- Preserve the WorkManager database constructor in minified Android consumers,
+  preventing an initialization crash before the host app starts.
+- Finish iOS configuration before resolving its Promise, so immediate state queries
+  cannot observe an unfinished main-thread setup.
+- Require foreground location before requesting Android background location on
+  every supported API level, including Android 12+.
+- Align the Wi-Fi manifest with the native SDK and document precise-location,
+  advertising-identifier and background execution prerequisites accurately.
+- Make the setup prompt apply ATT setup to Expo and bare apps; remove the
+  unnecessary notification-stack warning and validate fresh Expo Android builds.
+
 ## [3.18.0] - 2026-10-19
 
 Fixa os SDKs nativos 3.18.0 (CocoaPods e JitPack).

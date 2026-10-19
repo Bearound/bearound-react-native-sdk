@@ -267,15 +267,15 @@ export async function requestForegroundPermissions(): Promise<PermissionResult> 
 }
 
 /**
- * Requests background location permission for beacon detection when app is not active.
+ * Requests background location for optional Wi-Fi observations while the app is inactive.
  *
  * **Platform Support:**
  * - **Android**: Shows system dialog for background location permission (Android 10+)
  * - **iOS**: Requests location permission via native helper
  *
  * **Android Behavior:**
- * - Requires foreground location permission first (Android 10)
- * - On Android 12+, background location can be requested without foreground fine location
+ * - Requires foreground location permission first on every supported API level
+ * - Precise foreground location is required for neighbouring Wi-Fi scan results
  * - Only available on Android 10+ (API 29+)
  *
  * **Not a scan requirement.** The Bearound BLE scan does not need background
@@ -307,13 +307,14 @@ export async function requestForegroundPermissions(): Promise<PermissionResult> 
  */
 export async function requestBackgroundLocation(): Promise<boolean> {
   if (!isAndroid) {
-    return Native.requestPermissions();
+    const granted = await Native.requestPermissions();
+    return granted && (await Native.getAuthorizationStatus()) === 'always';
   }
 
   if (SDK_INT < 29) return true;
 
   const fg = await checkPermissions();
-  if (!fg.fineLocation && SDK_INT < 31) {
+  if (!fg.fineLocation) {
     return false;
   }
 
@@ -322,7 +323,7 @@ export async function requestBackgroundLocation(): Promise<boolean> {
     {
       title: 'Permissão de Localização em Segundo Plano',
       message:
-        'Para detectar beacons enquanto o app não está em uso, permita localização "sempre".',
+        'Allow background location to observe Wi-Fi networks while the app is inactive.',
       buttonPositive: 'Permitir',
       buttonNegative: 'Agora não',
     }

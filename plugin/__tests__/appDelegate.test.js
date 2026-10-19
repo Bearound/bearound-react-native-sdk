@@ -14,7 +14,7 @@ const readFixture = (sdk) =>
     'utf8'
   );
 
-const SUPPORTED_SDKS = [53, 54, 55, 56, 57];
+const SUPPORTED_SDKS = [53, 54, 55, 56, 57, 58];
 
 // The detailed assertions run against the newest template; every supported SDK
 // gets the structural pass below.
@@ -126,6 +126,18 @@ describe('withBearoundAppDelegate', () => {
       countOf(source, '{') - countOf(source, '}')
     );
     expect(withBearoundAppDelegate(result)).toBe(result);
+  });
+
+  it('preserves the Expo SDK 58 scene-based factory provider', () => {
+    const result = withBearoundAppDelegate(readFixture(58));
+
+    expect(result).toContain('ExpoAppDelegate, ExpoReactNativeFactoryProvider');
+    expect(result).toContain(
+      'let factory = ExpoReactNativeFactory(delegate: delegate)'
+    );
+    expect(result).toContain(
+      'return super.application(application, didFinishLaunchingWithOptions: launchOptions)'
+    );
   });
 
   // An app that already wired the AppDelegate by hand — or another config plugin

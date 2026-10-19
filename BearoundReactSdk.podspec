@@ -23,11 +23,11 @@ Pod::Spec.new do |s|
   s.frameworks = "CoreBluetooth", "CoreLocation", "UIKit", "Foundation"
 
   s.swift_version = '5.0'
+  # Keep C++ headers textual when React Native is supplied as a prebuilt framework.
+  # Forcing -fcxx-modules makes ReactCodegen import incomplete JSI module types.
   s.pod_target_xcconfig = {
      'CLANG_ENABLE_MODULES'  => 'YES',
      'DEFINES_MODULE'        => 'YES',
-     'OTHER_CFLAGS'          => '$(inherited) -fmodules',
-     'OTHER_CPLUSPLUSFLAGS'  => '$(inherited) -fcxx-modules -fmodules',
      # React Native 0.86 ships React-Core as a prebuilt framework whose umbrella
      # header includes non-modular headers. Compiling this pod's generated
      # `-Swift.h` against it fails with "include of non-modular header inside

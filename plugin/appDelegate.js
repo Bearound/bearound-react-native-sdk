@@ -32,7 +32,7 @@ const DID_FINISH_LAUNCHING_BLOCK = `    ${START}
     // Must run before the app finishes launching, or BGTaskScheduler rejects it.
     BeAroundSDK.shared.registerBackgroundTasks()
 
-    // Silent push is the only vector that resurrects a user-force-quit app.
+    // Background push is delivered when iOS permits; it cannot guarantee force-quit relaunch.
     // Needs the Push Notifications capability (signed aps-environment entitlement).
     application.registerForRemoteNotifications()
 

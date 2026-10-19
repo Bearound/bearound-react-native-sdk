@@ -10,7 +10,8 @@
       "types": "./lib/typescript/src/index.d.ts",
       "default": "./lib/module/index.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./app.plugin.js": "./app.plugin.js"
   },
   "files": [
     "src",
@@ -21,6 +22,7 @@
     "*.podspec",
     "react-native.config.js",
     "app.plugin.js",
+    "AI-AGENT-SETUP.md",
     "plugin",
     "!ios/build",
     "!android/build",
