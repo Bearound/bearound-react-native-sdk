@@ -399,7 +399,10 @@ const parseSyncLifecycleEvent = (event: unknown): SyncLifecycleEvent => {
     beaconCount: asNumber(payload.beaconCount),
     success:
       payload.success === undefined ? undefined : Boolean(payload.success),
-    error: payload.error === undefined ? undefined : String(payload.error),
+    error:
+      payload.error === undefined || payload.error === null
+        ? undefined
+        : String(payload.error),
   };
 };
 

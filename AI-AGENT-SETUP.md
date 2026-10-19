@@ -34,13 +34,12 @@ EXPO ROUTE (replaces steps 1, 2 and 3):
    c. Run `npx expo prebuild --clean`, then VERIFY: `plutil -p ios/*/Info.plist`
       shows all five modes + both BGTask ids, and
       `grep -c "@generated begin bearound" ios/*/AppDelegate.swift` prints 2.
-   d. Do NOT reassign the UNUserNotificationCenter delegate anywhere: expo-notifications
-      owns it. The plugin leaves every notification concern to the app on purpose — the
-      SDK never posts notifications and detection does not go through them — but the
-      3-state field test uses a local notification as its ONLY proof that the app woke
-      up in background. So if the app has no notification stack yet, TELL ME, and wire
-      expo-notifications: requestPermissionsAsync() + setNotificationHandler() (banner in
-      foreground). Without it background detection can be working and be invisible.
+   d. Preserve the app's UNUserNotificationCenter delegate. If expo-notifications
+      owns it, do NOT reassign it. Beacon detection does not require notifications.
+      For background verification, inspect getPersistedLog() for actual native events
+      and app-state tags. If visible debug notifications are wanted, configure the
+      app's notification stack separately; do not make expo-notifications a prerequisite
+      for installing or running this SDK.
    e. Expo Go CANNOT run this SDK (native code). The app must run as a development
       build — `npx expo run:ios` / `run:android` or EAS Build. Say so explicitly if
       the project is currently Expo-Go-only.
@@ -193,3 +192,19 @@ Guardrails — follow strictly:
 
 Web-capable agents can fetch this prompt directly from its raw URL:
 `https://raw.githubusercontent.com/Bearound/bearound-react-native-sdk/main/AI-AGENT-SETUP.md`
+
+## Verify a fresh Expo integration
+
+For an Expo consumer, install the SDK into a newly created Expo app and add its
+config plugin before prebuild. Confirm
+`require.resolve('@bearound/react-native-sdk/app.plugin.js')` succeeds. Generate
+native projects with `npx expo prebuild --clean`; do not copy the SDK example's
+AppDelegate or patch generated files to hide an integration failure. Use a native
+build because Expo Go cannot load this SDK.
+
+Record the installed Expo, React Native and SDK versions. Check native build,
+physical installation, configure, permission queries and scan start/stop separately.
+A successful scan-state query does not prove beacon detection or server delivery.
+Keep background/system-terminated wake and beacon detection unverified without
+their own observed evidence. User force-quit is different from system termination;
+background push does not automatically relaunch a user-force-quit app.

@@ -97,6 +97,10 @@ Two things to know before you start:
 * **Expo Go cannot run this SDK.** It bundles native code, and Expo Go only ships the modules Expo compiled into it. Use a [development build](https://docs.expo.dev/develop/development-builds/introduction/) (`npx expo run:ios` / `run:android`, or EAS Build).
 * **Under [CNG](https://docs.expo.dev/workflow/continuous-native-generation/), hand edits to `ios/` and `android/` do not survive.** `expo prebuild` regenerates those folders from your config, so anything you paste into `AppDelegate.swift` by hand is gone on the next prebuild — silently, and only background/terminated detection breaks. That is exactly what the plugin exists to prevent.
 
+The Expo consumer CI check installs a packed SDK into a fresh Expo 58 / React Native
+0.88 app and compiles its generated iOS project. Physical scan lifecycle validation
+uses a native Expo build; beacon detection still requires a compatible beacon.
+
 ### Config plugin
 
 ```bash
@@ -133,7 +137,7 @@ What it applies, on every prebuild:
 
 > **Expo's `AppDelegate` is not the bare React Native one.** It subclasses `ExpoAppDelegate`, which already implements the push, fetch and background-session callbacks and forwards them to the Expo modules in your app. So every method the plugin injects is an `override` that **calls `super`** — `expo-notifications`, `expo-background-task` and friends keep receiving everything they did before. The plugin also **never touches the `UNUserNotificationCenter` delegate**: `expo-notifications` owns it, and reassigning it would steal your app's push routing. To show notifications while the app is in the foreground, use `Notifications.setNotificationHandler()` in JS.
 
-The injected code sits between `// @generated begin bearound` / `// @generated end bearound` markers and is rewritten in place, so re-running prebuild never duplicates it. Verified against the `expo-template-bare-minimum` `AppDelegate` of **SDK 53, 54, 55, 56 and 57**.
+The injected code sits between `// @generated begin bearound` / `// @generated end bearound` markers and is rewritten in place, so re-running prebuild never duplicates it. Verified against the `expo-template-bare-minimum` `AppDelegate` of **SDK 53, 54, 55, 56, 57 and 58**.
 
 The JS side is the same as anywhere else — `configure()` on mount, then `ensurePermissions()`, then `startScanning()`: see [Quick Start](#quick-start). If your app pulls in Firebase or anything else that requires static frameworks, set `useFrameworks: "static"` via [`expo-build-properties`](https://docs.expo.dev/versions/latest/sdk/build-properties/); the SDK works either way.
 
@@ -578,7 +582,7 @@ The snippets below are the example app **verbatim**: §1 is the **complete** `Ap
 This is the **complete** `AppDelegate` from the proven-working example (`example/ios/BearoundReactSdkExample/AppDelegate.swift`) — **copy it as-is** (changing only the module name, marked below). Every method here is load-bearing for background/terminated detection; nothing is optional or Firebase-specific. Two rules make it work:
 
 - **Touch `BeAroundSDK.shared` synchronously** in `didFinishLaunchingWithOptions`, before the React Native bootstrap and before you `return`. Accessing it runs the SDK init, which auto-restores the saved config and **re-arms region monitoring** while the BLE state-restoration window is still open; the region-enter callback then fires asynchronously. The SDK delegate is a runtime object (not persisted), so it must be re-set **now** — deferring it to the async JS `configure()` path is too late and races the relaunch region event.
-- **The class conforms to `UNUserNotificationCenterDelegate`** and imports `UserNotifications`, so foreground banners, APNs registration, and the silent-push handler are wired **unconditionally** — not hidden behind a Firebase check. These push methods cover the **user-force-quit** resurrection vector — the one case CoreLocation region monitoring cannot wake: `registerForRemoteNotifications()` obtains the APNs token, `didRegisterForRemoteNotificationsWithDeviceToken` forwards it, and `didReceiveRemoteNotification` handles the cold-launch silent push that arrives *before* the JS swizzle installs. (Background/terminated wake on beacon **entry** is driven separately by CoreLocation region monitoring — see §2.)
+- **The class conforms to `UNUserNotificationCenterDelegate`** and imports `UserNotifications`, so foreground banners, APNs registration, and the silent-push handler are wired unconditionally. These methods handle background push when iOS permits delivery, including a cold launch after system termination. They do not guarantee relaunch after a user force-quits the app. Beacon entry uses CoreLocation region monitoring separately (see §2).
 
 ```swift
 import UIKit
@@ -629,8 +633,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
       }
     }
 
-    // Register for remote (silent) push — the ONLY vector that wakes a
-    // user-force-quit app on iOS. This triggers APNs registration; the raw
+    // Register for remote background push when iOS permits delivery.
+    // User force-quit prevents automatic relaunch. The raw
     // token arrives in didRegisterForRemoteNotificationsWithDeviceToken below.
     // Requires the app target to have the Push Notifications capability
     // (the signed `aps-environment` entitlement) — no SDK can add it for you.
@@ -863,7 +867,7 @@ Foreground detection working is **not** proof that background/terminated detecti
 
 * **Foreground:** walk near a real Bearound beacon — beacons appear in the list and a banner shows (proves `willPresent`).
 * **Background:** background the app, walk into range — the "App reactivated" local notification fires.
-* **Terminated:** force-quit the app (swipe up in the app switcher), then either walk into a beacon region **or** have the backend send the `bearound` silent push. Expect the "App reactivated" notification and, on next foreground, `getPersistedLog()` entries written while the app wasn't running, with `getPendingBatchCount()` draining to `0` (proves the background URLSession upload finalized via `handleEventsForBackgroundURLSession`).
+* **System terminated:** background the app and test after system eviction or a device restart. Do not equate swiping it away with system termination. Record an actual region-entry or eligible background-push wake, native persisted logs and pending-queue changes before claiming success. A user-force-quit app is not automatically relaunched for a background notification; reopen it first. See [Apple's UIApplicationDelegate documentation](https://developer.apple.com/documentation/UIKit/UIApplicationDelegate/application(_:didReceiveRemoteNotification:fetchCompletionHandler:)).
 
 ---
 

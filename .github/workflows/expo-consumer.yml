@@ -1,0 +1,46 @@
+name: Expo consumer
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      CI: 1
+      EXPO_NO_TELEMETRY: 1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: corepack enable
+      - run: yarn install --immutable
+      - name: Build the package a consumer installs
+        run: |
+          yarn prepare
+          yarn pack --out "$RUNNER_TEMP/bearound-sdk.tgz"
+      - name: Create a fresh pinned Expo app outside the SDK workspace
+        run: |
+          npx --yes create-expo-app@5.0.0 node_modules/expo-sdk-consumer --template expo-template-blank-typescript@58.0.24 --no-install --no-agents-md --yes
+          mv node_modules/expo-sdk-consumer "$RUNNER_TEMP/expo-sdk-consumer"
+      - name: Install the archive and generate native projects
+        working-directory: ${{ runner.temp }}/expo-sdk-consumer
+        run: |
+          npm install --no-audit --no-fund
+          npm install --no-audit --no-fund "@bearound/react-native-sdk@file:$RUNNER_TEMP/bearound-sdk.tgz"
+          node -e "const fs = require('fs'); const app = JSON.parse(fs.readFileSync('app.json', 'utf8')); app.expo.plugins = ['@bearound/react-native-sdk']; fs.writeFileSync('app.json', JSON.stringify(app, null, 2));"
+          node -p "require.resolve('@bearound/react-native-sdk/app.plugin.js')"
+          npx expo prebuild --clean --platform ios --no-install
+          cd ios
+          pod install --repo-update
+      - name: Compile the autolinked SDK and generated Expo host
+        working-directory: ${{ runner.temp }}/expo-sdk-consumer
+        run: |
+          workspace=$(find ios -maxdepth 1 -name '*.xcworkspace' -print -quit)
+          test -n "$workspace"
+          scheme=$(basename "$workspace" .xcworkspace)
+          xcodebuild -workspace "$workspace" -scheme "$scheme" -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build

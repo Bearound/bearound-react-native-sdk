@@ -1,3 +1,5 @@
+#import <CoreBluetooth/CoreBluetooth.h>
+#import <CoreLocation/CoreLocation.h>
 #import "BearoundReactSdk.h"
 #import "BearoundReactSdk-Swift.h"
 

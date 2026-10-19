@@ -237,6 +237,26 @@ describe('Event Listeners', () => {
       });
     });
 
+    it('treats a native null sync error as no error', () => {
+      const { addSyncLifecycleListener } = require('../index');
+      const callback = jest.fn();
+
+      addSyncLifecycleListener(callback);
+      eventCallbacks['bearound:syncLifecycle']!({
+        type: 'completed',
+        beaconCount: 0,
+        success: true,
+        error: null,
+      });
+
+      expect(callback).toHaveBeenCalledWith({
+        type: 'completed',
+        beaconCount: 0,
+        success: true,
+        error: undefined,
+      });
+    });
+
     it('should parse sync completed failure event correctly', () => {
       const { addSyncLifecycleListener } = require('../index');
       const callback = jest.fn();
