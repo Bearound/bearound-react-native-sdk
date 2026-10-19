@@ -1,7 +1,7 @@
 # 🐻 Bearound React Native SDK
 
 Official SDK to integrate **Bearound's** secure BLE beacon detection into **React Native** apps (Android and iOS).
-Aligned with Bearound native SDKs **3.17.0** (exact pins live in `android/build.gradle` and `BearoundReactSdk.podspec`, kept in lockstep by `scripts/check-native-versions.mjs`).
+Aligned with Bearound native SDKs **3.18.0** (exact pins live in `android/build.gradle` and `BearoundReactSdk.podspec`, kept in lockstep by `scripts/check-native-versions.mjs`).
 
 > ✅ Compatible with **New Architecture** (TurboModules) and also compatible with classic architecture.
 
@@ -970,18 +970,18 @@ target 'YourApp' do
 end
 
 target 'NotificationService' do
-  pod 'BearoundSDKNotificationExtensions', '3.17.0'
+  pod 'BearoundSDKNotificationExtensions', '3.18.0'
 end
 
 target 'NotificationContent' do
-  pod 'BearoundSDKNotificationExtensions', '3.17.0'
+  pod 'BearoundSDKNotificationExtensions', '3.18.0'
 end
 ```
 
 Then run `cd ios && pod install`. The extensions ship as a **separate pod**,
 `BearoundSDKNotificationExtensions`, with its own module, so it can never overwrite the app's
 `BearoundSDK.framework`. Pin it to the same version as the native SDK this package uses
-(`3.17.0`). It does **not** include the core SDK (no Bluetooth, location or background modes
+(`3.18.0`). It does **not** include the core SDK (no Bluetooth, location or background modes
 inside an extension) and only uses extension-safe APIs.
 
 > Dynamic `use_frameworks!` and `use_frameworks! :linkage => :static` both work in the
