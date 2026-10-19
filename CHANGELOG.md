@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.18.1] - 2026-10-19
+
 ### Fixed
 - Export the Expo config plugin entry point so Node can resolve
   `@bearound/react-native-sdk/app.plugin.js` without Expo's legacy fallback.
@@ -14,7 +16,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   modules, and explicitly import the Bluetooth/location types used by Swift.
 - Preserve an absent sync error when the native bridge sends `null`, instead of
   exposing the misleading string `"null"` after a successful sync.
-
 - Preserve the WorkManager database constructor in minified Android consumers,
   preventing an initialization crash before the host app starts.
 - Finish iOS configuration before resolving its Promise, so immediate state queries
