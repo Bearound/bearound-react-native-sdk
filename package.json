@@ -22,6 +22,7 @@
     "*.podspec",
     "react-native.config.js",
     "app.plugin.js",
+    "AI-AGENT-SETUP.md",
     "plugin",
     "!ios/build",
     "!android/build",
