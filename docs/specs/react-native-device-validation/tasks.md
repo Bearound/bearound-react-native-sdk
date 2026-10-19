@@ -42,7 +42,7 @@
   - kind: required
 
 ### Wave 3
-- [ ] F3-01: Validate installed consumer on physical iPhone
+- [x] F3-01: Validate installed consumer on physical iPhone
   - req: REQ-001, REQ-002, REQ-003, REQ-004
   - layer: e2e
   - deps: F2-01

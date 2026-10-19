@@ -1,6 +1,6 @@
 # React Native consumer validation, 2026-10-19
 
-SDK 3.18.0 installs and builds as a real package with React Native 0.79.2 / React 19. The physical iPhone launched the Release app and confirmed native version, configuration, permission query and scanning callbacks. Stop/restart capture is pending because the device connection dropped.
+SDK 3.18.0 installs and builds as a real package with React Native 0.79.2 / React 19. The physical iPhone launched the Release app and confirmed native version, configuration, permission query and scanning callbacks. The public JS bridge completed scan start, stop and restart, and an empty-beacon sync completed successfully. Assertions passed against the marker file retrieved from the device.
 
 ## Evidence
 
@@ -13,7 +13,9 @@ SDK 3.18.0 installs and builds as a real package with React Native 0.79.2 / Reac
 | Native version | Passed | getSdkVersion returned 3.18.0 through installed JS package |
 | Configure and scanning callback | Passed | configured marker and scanning true events in artifacts/ios-runtime.log |
 | Permissions | Observed | Existing location/background grant; iOS generic permission fields are not independent proof of each Bluetooth capability |
-| Stop/restart probe | Pending | Initial scan confirmed, then CoreDevice transport disconnected before remaining markers were captured |
+| Stop/restart probe | Passed | Ordered initial, stop and restart confirmations; false/true scanning events; no lifecycle failure/timeout marker |
+| Empty-beacon sync | Passed at client boundary | Sync completed callback with success=true and beaconCount=0; backend persistence was not inspected |
+| Persisted marker capture | Passed | Retrieved Documents/BeAroundValidation.log and asserted expected markers and lifecycle order |
 | Android arm64 Debug | Passed | Gradle BUILD SUCCESSFUL, APK produced, merged BLUETOOTH_SCAN retains neverForLocation |
 | SDK baseline | Passed | 194 tests / 7 suites before changes, project typecheck |
 | Targeted SDK regressions | Passed | 94 tests / 3 suites after example changes |
@@ -34,3 +36,13 @@ SDK 3.18.0 installs and builds as a real package with React Native 0.79.2 / Reac
 The user confirmed there is no compatible beacon available. Beacon detection and beacon-upload delivery remain unverified. This was a reinstall with existing grants, not a clean first-install permission-denial/recovery test. No physical Android, background/terminated wake, APNs end-to-end delivery, backend persistence, battery or ground-truth visit noninferiority result is claimed. The earlier adaptive-sampling physical gate is separate and remains open. This validates the tested React Native version and configuration, not every version allowed by the package peer range. The physical iPhone runs iOS 27.2 beta; compilation used the installed iPhoneOS 26.5 SDK.
 
 Raw device logs and identifiers remain local. Committed evidence includes only test markers and sanitized environment metadata. See e2e/react-native-device-validation.md for reproduction.
+
+The first console session disconnected. After reconnecting, the final build was installed and launched again; both console and persisted markers captured the full cycle. The transport failure was not treated as an SDK pass or crash.
+
+## Completion
+
+3/3 tasks and 4/4 requirement IDs covered by the recorded acceptance scope. The app process was still running when queried after the completed lifecycle. Beacon detection remains explicitly unverified because no compatible beacon was available.
+
+Profile: fast. Executed: installed-consumer preparation, SDK targeted tests, native iOS/Android builds, physical iOS feature E2E, project/consumer typechecks and scoped JS lint. Skipped: wave gates, full post-change suite, full-project lint, full E2E regression and formal review. Review skipped (profile fast); run /review to audit. The 194-test full suite was the baseline; the post-change focused run covered 94 tests.
+
+Commit: c78a95e introduced the test host and integration fixes; the subsequent evidence commit records the completed physical cycle. No deploy, package publication or main push occurred.

@@ -19,8 +19,11 @@
   "nativeVersionQuery": "passed",
   "configure": "passed",
   "scanStartAndCallback": "passed",
-  "scanStopRestart": "pending: device disconnected during observation",
+  "scanStopRestart": "passed: initial scan, stopped false-state, restarted true-state confirmed",
   "beaconDetection": "unverified: user confirms no beacon available",
   "androidPhysical": "unverified: no Android device",
-  "serverPersistence": "unverified"
+  "serverPersistence": "unverified",
+  "sync": "passed: native sync completion callback, zero beacons; server persistence not inspected",
+  "beaconCallback": "observed: empty array, not proof of detection",
+  "persistedDeviceLog": "retrieved and lifecycle assertions passed"
 }
