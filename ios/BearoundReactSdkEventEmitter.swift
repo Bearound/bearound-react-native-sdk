@@ -29,8 +29,6 @@ public class BearoundReactSdkEventEmitter: RCTEventEmitter {
       "bearound:bluetoothScanMode",
       // Bluetooth adapter state (poweredOn/off/unauthorized/...)
       "bearound:bluetoothState",
-      // App presence snapshots (opt-in, local only)
-      "bearound:appPresence",
     ]
   }
 

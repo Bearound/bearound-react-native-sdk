@@ -69,8 +69,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
       postRelaunchNotification(reason: reason)
     }
 
-    Self.installAppPresenceE2ERecordSink()
-
     let delegate = ReactNativeDelegate()
     let factory = RCTReactNativeFactory(delegate: delegate)
     delegate.dependencyProvider = RCTAppDependencyProvider()
@@ -83,48 +81,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
     factory.startReactNative(
       withModuleName: "BearoundReactSdkExample",
       in: window,
-      initialProperties: Self.appPresenceE2EProperties(),
       launchOptions: launchOptions
     )
 
     return true
-  }
-
-  /// App presence device E2E (e2e/app-presence/run.sh): on iOS the harness passes the step in
-  /// the launch environment (`xcrun devicectl device process launch -e ...`); App.tsx reads it
-  /// from the root props. A normal launch has no such props.
-  private static func appPresenceE2EProperties() -> [AnyHashable: Any]? {
-    let environment = ProcessInfo.processInfo.environment
-    guard environment["BEAROUND_APP_PRESENCE_E2E"] == "1",
-          let client = environment["BEAROUND_E2E_CLIENT"] else { return nil }
-    return ["appPresenceE2E": ["client": client, "step": environment["BEAROUND_E2E_STEP"] ?? ""]]
-  }
-
-  /// App presence device E2E: the JS records (`BEAROUND_E2E {json}` console lines) are also
-  /// appended to Library/Caches/bearound-e2e/records/rn.jsonl, which the harness pulls with
-  /// `xcrun devicectl device copy from`: the device log relay does not deliver every line.
-  private static func installAppPresenceE2ERecordSink() {
-    guard ProcessInfo.processInfo.environment["BEAROUND_APP_PRESENCE_E2E"] == "1",
-          let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
-    else { return }
-    let directory = caches.appendingPathComponent("bearound-e2e/records", isDirectory: true)
-    try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    let file = directory.appendingPathComponent("rn.jsonl")
-    let writes = DispatchQueue(label: "io.bearound.rnScanExample.appPresenceE2E")
-    let marker = "BEAROUND_E2E "
-    RCTAddLogFunction { _, _, _, _, message in
-      guard let message, let range = message.range(of: marker) else { return }
-      let line = Data((String(message[range.upperBound...]) + "\n").utf8)
-      writes.sync {
-        if !FileManager.default.fileExists(atPath: file.path) {
-          FileManager.default.createFile(atPath: file.path, contents: nil)
-        }
-        guard let handle = try? FileHandle(forWritingTo: file) else { return }
-        handle.seekToEndOfFile()
-        handle.write(line)
-        handle.closeFile()
-      }
-    }
   }
   
   // Handle background fetch - called by iOS when app needs to refresh data

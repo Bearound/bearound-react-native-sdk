@@ -20,8 +20,6 @@
  *     stack capped at {@link MAX_STACK_CHARS} chars.
  *  5. Isolated transport with a short (5 s) timeout.
  *  6. Public opt-out via {@link setErrorReportingEnabled} (default: enabled).
- *  7. An invalid app presence configuration is never reported: it is the host's input,
- *     answered to the host, and its message may carry target ids.
  */
 
 import { Platform } from 'react-native';
@@ -53,13 +51,6 @@ const SDK_STACK_MARKERS = [
   'react-native-sdk/lib/',
   'react-native-sdk/lib\\',
 ];
-
-/**
- * Rejection codes that never reach the ingest, whatever the stack. Kept in sync with
- * `APP_PRESENCE_INVALID_CONFIGURATION` in `index.tsx` (imported there from here would
- * create a cycle).
- */
-const EXCLUDED_ERROR_CODES = ['app_presence_invalid_configuration'];
 
 /** The telemetry module's own basename — excluded so reporter errors never recurse. */
 const TELEMETRY_MODULE_MARKER = 'errorReporter';
@@ -179,9 +170,6 @@ export function report(error: unknown, context: string): void {
       return;
     }
 
-    if (isExcluded(error)) {
-      return;
-    }
     const stack = stackOf(error);
     if (!isFromSdk(stack)) {
       return;
@@ -206,14 +194,6 @@ export function report(error: unknown, context: string): void {
 }
 
 // --- filtering ------------------------------------------------------------
-
-function isExcluded(error: unknown): boolean {
-  const code =
-    error && typeof error === 'object'
-      ? (error as { code?: unknown }).code
-      : undefined;
-  return typeof code === 'string' && EXCLUDED_ERROR_CODES.includes(code);
-}
 
 /**
  * True ONLY when the error ORIGINATED in this package — never a host-app error.

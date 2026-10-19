@@ -3,7 +3,6 @@ import {
   Alert,
   AppState,
   Button,
-  Linking,
   PermissionsAndroid,
   Platform,
   Pressable,
@@ -34,8 +33,6 @@ import {
   requestTrackingAuthorization,
   ScanPrecision,
   MaxQueuedPayloads,
-  type AppPresenceSnapshot,
-  type AppPresenceTarget,
   type Beacon,
   type BeaconProximity,
   type BluetoothScanMode,
@@ -183,162 +180,7 @@ async function requestTrackingIfNeeded(): Promise<void> {
   await requestTrackingAuthorization();
 }
 
-/**
- * Deep link that switches the example into the app presence device E2E mode on Android:
- * `bearound-rn-example://app-presence-e2e?client=<label>`. Each client label is its own
- * cooldown namespace. On iOS the AppDelegate passes the same switch as the `appPresenceE2E`
- * root prop, read from the launch environment.
- */
-const APP_PRESENCE_E2E_URL = 'bearound-rn-example://app-presence-e2e';
-
-type AppPresenceE2EProps = { client: string; step: string };
-
-export default function App({
-  appPresenceE2E,
-}: {
-  appPresenceE2E?: AppPresenceE2EProps;
-}) {
-  const [mode, setMode] = useState<'pending' | 'e2e' | 'example'>(
-    appPresenceE2E ? 'e2e' : 'pending'
-  );
-  const [e2eClient, setE2EClient] = useState(appPresenceE2E?.client ?? 'R');
-
-  useEffect(() => {
-    if (appPresenceE2E) return;
-    Linking.getInitialURL()
-      .then((url) => {
-        if (!url?.startsWith(APP_PRESENCE_E2E_URL)) {
-          setMode('example');
-          return;
-        }
-        const client = /[?&]client=([A-Za-z0-9._-]+)/.exec(url)?.[1];
-        if (client) setE2EClient(client);
-        setMode('e2e');
-      })
-      .catch(() => setMode('example'));
-  }, [appPresenceE2E]);
-
-  if (mode === 'pending') return null;
-  return mode === 'e2e' ? (
-    <AppPresenceE2E client={e2eClient} step={appPresenceE2E?.step} />
-  ) : (
-    <ExampleApp />
-  );
-}
-
-/** Same targets in every host of the E2E (native, Flutter, React Native). */
-const APP_PRESENCE_E2E_TARGETS: AppPresenceTarget[] = [
-  {
-    id: 'fixture',
-    iosScheme: 'bearound-presence-fixture',
-    androidPackageName: 'io.bearound.fixture.presence',
-  },
-  {
-    id: 'undeclared',
-    iosScheme: 'bearound-presence-undeclared',
-    androidPackageName: 'io.bearound.fixture.undeclared',
-  },
-  { id: 'ios-only', iosScheme: 'bearound-presence-ios-only' },
-];
-
-const emitE2E = (
-  client: string,
-  event: string,
-  snapshot: AppPresenceSnapshot | null = null,
-  code?: string,
-  step?: string
-) => {
-  const record = {
-    host: 'rn',
-    client,
-    action: 'run',
-    event,
-    snapshot,
-    ...(code === undefined ? {} : { code }),
-    ...(step === undefined ? {} : { step, epochMs: Date.now() }),
-  };
-  console.log(`BEAROUND_E2E ${JSON.stringify(record)}`);
-};
-
-/**
- * One launch of the app presence device E2E (e2e/app-presence/run.sh): configure,
- * subscribe, start scanning, report every delivery as a `BEAROUND_E2E {json}` log line,
- * then stop. No permission is requested and the device is offline: the round must not
- * depend on either. The harness asserts the records
- * (e2e/app-presence/tests/test_device_results.py).
- */
-function AppPresenceE2E({ client, step }: { client: string; step?: string }) {
-  const [status, setStatus] = useState('starting');
-
-  useEffect(() => {
-    const emit = (
-      event: string,
-      snapshot: AppPresenceSnapshot | null = null,
-      code?: string
-    ) => emitE2E(client, event, snapshot, code, step);
-    const removals: Array<() => void> = [];
-    const timers: Array<ReturnType<typeof setTimeout>> = [];
-    const sleep = (ms: number) =>
-      new Promise<void>((resolve) => {
-        timers.push(setTimeout(resolve, ms));
-      });
-
-    const run = async () => {
-      try {
-        const errors = addErrorListener((error) =>
-          emit('error', null, error.message)
-        );
-        removals.push(() => errors.remove());
-        await BeAround.configure({
-          businessToken: `e2e-rn-client-${client}`,
-          collectAdvertisingId: false,
-          collectLocation: false,
-          collectWifi: false,
-        });
-        await BeAround.configureAppPresence({
-          enabled: true,
-          targets: APP_PRESENCE_E2E_TARGETS,
-        });
-        emit('getter_start', await BeAround.getLastAppPresenceSnapshot());
-        const live = BeAround.addAppPresenceListener((snapshot) =>
-          emit('stream', snapshot)
-        );
-        removals.push(() => live.remove());
-        await BeAround.startScanning();
-        emit('started');
-        // A late listener gets the cached snapshot as a replay, without a new round.
-        await sleep(8000);
-        const late = BeAround.addAppPresenceListener((snapshot) =>
-          emit('stream_late', snapshot)
-        );
-        removals.push(() => late.remove());
-        await sleep(12000);
-        emit('getter_end', await BeAround.getLastAppPresenceSnapshot());
-        await BeAround.stopScanning();
-        emit('done');
-        setStatus('done');
-      } catch (error) {
-        // The E2E driver itself broke (not an SDK onError): the harness stops the step.
-        emit('failed', null, String(error));
-        setStatus('error');
-      }
-    };
-    run();
-
-    return () => {
-      timers.forEach(clearTimeout);
-      removals.forEach((remove) => remove());
-    };
-  }, [client, step]);
-
-  return (
-    <SafeAreaView style={styles.safe}>
-      <Text>App presence E2E: {status}</Text>
-    </SafeAreaView>
-  );
-}
-
-function ExampleApp() {
+export default function App() {
   const [scanPrecision, setScanPrecision] = useState(ScanPrecision.HIGH);
   const [maxQueuedPayloads, setMaxQueuedPayloads] = useState(
     MaxQueuedPayloads.MEDIUM

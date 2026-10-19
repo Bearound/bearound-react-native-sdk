@@ -30,11 +30,6 @@
   <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
 
 
-  <!-- App presence device E2E: the only package this example may check. -->
-  <queries>
-      <package android:name="io.bearound.fixture.presence" />
-  </queries>
-
   <application
       android:name=".MainApplication"
       android:label="@string/app_name"
@@ -53,12 +48,6 @@
         <intent-filter>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
-        </intent-filter>
-        <!-- App presence device E2E mode: bearound-rn-example://app-presence-e2e -->
-        <intent-filter>
-            <action android:name="android.intent.action.VIEW" />
-            <category android:name="android.intent.category.DEFAULT" />
-            <data android:scheme="bearound-rn-example" android:host="app-presence-e2e" />
         </intent-filter>
       </activity>
   </application>

@@ -286,26 +286,4 @@ collectAdvertisingId:(BOOL)collectAdvertisingId
   resolve(@([[RNBearoundBridge shared] openManufacturerAutostartSettings]));
 }
 
-// App presence (opt-in, local only). Additive methods; the Swift bridge reports a
-// rejected configuration as (code, message).
-- (void)configureAppPresence:(NSString *)configurationJson
-                     resolve:(RCTPromiseResolveBlock)resolve
-                      reject:(RCTPromiseRejectBlock)reject
-{
-  [[RNBearoundBridge shared] configureAppPresence:configurationJson ?: @""
-                                       completion:^(NSString *code, NSString *message) {
-    if (code != nil) {
-      reject(code, message ?: code, nil);
-    } else {
-      resolve(nil);
-    }
-  }];
-}
-
-- (void)getLastAppPresenceSnapshot:(RCTPromiseResolveBlock)resolve
-                            reject:(RCTPromiseRejectBlock)reject
-{
-  resolve([[RNBearoundBridge shared] getLastAppPresenceSnapshot]);
-}
-
 @end

@@ -110,49 +110,6 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
     }
   }
 
-  // MARK: - App presence (opt-in, local only)
-
-  /// Decodes the JS configuration and hands it to the native SDK, which owns validation,
-  /// scheduling, cache and replay. `completion(code, message)` reports a rejection;
-  /// `completion(nil, nil)` success. An invalid configuration still reaches the SDK, which
-  /// disables only this feature and drops its cached snapshot.
-  public func configureAppPresence(
-    _ configurationJson: String,
-    completion: @escaping (String?, String?) -> Void
-  ) {
-    DispatchQueue.main.async {
-      let code = AppPresenceConfigurationError.code
-      guard let configuration = try? JSONDecoder().decode(
-        AppPresenceConfiguration.self,
-        from: Data(configurationJson.utf8)
-      ) else {
-        // Wrong shape: disable only this feature (drops its cached snapshot, keeps the
-        // cooldown), like any other invalid configuration.
-        self.sdk.configureAppPresence(AppPresenceConfiguration())
-        completion(code, "\(code): configuration is not a valid app presence object")
-        return
-      }
-      var failure: String?
-      do {
-        try configuration.validate()
-      } catch {
-        failure = (error as? AppPresenceConfigurationError)?.description ?? code
-      }
-      self.sdk.configureAppPresence(configuration)
-      completion(failure == nil ? nil : code, failure)
-    }
-  }
-
-  /// Last compatible snapshot as a JSON object string (`cached == true`), or "null".
-  /// Never queries.
-  public func getLastAppPresenceSnapshot() -> String {
-    guard let snapshot = sdk.getLastAppPresenceSnapshot(),
-          let data = try? JSONEncoder().encode(snapshot),
-          let json = String(data: data, encoding: .utf8)
-    else { return "null" }
-    return json
-  }
-
   // MARK: - Diagnostic / state getters (parity with native public API)
 
   public func getSdkVersion() -> String {
@@ -628,17 +585,6 @@ public class RNBearoundBridge: NSObject, CLLocationManagerDelegate, CBCentralMan
     }
     DispatchQueue.main.async {
       BearoundReactSdkEventEmitter.emit("bearound:bluetoothScanMode", body: payload)
-    }
-  }
-
-  // App presence: live rounds and the native replay on delegate assignment. The JSON
-  // keeps explicit nulls (present/reason); a serialization failure drops only this delivery.
-  public func didUpdateAppPresence(_ snapshot: AppPresenceSnapshot) {
-    guard let data = try? JSONEncoder().encode(snapshot),
-          let body = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
-    else { return }
-    DispatchQueue.main.async {
-      BearoundReactSdkEventEmitter.emit("bearound:appPresence", body: body)
     }
   }
 
